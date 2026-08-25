@@ -1,8 +1,8 @@
 @AGENTS.md
 
-# MARKET PAPER
+# Daily Tick
 
-> Working title. 서비스명은 추후 변경 가능하며 코드상 `APP_NAME` 상수로 관리한다.
+> 서비스명은 코드상 `APP_NAME` 상수로 관리한다. 표기는 `Daily Tick`, Masthead 표시는 대문자 `DAILY TICK`.
 
 ## 0. 프로젝트 최우선 원칙
 
@@ -1239,7 +1239,7 @@ Masthead는 대문자 또는 강한 Serif Typography 사용.
 예:
 
 ```text
-MARKET PAPER
+DAILY TICK
 ```
 
 아래에 작게:
@@ -1285,7 +1285,7 @@ glassmorphism
 ```text
 ---------------------------------------------------------
 
-                    MARKET PAPER
+                     DAILY TICK
               DAILY FINANCIAL BRIEFING
 
 AUGUST 25, 2026                           NO. 001
