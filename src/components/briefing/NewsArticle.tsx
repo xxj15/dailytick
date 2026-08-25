@@ -17,7 +17,7 @@ export function NewsArticle({
     <article
       id={`news-${issue.rank}`}
       // 목차에서 건너뛸 때 붙어 있는 섹션 탭에 제목이 가리지 않게 한다
-      className="animate-panel-in scroll-mt-32 border-t border-ink pt-8 pb-14"
+      className="animate-panel-in scroll-mt-32 border-t border-ink pt-8 pb-14 first:border-t-0 first:pt-0"
       style={{ animationDelay: `${index * 70}ms` }}
     >
       <div className="flex flex-wrap items-center gap-3">
