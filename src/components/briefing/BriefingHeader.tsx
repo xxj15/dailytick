@@ -12,8 +12,8 @@ export function BriefingHeader({
       <p className="label">Today&apos;s Takeaway</p>
 
       {/* 오늘 금융시장을 한 문장으로 기억하게 만드는 자리 */}
-      <blockquote className="headline mt-5 text-2xl leading-snug sm:text-3xl">
-        {oneLiner}
+      <blockquote className="headline mt-5 max-w-3xl text-2xl leading-snug sm:text-[2rem]">
+        &ldquo;{oneLiner}&rdquo;
       </blockquote>
 
       {generatedAt && (
