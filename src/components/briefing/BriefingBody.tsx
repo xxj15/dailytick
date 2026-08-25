@@ -1,6 +1,7 @@
 import { BriefingHeader } from "@/components/briefing/BriefingHeader";
 import { BriefingTabs } from "@/components/briefing/BriefingTabs";
 import { KnowledgeSection } from "@/components/briefing/KnowledgeSection";
+import { LeadStory } from "@/components/briefing/LeadStory";
 import { NewsSection } from "@/components/briefing/NewsSection";
 import { StudyCompleteToggle } from "@/components/briefing/StudyCompleteToggle";
 import { StudyLogProvider } from "@/components/briefing/StudyLogProvider";
@@ -15,6 +16,9 @@ export function BriefingBody({
   briefing: Briefing;
   studyLog: StudyLog | null;
 }) {
+  // 오늘 가장 중요한 이슈를 1면 톱기사 자리에 먼저 건다
+  const leadIssue = briefing.newsItems[0];
+
   return (
     <StudyLogProvider date={briefing.briefingDate} initialLog={studyLog}>
       <BriefingHeader
@@ -31,6 +35,7 @@ export function BriefingBody({
             newsCount={briefing.newsItems.length}
             knowledge={<KnowledgeSection items={briefing.knowledgeItems} />}
             news={<NewsSection items={briefing.newsItems} />}
+            lead={leadIssue ? <LeadStory issue={leadIssue} /> : undefined}
           />
         </div>
 
