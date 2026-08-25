@@ -10,7 +10,7 @@ import {
 export function Masthead({ date }: { date: DateString }) {
   return (
     <header className="border-b-2 border-ink">
-      <div className="mx-auto max-w-5xl px-6">
+      <div className="mx-auto max-w-6xl px-6">
         <div className="border-b border-rule py-8 text-center sm:py-10">
           {/* 제호를 누르면 언제나 오늘 지면으로 돌아온다 */}
           <Link href="/" className="inline-block">

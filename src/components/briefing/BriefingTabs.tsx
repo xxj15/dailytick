@@ -6,7 +6,7 @@ type TabKey = "knowledge" | "news";
 
 /**
  * 증권 상식과 경제 이슈를 한 화면에 나란히 두면 어느 쪽도 눈에 들어오지 않는다.
- * 한 번에 하나씩만 읽도록 지면을 나눈다.
+ * 신문의 섹션처럼 지면을 나누고, 스크롤 중에도 어느 섹션인지 보이도록 붙여둔다.
  */
 export function BriefingTabs({
   knowledge,
@@ -22,13 +22,28 @@ export function BriefingTabs({
   const [active, setActive] = useState<TabKey>("knowledge");
 
   const tabs = [
-    { key: "knowledge" as const, label: "오늘의 증권 상식", count: knowledgeCount },
-    { key: "news" as const, label: "오늘의 경제 이슈", count: newsCount },
+    {
+      key: "knowledge" as const,
+      section: "Section 01",
+      label: "오늘의 증권 상식",
+      hint: "개념 하나를 확실히",
+      count: knowledgeCount,
+    },
+    {
+      key: "news" as const,
+      section: "Section 02",
+      label: "오늘의 경제 이슈",
+      hint: "중요한 순서대로",
+      count: newsCount,
+    },
   ];
 
   return (
     <div>
-      <div role="tablist" className="flex border-b border-rule">
+      <div
+        role="tablist"
+        className="sticky top-0 z-20 flex gap-6 border-b-2 border-ink bg-paper sm:gap-10"
+      >
         {tabs.map((tab) => {
           const selected = tab.key === active;
 
@@ -38,42 +53,67 @@ export function BriefingTabs({
               type="button"
               role="tab"
               aria-selected={selected}
-              aria-controls={`panel-${tab.key}`}
+              aria-controls="briefing-panel"
               id={`tab-${tab.key}`}
               onClick={() => setActive(tab.key)}
-              className={`-mb-px flex-1 border-b-2 px-2 py-4 text-center text-sm font-semibold sm:flex-none sm:px-8 sm:text-base ${
-                selected
-                  ? "border-ink text-ink"
-                  : "border-transparent text-ink-muted hover:text-ink"
-              }`}
+              className="group relative py-4 text-left"
             >
-              {tab.label}
-              <span className="ml-2 text-xs tabular-nums text-ink-muted">
-                {tab.count}
+              <span
+                className={`label block transition-colors duration-200 ${
+                  selected ? "text-ink" : "text-ink-muted"
+                }`}
+              >
+                {tab.section}
               </span>
+
+              <span className="mt-1 flex items-baseline gap-2">
+                <span
+                  className={`headline text-base transition-colors duration-200 sm:text-lg ${
+                    selected
+                      ? "text-ink"
+                      : "text-ink-muted group-hover:text-ink"
+                  }`}
+                >
+                  {tab.label}
+                </span>
+                <span
+                  className={`text-xs tabular-nums transition-colors duration-200 ${
+                    selected ? "text-ink" : "text-rule"
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              </span>
+
+              <span
+                className={`label mt-0.5 hidden transition-opacity duration-200 sm:block ${
+                  selected ? "opacity-100" : "opacity-0"
+                }`}
+              >
+                {tab.hint}
+              </span>
+
+              {/* 선택된 섹션 아래로 자가 밀려오듯 그어진다 */}
+              <span
+                aria-hidden
+                className={`absolute inset-x-0 -bottom-0.5 h-1 origin-left bg-ink transition-transform duration-300 ease-out ${
+                  selected ? "scale-x-100" : "scale-x-0"
+                }`}
+              />
             </button>
           );
         })}
       </div>
 
+      {/* key를 바꿔 패널을 다시 마운트한다. 섹션이 바뀐 것이 눈에 보이도록 */}
       <div
+        key={active}
         role="tabpanel"
-        id="panel-knowledge"
-        aria-labelledby="tab-knowledge"
-        hidden={active !== "knowledge"}
-        className="py-10"
+        id="briefing-panel"
+        aria-labelledby={`tab-${active}`}
+        className="animate-panel-in pt-10 pb-4"
       >
-        {knowledge}
-      </div>
-
-      <div
-        role="tabpanel"
-        id="panel-news"
-        aria-labelledby="tab-news"
-        hidden={active !== "news"}
-        className="py-10"
-      >
-        {news}
+        {active === "knowledge" ? knowledge : news}
       </div>
     </div>
   );

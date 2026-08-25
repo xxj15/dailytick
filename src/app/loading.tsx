@@ -8,7 +8,7 @@ export default function Loading() {
     <>
       <Masthead date={getTodayKST()} />
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-6" aria-busy="true">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-6" aria-busy="true">
         <div className="border-b border-rule py-12">
           <p className="label">Today&apos;s Takeaway</p>
           <div className="mt-5 space-y-3">

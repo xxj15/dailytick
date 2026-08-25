@@ -4,17 +4,21 @@ export function KnowledgeSection({ items }: { items: KnowledgeItem[] }) {
   if (items.length === 0) return null;
 
   return (
-    <section className="mx-auto max-w-3xl">
-      <div className="space-y-12">
-        {items.map((item) => (
-          <article key={item.slug}>
+    <section>
+      <div className="space-y-14">
+        {items.map((item, index) => (
+          <article
+            key={item.slug}
+            className="animate-panel-in border-t border-ink pt-8 first:border-t-0 first:pt-0"
+            style={{ animationDelay: `${index * 70}ms` }}
+          >
             <p className="label">
               Level {item.level}
               <span className="mx-2 text-rule">/</span>
               {item.category}
             </p>
 
-            <h3 className="headline mt-2 text-xl">{item.title}</h3>
+            <h3 className="headline mt-2 text-2xl">{item.title}</h3>
 
             <p className="mt-4 text-[15px] font-medium">{item.definition}</p>
             <p className="mt-3 text-[15px]">{item.explanation}</p>

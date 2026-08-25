@@ -31,7 +31,7 @@ export default async function HomePage() {
     <>
       <Masthead date={today} />
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-6">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-6">
         {briefing ? (
           <BriefingBody briefing={briefing} studyLog={studyLog} />
         ) : (

@@ -3,12 +3,23 @@ import { SourceLinks } from "@/components/briefing/SourceLinks";
 import { NEWS_CATEGORY_LABEL, NEWS_REGION_LABEL } from "@/lib/labels";
 import type { NewsIssue } from "@/types/briefing";
 
-export function NewsArticle({ issue }: { issue: NewsIssue }) {
+export function NewsArticle({
+  issue,
+  index = 0,
+}: {
+  issue: NewsIssue;
+  index?: number;
+}) {
   return (
-    <article className="border-t border-rule py-10 first:border-t-0 first:pt-0">
+    <article
+      id={`news-${issue.rank}`}
+      // 목차에서 건너뛸 때 붙어 있는 섹션 탭에 제목이 가리지 않게 한다
+      className="animate-panel-in scroll-mt-32 border-t border-ink pt-8 pb-14"
+      style={{ animationDelay: `${index * 70}ms` }}
+    >
       <div className="flex items-baseline gap-4">
         {/* 신문 기사 번호. 지면에서 순서를 먼저 읽게 한다 */}
-        <span className="headline shrink-0 text-2xl leading-none tabular-nums">
+        <span className="headline shrink-0 text-3xl leading-none tabular-nums">
           {String(issue.rank).padStart(2, "0")}
         </span>
 
