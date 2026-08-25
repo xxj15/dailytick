@@ -4,11 +4,8 @@ export function KnowledgeSection({ items }: { items: KnowledgeItem[] }) {
   if (items.length === 0) return null;
 
   return (
-    // 뉴스 지면이 길어도 개념은 화면에 남아 있게 한다. (Desktop만)
-    <section className="lg:sticky lg:top-8 lg:self-start">
-      <h2 className="label border-b border-ink pb-2">오늘의 증권 상식</h2>
-
-      <div className="mt-8 space-y-12">
+    <section className="mx-auto max-w-3xl">
+      <div className="space-y-12">
         {items.map((item) => (
           <article key={item.slug}>
             <p className="label">
