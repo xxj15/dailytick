@@ -1,6 +1,11 @@
 import "server-only";
 import { getSupabase } from "@/lib/supabase/client";
-import type { Briefing, BriefingRow, DailyBriefingContent } from "@/types/briefing";
+import type {
+  ArchiveEntry,
+  Briefing,
+  BriefingRow,
+  DailyBriefingContent,
+} from "@/types/briefing";
 import type { DateString } from "@/lib/date";
 
 const TABLE = "briefings";
@@ -58,6 +63,23 @@ export async function getPreviousBriefings(limit = 60): Promise<Briefing[]> {
 
   if (error) throw new Error(`과거 브리핑 조회 실패: ${error.message}`);
   return (data ?? []).map(toBriefing);
+}
+
+/** Archive 리스트용. 날짜와 개념 제목만 읽는다. 최신순. */
+export async function getArchiveEntries(limit = 180): Promise<ArchiveEntry[]> {
+  const { data, error } = await getSupabase()
+    .from(TABLE)
+    .select("briefing_date, knowledge_items")
+    .order("briefing_date", { ascending: false })
+    .limit(limit)
+    .returns<Pick<BriefingRow, "briefing_date" | "knowledge_items">[]>();
+
+  if (error) throw new Error(`Archive 조회 실패: ${error.message}`);
+
+  return (data ?? []).map((row) => ({
+    briefingDate: row.briefing_date,
+    knowledgeTitles: (row.knowledge_items ?? []).map((item) => item.title),
+  }));
 }
 
 /**

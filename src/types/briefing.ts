@@ -45,4 +45,10 @@ export type BriefingRow = {
   updated_at: string;
 };
 
+/** Archive 목록 한 줄. 본문 전체를 읽지 않는다. */
+export type ArchiveEntry = {
+  briefingDate: string;
+  knowledgeTitles: string[];
+};
+
 export type GenerationStatus = "running" | "success" | "failed";
