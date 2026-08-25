@@ -1,10 +1,9 @@
+import Link from "next/link";
 import { formatKoreanDate, getPublishTimeLabel, type DateString } from "@/lib/date";
 
 /**
  * 오늘 브리핑이 아직 없을 때.
- * 빈 화면 대신 상태를 설명한다.
- *
- * TODO(Day 2): Archive 구현 후 최근 브리핑을 /archive/[date] 링크로 연결한다.
+ * 빈 화면 대신 상태를 설명하고 가장 최근 브리핑으로 안내한다.
  */
 export function EmptyBriefing({
   beforePublishTime,
@@ -27,7 +26,12 @@ export function EmptyBriefing({
 
       {latestDate && (
         <p className="label mt-8">
-          가장 최근 브리핑 · {formatKoreanDate(latestDate)}
+          <Link
+            href={`/archive/${latestDate}`}
+            className="prose-link hover:text-ink"
+          >
+            가장 최근 브리핑 · {formatKoreanDate(latestDate)}
+          </Link>
         </p>
       )}
     </section>
