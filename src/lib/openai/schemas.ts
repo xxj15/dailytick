@@ -99,3 +99,96 @@ export const newsCandidateSchema = z.object({
 export const newsCandidateListSchema = z.object({
   candidates: z.array(newsCandidateSchema),
 });
+
+/* ------------------------------------------------------------------
+ * OpenAI Structured Output 전용 스키마
+ *
+ * strict 모드 제약이 위 canonical 스키마와 다르다.
+ *   - 모든 필드가 required여야 한다. `.optional()`은 SDK가 거부하므로 `.nullable()`을 쓴다.
+ *   - minItems/maximum/format 같은 제약은 지원하지 않으므로 넣지 않는다.
+ *
+ * 따라서 이 스키마는 "모양"만 강제하고,
+ * 개수·URL 형식·국내/글로벌 균형 같은 실제 규칙은 canonical 스키마가 검증한다.
+ * AI 응답은 반드시 canonical 스키마를 통과한 뒤에만 저장된다.
+ * ------------------------------------------------------------------ */
+
+const aiNewsSourceSchema = z.object({
+  publisher: z.string(),
+  title: z.string(),
+  url: z.string(),
+  publishedAt: z.string().nullable(),
+});
+
+const aiMarketImpactSchema = z.object({
+  stocks: z.string().nullable(),
+  rates: z.string().nullable(),
+  fx: z.string().nullable(),
+  industry: z.string().nullable(),
+});
+
+const aiNewsIssueSchema = z.object({
+  rank: z.number(),
+  title: z.string(),
+  region: newsRegionSchema,
+  category: newsCategorySchema,
+  whatHappened: z.string(),
+  whyImportant: z.string(),
+  marketImpact: aiMarketImpactSchema,
+  interpretation: z.string().nullable(),
+  sources: z.array(aiNewsSourceSchema),
+});
+
+const aiKnowledgeItemSchema = z.object({
+  slug: z.string(),
+  title: z.string(),
+  level: z.number(),
+  category: z.string(),
+  definition: z.string(),
+  explanation: z.string(),
+  example: z.string().nullable(),
+  securitiesPoint: z.string(),
+  interviewQuestion: z.string(),
+  keywords: z.array(z.string()),
+});
+
+/** STEP 2 응답 형식 */
+export const aiDailyBriefingSchema = z.object({
+  knowledgeItems: z.array(aiKnowledgeItemSchema),
+  newsItems: z.array(aiNewsIssueSchema),
+  oneLiner: z.string(),
+});
+
+/** STEP 1 응답 형식 */
+export const aiNewsCandidateListSchema = z.object({
+  candidates: z.array(
+    z.object({
+      title: z.string(),
+      summary: z.string(),
+      region: newsRegionSchema,
+      category: newsCategorySchema,
+      importance: z.number(),
+      sources: z.array(aiNewsSourceSchema),
+    }),
+  ),
+});
+
+/**
+ * structured output은 값이 없을 때 null을 쓰지만 canonical 스키마는 optional(undefined)을 쓴다.
+ * 저장 전에 null을 제거한다. (null을 정상값으로 쓰는 필드는 없다)
+ */
+export function stripNulls<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => stripNulls(item)) as T;
+  }
+
+  if (value !== null && typeof value === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) {
+      if (item === null) continue;
+      result[key] = stripNulls(item);
+    }
+    return result as T;
+  }
+
+  return value;
+}
