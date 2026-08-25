@@ -4,19 +4,20 @@ import type { NewsIssue } from "@/types/briefing";
 
 export function NewsSection({ items }: { items: NewsIssue[] }) {
   return (
-    <section>
+    <section className="xl:grid xl:grid-cols-[9rem_minmax(0,1fr)] xl:gap-8">
       <NewsRail
         items={items.map((issue) => ({ rank: issue.rank, title: issue.title }))}
       />
 
-      {items.map((issue, index) => (
-        <NewsArticle
-          key={`${issue.rank}-${issue.title}`}
-          issue={issue}
-          index={index}
-          next={items[index + 1]}
-        />
-      ))}
+      <div className="min-w-0">
+        {items.map((issue, index) => (
+          <NewsArticle
+            key={`${issue.rank}-${issue.title}`}
+            issue={issue}
+            index={index}
+          />
+        ))}
+      </div>
     </section>
   );
 }
