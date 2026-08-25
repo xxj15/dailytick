@@ -12,11 +12,20 @@ export function KnowledgeSection({ items }: { items: KnowledgeItem[] }) {
             className="animate-panel-in border-t border-ink pt-8 first:border-t-0 first:pt-0"
             style={{ animationDelay: `${index * 70}ms` }}
           >
-            <p className="label">
-              Level {item.level}
-              <span className="mx-2 text-rule">/</span>
-              {item.category}
-            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="label">
+                Level {item.level}
+                <span className="mx-2 text-rule">/</span>
+                {item.category}
+              </p>
+
+              {/* 왜 전에 본 개념이 또 나왔는지 알 수 있게 한다 */}
+              {item.review && (
+                <span className="label rounded-full bg-ink px-2.5 py-1 text-paper">
+                  복습
+                </span>
+              )}
+            </div>
 
             <h3 className="headline mt-2 text-2xl">{item.title}</h3>
 

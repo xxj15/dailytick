@@ -65,6 +65,12 @@ export const knowledgeItemSchema = z.object({
   interviewQuestion: z.string().min(1),
 
   keywords: z.array(z.string().min(1)),
+
+  /**
+   * 커리큘럼을 한 바퀴 돈 뒤의 복습인가.
+   * AI가 정하지 않는다. 개념을 고른 코드가 저장 직전에 적어 넣는다.
+   */
+  review: z.boolean().optional(),
 });
 
 /** STEP 2 — Daily Briefing 생성 결과 */

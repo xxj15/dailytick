@@ -61,9 +61,21 @@ export async function createDailyBriefing(
       learnedTitles,
     });
 
+    // 복습일이면 화면에도 남긴다. AI 응답이 아니라 코드가 판단한 값이다.
+    const content =
+      mode === "review"
+        ? {
+            ...generated.content,
+            knowledgeItems: generated.content.knowledgeItems.map((item) => ({
+              ...item,
+              review: true,
+            })),
+          }
+        : generated.content;
+
     const briefing = await saveBriefing({
       date,
-      content: generated.content,
+      content,
       model: getModel(),
       promptVersion: PROMPT_VERSION,
     });
