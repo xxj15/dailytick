@@ -82,6 +82,33 @@ export async function getArchiveEntries(limit = 180): Promise<ArchiveEntry[]> {
   }));
 }
 
+/** 지난 호 이동용. 기준 날짜의 앞/뒤 브리핑 날짜. 없으면 null. */
+export async function getAdjacentBriefingDates(date: DateString): Promise<{
+  prev: DateString | null;
+  next: DateString | null;
+}> {
+  const pick = async (direction: "prev" | "next") => {
+    const query = getSupabase().from(TABLE).select("briefing_date").limit(1);
+
+    const { data, error } =
+      direction === "prev"
+        ? await query
+            .lt("briefing_date", date)
+            .order("briefing_date", { ascending: false })
+            .maybeSingle<{ briefing_date: string }>()
+        : await query
+            .gt("briefing_date", date)
+            .order("briefing_date", { ascending: true })
+            .maybeSingle<{ briefing_date: string }>();
+
+    if (error) throw new Error(`인접 브리핑 조회 실패(${date}): ${error.message}`);
+    return data?.briefing_date ?? null;
+  };
+
+  const [prev, next] = await Promise.all([pick("prev"), pick("next")]);
+  return { prev, next };
+}
+
 /**
  * 브리핑 저장.
  * briefing_date에 unique constraint가 있으므로 같은 날 재실행해도 row는 하나다.

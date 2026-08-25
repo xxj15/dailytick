@@ -3,15 +3,20 @@ import { notFound } from "next/navigation";
 import { BriefingBody } from "@/components/briefing/BriefingBody";
 import { Footer } from "@/components/layout/Footer";
 import { Masthead } from "@/components/layout/Masthead";
-import { formatKoreanDate, isDateString } from "@/lib/date";
-import { getBriefingByDate } from "@/lib/supabase/briefings";
+import { formatKoreanDate, isDateString, type DateString } from "@/lib/date";
+import {
+  getAdjacentBriefingDates,
+  getBriefingByDate,
+} from "@/lib/supabase/briefings";
 import type { Briefing } from "@/types/briefing";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: PageProps<"/archive/[date]">) {
   const { date } = await params;
-  return { title: isDateString(date) ? `${formatKoreanDate(date)} 브리핑` : "Archive" };
+  return {
+    title: isDateString(date) ? `${formatKoreanDate(date)} 브리핑` : "Archive",
+  };
 }
 
 export default async function ArchiveDatePage({
@@ -35,6 +40,18 @@ export default async function ArchiveDatePage({
 
   if (!briefing && !failed) notFound();
 
+  // 이동 링크는 부가 기능이다. 실패해도 본문은 그대로 보여준다.
+  let adjacent: { prev: DateString | null; next: DateString | null } = {
+    prev: null,
+    next: null,
+  };
+
+  try {
+    adjacent = await getAdjacentBriefingDates(date);
+  } catch (error) {
+    console.error(`[archive/${date}] 인접 호 조회 실패`, error);
+  }
+
   return (
     <>
       <Masthead date={date} />
@@ -53,14 +70,33 @@ export default async function ArchiveDatePage({
           </section>
         )}
 
-        <div className="flex items-center justify-between border-t border-rule py-8">
+        <nav className="flex items-center justify-between gap-4 border-t border-rule py-8">
+          <span className="flex-1">
+            {adjacent.prev && (
+              <Link
+                href={`/archive/${adjacent.prev}`}
+                className="label prose-link hover:text-ink"
+              >
+                ← 이전 호
+              </Link>
+            )}
+          </span>
+
           <Link href="/archive" className="label prose-link hover:text-ink">
-            ← Archive
+            Archive
           </Link>
-          <Link href="/" className="label prose-link hover:text-ink">
-            오늘의 브리핑 →
-          </Link>
-        </div>
+
+          <span className="flex-1 text-right">
+            {adjacent.next && (
+              <Link
+                href={`/archive/${adjacent.next}`}
+                className="label prose-link hover:text-ink"
+              >
+                다음 호 →
+              </Link>
+            )}
+          </span>
+        </nav>
       </main>
 
       <Footer />
