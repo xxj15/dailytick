@@ -51,4 +51,18 @@ export type ArchiveEntry = {
   knowledgeTitles: string[];
 };
 
+/** 하루치 학습 기록 (완료 여부 + 메모) */
+export type StudyLog = {
+  briefingDate: string;
+  completedAt: string | null;
+  note: string | null;
+};
+
+/** study_logs 테이블 row (snake_case) */
+export type StudyLogRow = {
+  briefing_date: string;
+  completed_at: string | null;
+  note: string | null;
+};
+
 export type GenerationStatus = "running" | "success" | "failed";

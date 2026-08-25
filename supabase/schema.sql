@@ -49,3 +49,16 @@ create index if not exists generation_logs_date_idx
 -- RLS를 켜고 정책을 두지 않으면 anon key로는 아무것도 읽거나 쓸 수 없다.
 alter table briefings enable row level security;
 alter table generation_logs enable row level security;
+
+-- 오늘의 학습 기록. 브리핑 하루당 최대 한 행.
+create table if not exists study_logs (
+  briefing_date date primary key,
+
+  completed_at timestamptz,
+  note text,
+
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table study_logs enable row level security;
