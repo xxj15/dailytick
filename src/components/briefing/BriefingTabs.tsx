@@ -40,7 +40,7 @@ export function BriefingTabs({
     <div>
       <div
         role="tablist"
-        className="sticky top-0 z-20 flex gap-6 border-b-2 border-ink bg-paper sm:gap-10"
+        className="sticky top-0 z-20 flex gap-8 border-b-2 border-ink bg-paper sm:gap-12"
       >
         {tabs.map((tab) => {
           const selected = tab.key === active;
@@ -56,41 +56,44 @@ export function BriefingTabs({
               onClick={() => setActive(tab.key)}
               className="group relative py-4 text-left"
             >
-              <span
-                className={`label block transition-colors duration-200 ${
-                  selected ? "text-ink" : "text-ink-muted"
-                }`}
-              >
-                {tab.section}
-              </span>
-
-              <span className="mt-1 flex items-baseline gap-2">
-                <span
-                  className={`headline text-base transition-colors duration-200 sm:text-lg ${
-                    selected
-                      ? "text-ink"
-                      : "text-ink-muted group-hover:text-ink"
-                  }`}
-                >
-                  {tab.label}
-                </span>
-                <span
-                  className={`text-xs tabular-nums transition-colors duration-200 ${
-                    selected ? "text-ink" : "text-rule"
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              </span>
-
-
-              {/* 선택된 섹션 아래로 자가 밀려오듯 그어진다 */}
+              {/* 글자는 본문 왼쪽 선에 맞춰두고, 색만 좌우로 조금 넓게 깐다 */}
               <span
                 aria-hidden
-                className={`absolute inset-x-0 -bottom-0.5 h-1 origin-left bg-ink transition-transform duration-300 ease-out ${
-                  selected ? "scale-x-100" : "scale-x-0"
+                className={`absolute -inset-x-3 inset-y-0 transition-colors duration-200 ${
+                  selected
+                    ? "bg-muted"
+                    : "bg-transparent group-hover:bg-muted/60"
                 }`}
               />
+
+              <span className="relative block">
+                <span
+                  className={`label block transition-colors duration-200 ${
+                    selected ? "text-ink" : "text-ink-muted"
+                  }`}
+                >
+                  {tab.section}
+                </span>
+
+                <span className="mt-1 flex items-baseline gap-2">
+                  <span
+                    className={`headline text-base transition-colors duration-200 sm:text-lg ${
+                      selected
+                        ? "text-ink"
+                        : "text-ink-muted group-hover:text-ink"
+                    }`}
+                  >
+                    {tab.label}
+                  </span>
+                  <span
+                    className={`text-xs tabular-nums transition-colors duration-200 ${
+                      selected ? "text-ink" : "text-rule"
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </span>
+              </span>
             </button>
           );
         })}
