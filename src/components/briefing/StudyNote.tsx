@@ -14,7 +14,7 @@ export function StudyNote() {
       <div className="lg:border-l lg:border-rule lg:pl-6">
         <div className="flex items-baseline justify-between gap-2">
           <label htmlFor="study-note" className="label">
-            오늘의 메모
+            한 줄 메모
           </label>
 
           <span className="label" aria-live="polite">
@@ -33,8 +33,8 @@ export function StudyNote() {
           }}
           maxLength={500}
           rows={8}
-          placeholder="읽으면서 떠오른 것, 면접에서 써먹을 문장을 적어두세요."
-          className="mt-3 w-full resize-y border border-rule bg-paper p-3 text-sm leading-relaxed outline-none transition-colors duration-200 focus:border-ink"
+          placeholder="메모 남기기"
+          className="mt-3 w-full resize-y rounded-lg border border-rule bg-paper p-3 text-sm leading-relaxed outline-none transition-colors duration-200 placeholder:text-rule focus:border-ink"
         />
 
         <div className="mt-3 flex items-center justify-between gap-2">
@@ -44,7 +44,7 @@ export function StudyNote() {
             type="button"
             onClick={saveNote}
             disabled={status === "saving" || !dirty}
-            className="label border border-ink px-3 py-1.5 transition-colors duration-200 hover:bg-ink hover:text-paper disabled:border-rule disabled:text-ink-muted disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+            className="label rounded-full border border-ink px-3.5 py-1.5 transition-colors duration-200 hover:bg-ink hover:text-paper disabled:border-rule disabled:text-ink-muted disabled:hover:bg-transparent disabled:hover:text-ink-muted"
           >
             저장
           </button>
