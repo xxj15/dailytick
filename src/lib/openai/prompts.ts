@@ -11,7 +11,7 @@ import type { NewsCandidate } from "@/types/briefing";
  * Prompt는 Component가 아니라 이 파일에서만 관리한다.
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고, 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v1";
+export const PROMPT_VERSION = "v2";
 
 /** 모든 단계에 공통으로 적용되는 편집 원칙. (명세 §21) */
 const EDITOR_PRINCIPLES = `당신은 증권사 취업을 준비하는 금융 초보자를 위한 Daily Financial Editor다.
@@ -135,6 +135,8 @@ ${JSON.stringify(candidates, null, 2)}
 - marketImpact는 관련 있는 항목만 채우고 나머지는 null로 둔다. 억지로 채우지 않는다.
 - sources는 후보에 있던 URL을 그대로 쓴다. 새 URL을 만들어내지 않는다.
 - 같은 사건을 다룬 여러 기사는 하나의 이슈로 묶고 sources에 여러 개를 넣는다.
+- publisher에는 매체 이름을 하나만 쓴다. 두 매체를 "A·B"처럼 한 칸에 합치지 않는다.
+  매체가 둘이면 sources 항목을 각각 하나씩 만든다.
 - 지속되는 이슈를 다시 다룬다면 "오늘 새롭게 바뀐 점"을 반드시 밝힌다.
 
 ## 오늘 기억할 한 줄
