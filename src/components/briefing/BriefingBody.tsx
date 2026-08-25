@@ -1,4 +1,5 @@
 import { BriefingHeader } from "@/components/briefing/BriefingHeader";
+import { BriefingTabs } from "@/components/briefing/BriefingTabs";
 import { KnowledgeSection } from "@/components/briefing/KnowledgeSection";
 import { NewsSection } from "@/components/briefing/NewsSection";
 import type { Briefing } from "@/types/briefing";
@@ -12,11 +13,12 @@ export function BriefingBody({ briefing }: { briefing: Briefing }) {
         generatedAt={briefing.generatedAt}
       />
 
-      {/* Desktop 2단 (Knowledge 35% / News 65%), Mobile 1단 */}
-      <div className="grid gap-12 py-12 lg:grid-cols-[35fr_65fr] lg:gap-16">
-        <KnowledgeSection items={briefing.knowledgeItems} />
-        <NewsSection items={briefing.newsItems} />
-      </div>
+      <BriefingTabs
+        knowledgeCount={briefing.knowledgeItems.length}
+        newsCount={briefing.newsItems.length}
+        knowledge={<KnowledgeSection items={briefing.knowledgeItems} />}
+        news={<NewsSection items={briefing.newsItems} />}
+      />
     </>
   );
 }
