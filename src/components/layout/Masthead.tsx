@@ -9,7 +9,7 @@ import {
 
 export function Masthead({ date }: { date: DateString }) {
   return (
-    <header className="border-b-2 border-ink">
+    <header>
       <div className="mx-auto max-w-6xl px-6">
         {/* 신문처럼 날짜와 호수를 지면 맨 윗줄에 둔다 */}
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-rule py-3">

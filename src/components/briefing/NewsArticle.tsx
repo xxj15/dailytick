@@ -6,12 +6,9 @@ import type { NewsIssue } from "@/types/briefing";
 export function NewsArticle({
   issue,
   index = 0,
-  next,
 }: {
   issue: NewsIssue;
   index?: number;
-  /** 다음 기사로 이어 읽게 한다. 마지막 기사면 없다 */
-  next?: NewsIssue;
 }) {
   // 제목 바로 아래에 원문을 하나 걸어둔다. 나머지 출처는 기사 끝에 모은다
   const primary = issue.sources[0];
@@ -75,24 +72,6 @@ export function NewsArticle({
       )}
 
       <SourceLinks sources={issue.sources} />
-
-      {next && (
-        <a
-          href={`#news-${next.rank}`}
-          className="group mt-8 flex items-baseline gap-3 border-t border-rule pt-4"
-        >
-          <span className="label shrink-0">다음 기사</span>
-          <span className="flex-1 text-sm transition-colors duration-200 group-hover:underline">
-            {next.title}
-          </span>
-          <span
-            aria-hidden
-            className="shrink-0 text-ink-muted transition-transform duration-200 group-hover:translate-y-0.5"
-          >
-            ↓
-          </span>
-        </a>
-      )}
     </article>
   );
 }
