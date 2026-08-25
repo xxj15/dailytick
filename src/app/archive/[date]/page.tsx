@@ -8,7 +8,8 @@ import {
   getAdjacentBriefingDates,
   getBriefingByDate,
 } from "@/lib/supabase/briefings";
-import type { Briefing } from "@/types/briefing";
+import { getStudyLog } from "@/lib/supabase/study-logs";
+import type { Briefing, StudyLog } from "@/types/briefing";
 
 export const dynamic = "force-dynamic";
 
@@ -29,10 +30,12 @@ export default async function ArchiveDatePage({
 
   // DB 오류로 페이지가 500이 되지 않게 한다. '없음'(404)과 '조회 실패'는 구분한다.
   let briefing: Briefing | null = null;
+  let studyLog: StudyLog | null = null;
   let failed = false;
 
   try {
     briefing = await getBriefingByDate(date);
+    if (briefing) studyLog = await getStudyLog(date);
   } catch (error) {
     console.error(`[archive/${date}] 브리핑 조회 실패`, error);
     failed = true;
@@ -58,7 +61,7 @@ export default async function ArchiveDatePage({
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-6">
         {briefing ? (
-          <BriefingBody briefing={briefing} />
+          <BriefingBody briefing={briefing} studyLog={studyLog} />
         ) : (
           <section className="border-b border-rule py-20 text-center">
             <p className="headline text-xl sm:text-2xl">
