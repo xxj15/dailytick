@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/cron/daily-briefing",
-      "schedule": "0 22 * * *"
+      "schedule": "30 23 * * *"
     }
   ]
 }
