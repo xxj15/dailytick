@@ -2,7 +2,7 @@
  * 서비스 전역 상수.
  * 서비스명은 추후 변경 가능하므로 반드시 이 상수를 통해 참조한다.
  */
-export const APP_NAME = "MARKET PAPER";
+export const APP_NAME = "Daily Tick";
 export const APP_TAGLINE = "DAILY FINANCIAL BRIEFING";
 export const APP_DESCRIPTION =
   "증권사 취준생을 위한 개인화 데일리 금융 학습 서비스";
