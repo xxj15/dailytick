@@ -12,10 +12,19 @@
   --color-rule: #e5e5e5;
   --color-muted: #f5f5f5;
 
-  --font-serif: var(--font-noto-serif-kr), "Times New Roman", serif;
+  /* 제목·본문 모두 Pretendard 하나로 통일한다. */
   --font-sans:
     "Pretendard Variable", Pretendard, system-ui, -apple-system, "Segoe UI",
     sans-serif;
+  --font-serif: var(--font-sans);
+}
+
+/* 폼 컨트롤은 body에서 font-family를 상속받지 않으므로 따로 지정한다 */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
 body {
@@ -41,7 +50,7 @@ body {
 }
 
 .headline {
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.3;
