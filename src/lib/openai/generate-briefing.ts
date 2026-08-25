@@ -8,8 +8,27 @@ import {
   dailyBriefingSchema,
   stripNulls,
 } from "@/lib/openai/schemas";
-import type { DailyBriefingContent, NewsCandidate } from "@/types/briefing";
+import type {
+  DailyBriefingContent,
+  NewsCandidate,
+  NewsIssue,
+} from "@/types/briefing";
 import { zodTextFormat } from "openai/helpers/zod";
+
+/**
+ * 국내(KR) 이슈를 앞, 글로벌(GLOBAL) 이슈를 뒤로 정렬하고 rank를 1부터 다시 매긴다.
+ * 같은 지역 안에서는 AI가 매긴 시장 영향도 순서를 그대로 둔다.
+ *
+ * 프롬프트로도 같은 지시를 하지만, AI 응답을 그대로 신뢰하지 않는다.
+ */
+function orderNewsIssues(items: NewsIssue[]): NewsIssue[] {
+  const byRank = [...items].sort((a, b) => a.rank - b.rank);
+
+  return [
+    ...byRank.filter((item) => item.region === "KR"),
+    ...byRank.filter((item) => item.region !== "KR"),
+  ].map((item, index) => ({ ...item, rank: index + 1 }));
+}
 
 export type GenerateBriefingParams = {
   date: DateString;
@@ -77,7 +96,10 @@ ${lastError}`;
 
     if (parsed.success) {
       return {
-        content: parsed.data,
+        content: {
+          ...parsed.data,
+          newsItems: orderNewsIssues(parsed.data.newsItems),
+        },
         inputTokens,
         outputTokens,
         attempts: attempt,

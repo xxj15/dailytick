@@ -1,6 +1,7 @@
 import {
   NEWS_CANDIDATE_COUNT,
   NEWS_PER_DAY,
+  PREFERRED_PUBLISHERS,
   USER_PROFILE,
 } from "@/config/app";
 import type { CurriculumConcept } from "@/data/curriculum";
@@ -11,7 +12,7 @@ import type { NewsCandidate } from "@/types/briefing";
  * Prompt는 Component가 아니라 이 파일에서만 관리한다.
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고, 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v3";
+export const PROMPT_VERSION = "v4";
 
 /** 모든 단계에 공통으로 적용되는 편집 원칙. (명세 §21) */
 const EDITOR_PRINCIPLES = `당신은 증권사 취업을 준비하는 금융 초보자를 위한 Daily Financial Editor다.
@@ -50,6 +51,17 @@ const NEWS_CRITERIA = `우선순위가 높은 주제:
 판단 기준: 시장 파급력 / 최신성 / 한국 투자자 관련성 / 글로벌 영향력 /
 금리·주식·환율 연결 가능성 / 증권사 면접 활용 가능성`;
 
+/** 명세 §17. 어떤 매체를 인용할 것인가. */
+const SOURCE_PREFERENCE = `출처 선호 순서:
+1. 국내 경제지 (최우선): ${PREFERRED_PUBLISHERS.kr.join(" / ")}
+2. 공식 발표 자료: ${PREFERRED_PUBLISHERS.official.join(" / ")}
+3. 해외 매체 (보조): ${PREFERRED_PUBLISHERS.global.join(" / ")}
+
+독자는 한국 증권시장을 기준으로 읽는다. 따라서 글로벌 이슈라도
+국내 경제지가 이미 보도했다면 그 기사를 대표 출처로 삼는다.
+해외 매체는 국내 보도가 없거나, 수치·원문을 확인해야 할 때 함께 붙인다.
+개인 블로그, 커뮤니티, 유튜브, 요약 사이트는 출처로 쓰지 않는다.`;
+
 /** STEP 1 — 최신 뉴스 후보 수집. */
 export function buildNewsCollectionPrompt(date: DateString): string {
   return `${EDITOR_PRINCIPLES}
@@ -63,9 +75,13 @@ ${NEWS_CANDIDATE_COUNT.min}~${NEWS_CANDIDATE_COUNT.max}개 찾아라.
 
 ${NEWS_CRITERIA}
 
+${SOURCE_PREFERENCE}
+
 수집 규칙:
 - 최근 24시간 이내 보도를 우선한다. 48시간이 지난 이슈는 새로운 변화가 없으면 제외한다.
+- 국내 경제지 지면부터 훑는다는 감각으로 검색한다. 위 1순위 매체 이름을 검색어에 함께 넣어라.
 - 국내(KR) 이슈와 글로벌(GLOBAL) 이슈를 모두 포함한다. 각각 최소 2개 이상 찾아라.
+- 국내(KR) 후보를 글로벌보다 많이 모은다.
 - 여러 매체가 같은 사건을 보도했다면 하나의 후보로 묶고 sources에 여러 개를 넣는다.
 - 각 후보에는 실제로 검색된 기사 URL이 최소 1개 있어야 한다. URL을 지어내지 않는다.
 - summary는 이 단계에서는 2~3문장이면 충분하다. 긴 설명은 다음 단계에서 작성한다.
@@ -136,14 +152,18 @@ slug, title, level, category는 위 값을 그대로 사용한다.
 
 ${JSON.stringify(candidates, null, 2)}
 
+${SOURCE_PREFERENCE}
+
 작성 규칙:
 - ${NEWS_PER_DAY.default}개를 기본으로 하되, 중요한 이슈가 많으면 최대 ${NEWS_PER_DAY.max}개까지 쓴다. 최소 ${NEWS_PER_DAY.min}개는 반드시 채운다.
 - 국내(KR) 최소 1개, 글로벌(GLOBAL) 최소 1개를 반드시 포함한다.
-- rank는 시장 영향도가 높은 순서로 1부터 매긴다.
+- 국내(KR) 이슈를 먼저 배치하고 글로벌(GLOBAL) 이슈를 뒤에 놓는다.
+  rank는 그 순서대로 1부터 매긴다. 같은 지역 안에서는 시장 영향도가 높은 것이 앞이다.
 - 각 이슈는 "무슨 일이 있었나(whatHappened) → 왜 중요한가(whyImportant) → 시장 영향(marketImpact)" 순으로 쓴다.
 - whatHappened에는 사실만 쓴다. 분석과 전망은 interpretation에 쓴다.
 - marketImpact는 관련 있는 항목만 채우고 나머지는 null로 둔다. 억지로 채우지 않는다.
 - sources는 후보에 있던 URL을 그대로 쓴다. 새 URL을 만들어내지 않는다.
+- 한 이슈에 국내 매체와 해외 매체 기사가 모두 있으면 국내 매체를 sources 맨 앞에 둔다.
 - 같은 사건을 다룬 여러 기사는 하나의 이슈로 묶고 sources에 여러 개를 넣는다.
 - publisher에는 매체 이름을 하나만 쓴다. 두 매체를 "A·B"처럼 한 칸에 합치지 않는다.
   매체가 둘이면 sources 항목을 각각 하나씩 만든다.
