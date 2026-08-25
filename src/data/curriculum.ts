@@ -13,7 +13,10 @@ export type CurriculumCategory =
   | "macro"
   | "products"
   | "securities-business"
-  | "risk";
+  | "risk"
+  | "financial-statements"
+  | "market-structure"
+  | "global-markets";
 
 export type CurriculumConcept = {
   /** DB에 기록되는 고유 식별자. 한 번 정하면 바꾸지 않는다. */
@@ -94,6 +97,48 @@ export const CURRICULUM: CurriculumConcept[] = [
   { slug: "margin", title: "증거금", level: 7, category: "risk", pairWith: "forced-liquidation" },
   { slug: "forced-liquidation", title: "반대매매", level: 7, category: "risk" },
   { slug: "ncr", title: "NCR", level: 7, category: "risk" },
+
+  // LEVEL 8 — 재무제표와 밸류에이션
+  { slug: "balance-sheet", title: "재무상태표", level: 8, category: "financial-statements", pairWith: "income-statement" },
+  { slug: "income-statement", title: "손익계산서", level: 8, category: "financial-statements" },
+  { slug: "cash-flow-statement", title: "현금흐름표", level: 8, category: "financial-statements" },
+  { slug: "ebitda", title: "EBITDA", level: 8, category: "financial-statements", pairWith: "ev-ebitda" },
+  { slug: "ev-ebitda", title: "EV/EBITDA", level: 8, category: "financial-statements" },
+  { slug: "debt-ratio", title: "부채비율", level: 8, category: "financial-statements" },
+  { slug: "dcf", title: "DCF 현금흐름할인법", level: 8, category: "financial-statements" },
+  { slug: "payout-ratio", title: "배당성향과 주주환원", level: 8, category: "financial-statements", pairWith: "share-buyback" },
+  { slug: "share-buyback", title: "자사주 매입과 소각", level: 8, category: "financial-statements" },
+
+  // LEVEL 9 — 시장 제도
+  { slug: "public-vs-private-offering", title: "공모와 사모", level: 9, category: "market-structure" },
+  { slug: "ipo-process", title: "IPO 절차와 수요예측", level: 9, category: "market-structure" },
+  { slug: "rights-offering", title: "유상증자", level: 9, category: "market-structure", pairWith: "bonus-issue" },
+  { slug: "bonus-issue", title: "무상증자", level: 9, category: "market-structure" },
+  { slug: "stock-split", title: "액면분할", level: 9, category: "market-structure" },
+  { slug: "convertible-bond", title: "전환사채 CB", level: 9, category: "market-structure", pairWith: "bond-with-warrant" },
+  { slug: "bond-with-warrant", title: "신주인수권부사채 BW", level: 9, category: "market-structure" },
+  { slug: "circuit-breaker", title: "서킷브레이커와 사이드카", level: 9, category: "market-structure" },
+  { slug: "delisting", title: "관리종목과 상장폐지", level: 9, category: "market-structure" },
+  { slug: "ex-dividend", title: "배당락과 권리락", level: 9, category: "market-structure" },
+  { slug: "settlement", title: "예탁결제와 T+2", level: 9, category: "market-structure" },
+  { slug: "disclosure", title: "공시제도", level: 9, category: "market-structure" },
+  { slug: "insider-trading", title: "미공개정보 이용과 내부자거래", level: 9, category: "market-structure" },
+  { slug: "capital-markets-act", title: "자본시장법", level: 9, category: "market-structure" },
+
+  // LEVEL 10 — 글로벌 시장과 자산배분
+  { slug: "us-indices", title: "미국 3대 지수", level: 10, category: "global-markets" },
+  { slug: "fomc", title: "FOMC와 점도표", level: 10, category: "global-markets" },
+  { slug: "us-treasury", title: "미국 국채", level: 10, category: "global-markets" },
+  { slug: "dollar-index", title: "달러인덱스", level: 10, category: "global-markets" },
+  { slug: "crude-oil", title: "유가와 원자재", level: 10, category: "global-markets" },
+  { slug: "safe-haven", title: "금과 안전자산", level: 10, category: "global-markets" },
+  { slug: "emerging-markets", title: "신흥국 시장", level: 10, category: "global-markets" },
+  { slug: "msci", title: "MSCI 지수 편입", level: 10, category: "global-markets" },
+  { slug: "carry-trade", title: "캐리트레이드", level: 10, category: "global-markets" },
+  { slug: "asset-allocation", title: "자산배분", level: 10, category: "global-markets", pairWith: "diversification" },
+  { slug: "diversification", title: "분산투자와 상관관계", level: 10, category: "global-markets" },
+  { slug: "alpha-beta", title: "알파와 베타", level: 10, category: "global-markets" },
+  { slug: "sharpe-ratio", title: "샤프지수", level: 10, category: "global-markets" },
 ];
 
 export const CURRICULUM_BY_SLUG = new Map(
