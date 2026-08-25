@@ -14,6 +14,8 @@ import { zodTextFormat } from "openai/helpers/zod";
 export type GenerateBriefingParams = {
   date: DateString;
   concepts: CurriculumConcept[];
+  /** 커리큘럼을 한 바퀴 돈 뒤라면 "review". 설명 방식이 달라진다. */
+  mode: "new" | "review";
   candidates: NewsCandidate[];
   learnedTitles: string[];
 };

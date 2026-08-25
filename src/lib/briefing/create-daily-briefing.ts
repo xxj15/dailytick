@@ -1,8 +1,7 @@
 import "server-only";
-import { CURRICULUM } from "@/data/curriculum";
 import {
-  collectLearnedSlugs,
-  selectNextConcepts,
+  collectLearnedTitles,
+  selectTodayConcepts,
 } from "@/lib/curriculum/select-next-concepts";
 import type { DateString } from "@/lib/date";
 import { collectMarketNews } from "@/lib/openai/collect-news";
@@ -11,7 +10,7 @@ import { getModel } from "@/lib/openai/client";
 import { PROMPT_VERSION } from "@/lib/openai/prompts";
 import {
   getBriefingByDate,
-  getPreviousBriefings,
+  getConceptHistory,
   saveBriefing,
 } from "@/lib/supabase/briefings";
 import {
@@ -46,22 +45,18 @@ export async function createDailyBriefing(
   const logId = await startGenerationLog(date);
 
   try {
-    const previousBriefings = await getPreviousBriefings();
-    const learned = collectLearnedSlugs(previousBriefings);
+    const history = await getConceptHistory();
 
-    // 커리큘럼을 모두 학습했으면 처음으로 돌아가 복습한다. 개념 없이 발행하지 않는다.
-    const concepts = selectNextConcepts(learned);
-    const todayConcepts = concepts.length > 0 ? concepts : [CURRICULUM[0]];
-
-    const learnedTitles = previousBriefings
-      .flatMap((b) => b.knowledgeItems.map((item) => item.title))
-      .slice(0, 40);
+    // 커리큘럼을 모두 돌았으면 가장 오래된 개념부터 복습한다. 개념 없이 발행하지 않는다.
+    const { concepts, mode } = selectTodayConcepts(history);
+    const learnedTitles = collectLearnedTitles(history);
 
     const news = await collectMarketNews(date);
 
     const generated = await generateDailyBriefing({
       date,
-      concepts: todayConcepts,
+      concepts,
+      mode,
       candidates: news.candidates,
       learnedTitles,
     });

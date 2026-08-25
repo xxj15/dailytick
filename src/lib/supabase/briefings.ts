@@ -4,6 +4,7 @@ import type {
   ArchiveEntry,
   Briefing,
   BriefingRow,
+  ConceptHistoryEntry,
   DailyBriefingContent,
 } from "@/types/briefing";
 import type { DateString } from "@/lib/date";
@@ -52,17 +53,29 @@ export async function getLatestBriefing(): Promise<Briefing | null> {
   return data ? toBriefing(data) : null;
 }
 
-/** Archive 목록 및 학습 이력 조회용. 최신순. */
-export async function getPreviousBriefings(limit = 60): Promise<Briefing[]> {
+/**
+ * 학습 이력. 개념 중복 판정과 복습 순번에 쓴다.
+ *
+ * 여기에 행 수 제한을 두면 창 밖으로 밀려난 개념이 '안 배운 것'으로 판정돼
+ * 다시 출제된다. 그래서 개념 slug만 담긴 가벼운 컬럼을 전부 읽는다.
+ * (Supabase 기본 상한 1000행 = 약 3년치)
+ */
+export async function getConceptHistory(): Promise<ConceptHistoryEntry[]> {
   const { data, error } = await getSupabase()
     .from(TABLE)
-    .select(COLUMNS)
+    .select("briefing_date, knowledge_items")
     .order("briefing_date", { ascending: false })
-    .limit(limit)
-    .returns<BriefingRow[]>();
+    .returns<Pick<BriefingRow, "briefing_date" | "knowledge_items">[]>();
 
-  if (error) throw new Error(`과거 브리핑 조회 실패: ${error.message}`);
-  return (data ?? []).map(toBriefing);
+  if (error) throw new Error(`학습 이력 조회 실패: ${error.message}`);
+
+  return (data ?? []).map((row) => ({
+    briefingDate: row.briefing_date,
+    items: (row.knowledge_items ?? []).map((item) => ({
+      slug: item.slug,
+      title: item.title,
+    })),
+  }));
 }
 
 /** Archive 리스트용. 날짜와 개념 제목만 읽는다. 최신순. */

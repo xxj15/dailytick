@@ -51,6 +51,12 @@ export type ArchiveEntry = {
   knowledgeTitles: string[];
 };
 
+/** 학습 이력 한 줄. 개념 중복 판정과 복습 순번에만 쓴다. */
+export type ConceptHistoryEntry = {
+  briefingDate: string;
+  items: { slug: string; title: string }[];
+};
+
 /** 하루치 학습 기록 (완료 여부 + 메모) */
 export type StudyLog = {
   briefingDate: string;
