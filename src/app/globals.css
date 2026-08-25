@@ -59,3 +59,14 @@ body {
   text-underline-offset: 3px;
   text-decoration-thickness: 1px;
 }
+
+/* 애니메이션은 최소한으로. 사용자가 줄이길 원하면 전부 끈다 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
