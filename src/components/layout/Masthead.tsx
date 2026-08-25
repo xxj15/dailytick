@@ -11,7 +11,7 @@ export function Masthead({ date }: { date: DateString }) {
     <header className="border-b-2 border-ink">
       <div className="mx-auto max-w-5xl px-6">
         <div className="border-b border-rule py-10 text-center">
-          <h1 className="headline text-4xl tracking-[0.22em] sm:text-5xl">
+          <h1 className="headline text-4xl uppercase tracking-[0.22em] sm:text-5xl">
             {APP_NAME}
           </h1>
           <p className="label mt-3">{APP_TAGLINE}</p>
