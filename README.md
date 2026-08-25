@@ -88,14 +88,14 @@ src/
 
 ## 진행 상황
 
-- [x] Day 1-1 프로젝트 세팅 (Next.js / Tailwind / 폴더 구조 / 환경변수)
-- [x] Day 1-2 신문 UI 뼈대 + 메인 페이지 (DB 조회, 브리핑 없을 때 안내)
-- [x] Day 1-3 curriculum + 개념 선정 로직
-- [x] Day 1-4 Supabase 스키마 · 조회/저장 레이어
-- [x] Day 1-5 OpenAI 연동 (`collectMarketNews` → `generateDailyBriefing`)
-- [x] Day 1-6 `/api/cron/daily-briefing` (중복 생성 방지 · 실패 시 기존 브리핑 유지)
-- [x] Day 2-1 Archive 목록 · 날짜별 상세
-- [x] Day 2-2 Vercel Cron 스케줄 (`vercel.json`, 08:30 KST)
-- [x] Day 2-3 Loading / Error / Not Found state
+- [x] 프로젝트 세팅 (Next.js / Tailwind / 폴더 구조 / 환경변수 검증)
+- [x] 신문 UI (Masthead · 오늘의 한 줄 · 증권 상식 · 경제 이슈 · 출처)
+- [x] curriculum 55개 + 미학습 개념 선정 로직
+- [x] Supabase 스키마 · 조회/저장 · generation_logs
+- [x] OpenAI 연동 (`collectMarketNews` → `generateDailyBriefing`, Zod 검증)
+- [x] `/api/cron/daily-briefing` (CRON_SECRET 인증 · 중복 생성 방지 · 실패 시 기존 브리핑 유지)
+- [x] Vercel Cron 스케줄 (08:30 KST)
+- [x] Archive 목록 · 날짜별 상세 · 이전/다음 호 이동
+- [x] Loading / Empty / Error / Not Found state
+- [x] 모바일 1단 · 데스크톱 2단 반응형
 - [ ] Vercel Production 배포 (환경변수 등록 후 실제 브리핑 생성 확인)
-- [ ] Day 3 디자인 완성 · 반응형 · Prompt 개선
