@@ -26,14 +26,14 @@ export function BriefingTabs({
       key: "knowledge" as const,
       section: "Section 01",
       label: "오늘의 증권 상식",
-      hint: "개념 하나를 확실히",
+      hint: "면접에서 말할 수 있게",
       count: knowledgeCount,
     },
     {
       key: "news" as const,
       section: "Section 02",
       label: "오늘의 경제 이슈",
-      hint: "중요한 순서대로",
+      hint: "오늘 시장을 이해하게",
       count: newsCount,
     },
   ];

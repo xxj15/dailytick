@@ -2,7 +2,6 @@ import Link from "next/link";
 import { APP_NAME, APP_TAGLINE } from "@/config/app";
 import {
   formatIssueNumber,
-  formatKoreanDate,
   formatMastheadDate,
   type DateString,
 } from "@/lib/date";
@@ -14,7 +13,14 @@ export function Masthead({ date }: { date: DateString }) {
         {/* 신문처럼 날짜와 호수를 지면 맨 윗줄에 둔다 */}
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-rule py-3">
           <p className="label">{formatMastheadDate(date)}</p>
-          <p className="label hidden sm:block">{formatKoreanDate(date)}</p>
+
+          <Link
+            href="/archive"
+            className="label prose-link transition-colors duration-200 hover:text-ink"
+          >
+            Archive
+          </Link>
+
           <p className="label">{formatIssueNumber(date)}</p>
         </div>
 
