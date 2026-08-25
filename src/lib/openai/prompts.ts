@@ -11,7 +11,7 @@ import type { NewsCandidate } from "@/types/briefing";
  * Prompt는 Component가 아니라 이 파일에서만 관리한다.
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고, 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v2";
+export const PROMPT_VERSION = "v3";
 
 /** 모든 단계에 공통으로 적용되는 편집 원칙. (명세 §21) */
 const EDITOR_PRINCIPLES = `당신은 증권사 취업을 준비하는 금융 초보자를 위한 Daily Financial Editor다.
@@ -77,12 +77,13 @@ ${NEWS_CRITERIA}
 export function buildBriefingPrompt(params: {
   date: DateString;
   concepts: CurriculumConcept[];
+  mode: "new" | "review";
   candidates: NewsCandidate[];
   learnedTitles: string[];
 }): string {
-  const { date, concepts, candidates, learnedTitles } = params;
+  const { date, concepts, mode, candidates, learnedTitles } = params;
 
-  // concepts는 항상 1개 이상이다. (커리큘럼을 모두 학습하면 호출부가 복습 개념을 넣어준다)
+  // concepts는 항상 1개 이상이다. (커리큘럼을 다 돌면 가장 오래전에 다룬 개념이 온다)
   const conceptBlock = concepts
     .map(
       (c) =>
@@ -107,6 +108,15 @@ ${READER_PROFILE}
 학습 순서는 코드가 정한 것이므로 임의로 바꾸지 않는다.
 
 ${conceptBlock}
+${
+    mode === "review"
+      ? `
+오늘은 복습이다. 커리큘럼을 한 바퀴 돌아 위 개념을 예전에 이미 다뤘다.
+지난 설명을 그대로 되풀이하지 말고, 오늘의 뉴스와 엮어 다른 각도에서 설명한다.
+example과 interviewQuestion은 오늘 시장 상황에 맞춰 새로 만든다.
+`
+      : ""
+  }
 
 slug, title, level, category는 위 값을 그대로 사용한다.
 
