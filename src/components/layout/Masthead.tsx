@@ -27,7 +27,6 @@ export function Masthead({ date }: { date: DateString }) {
           </Link>
           <p className="label mt-3">{APP_TAGLINE}</p>
         </div>
-
       </div>
     </header>
   );
