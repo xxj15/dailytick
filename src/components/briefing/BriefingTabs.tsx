@@ -26,14 +26,12 @@ export function BriefingTabs({
       key: "knowledge" as const,
       section: "Section 01",
       label: "오늘의 증권 상식",
-      hint: "면접에서 말할 수 있게",
       count: knowledgeCount,
     },
     {
       key: "news" as const,
       section: "Section 02",
       label: "오늘의 경제 이슈",
-      hint: "오늘 시장을 이해하게",
       count: newsCount,
     },
   ];
@@ -85,13 +83,6 @@ export function BriefingTabs({
                 </span>
               </span>
 
-              <span
-                className={`label mt-0.5 hidden transition-opacity duration-200 sm:block ${
-                  selected ? "opacity-100" : "opacity-0"
-                }`}
-              >
-                {tab.hint}
-              </span>
 
               {/* 선택된 섹션 아래로 자가 밀려오듯 그어진다 */}
               <span

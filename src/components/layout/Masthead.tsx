@@ -12,14 +12,14 @@ export function Masthead({ date }: { date: DateString }) {
       <div className="mx-auto max-w-6xl px-6">
         {/* 신문처럼 날짜와 호수를 지면 맨 윗줄에 둔다 */}
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-rule py-3">
-          <p className="label">{formatMastheadDate(date)}</p>
-
           <Link
             href="/archive"
             className="label prose-link transition-colors duration-200 hover:text-ink"
           >
             Archive
           </Link>
+
+          <p className="label">{formatMastheadDate(date)}</p>
 
           <p className="label">{formatIssueNumber(date)}</p>
         </div>
