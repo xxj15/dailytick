@@ -138,6 +138,26 @@ export function formatKstTime(isoTimestamp: string): string {
   return `${time} KST`;
 }
 
+/**
+ * 출처 게시 시각 표기. 예: '2026.08.25'
+ * AI가 넘긴 값이라 형식이 깨져 있을 수 있으므로 파싱 실패 시 null.
+ */
+export function formatSourceDate(isoTimestamp?: string): string | null {
+  if (!isoTimestamp) return null;
+
+  const parsed = new Date(isoTimestamp);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: SERVICE_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .format(parsed)
+    .replaceAll("-", ".");
+}
+
 function pad(value: number): string {
   return String(value).padStart(2, "0");
 }
