@@ -7,7 +7,8 @@ import {
   type DateString,
 } from "@/lib/date";
 import { getArchiveEntries } from "@/lib/supabase/briefings";
-import type { ArchiveEntry } from "@/types/briefing";
+import { getStudyLogs } from "@/lib/supabase/study-logs";
+import type { ArchiveEntry, StudyLog } from "@/types/briefing";
 
 export const dynamic = "force-dynamic";
 
@@ -38,12 +39,15 @@ export default async function ArchivePage() {
   const today = getTodayKST();
 
   let entries: ArchiveEntry[] = [];
+  let logs: StudyLog[] = [];
 
   try {
-    entries = await getArchiveEntries();
+    [entries, logs] = await Promise.all([getArchiveEntries(), getStudyLogs()]);
   } catch (error) {
     console.error("[archive] 목록 조회 실패", error);
   }
+
+  const logByDate = new Map(logs.map((log) => [log.briefingDate, log]));
 
   const groups = groupByMonth(entries);
 
@@ -68,25 +72,43 @@ export default async function ArchivePage() {
                 <h2 className="label border-b border-ink pb-2">{group.label}</h2>
 
                 <ul>
-                  {group.entries.map((entry) => (
-                    <li key={entry.briefingDate} className="border-b border-rule">
-                      <Link
-                        href={`/archive/${entry.briefingDate}`}
-                        className="flex items-baseline gap-6 py-4 hover:bg-muted"
-                      >
-                        <span className="headline w-8 shrink-0 text-lg tabular-nums">
-                          {dayOfMonth(entry.briefingDate)}
-                        </span>
-                        <span className="text-[15px]">
-                          {entry.knowledgeTitles.join(" · ") || "브리핑 보기"}
-                        </span>
+                  {group.entries.map((entry) => {
+                    const log = logByDate.get(entry.briefingDate);
 
-                        {entry.briefingDate === today && (
-                          <span className="label ml-auto shrink-0">Today</span>
-                        )}
-                      </Link>
-                    </li>
-                  ))}
+                    return (
+                      <li key={entry.briefingDate} className="border-b border-rule">
+                        <Link
+                          href={`/archive/${entry.briefingDate}`}
+                          className="block py-4 hover:bg-muted"
+                        >
+                          <div className="flex items-baseline gap-4 sm:gap-6">
+                            <span className="headline w-8 shrink-0 text-lg tabular-nums">
+                              {dayOfMonth(entry.briefingDate)}
+                            </span>
+
+                            <span className="text-[15px]">
+                              {entry.knowledgeTitles.join(" · ") || "브리핑 보기"}
+                            </span>
+
+                            <span className="label ml-auto shrink-0">
+                              {log?.completedAt
+                                ? "완료"
+                                : entry.briefingDate === today
+                                  ? "Today"
+                                  : ""}
+                            </span>
+                          </div>
+
+                          {/* 그날 남긴 메모는 목록에서 바로 보인다 */}
+                          {log?.note && (
+                            <p className="mt-1.5 pl-12 text-sm text-ink-muted sm:pl-14">
+                              {log.note}
+                            </p>
+                          )}
+                        </Link>
+                      </li>
+                    );
+                  })}
                 </ul>
               </section>
             ))}
