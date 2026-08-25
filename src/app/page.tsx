@@ -1,7 +1,6 @@
-import { BriefingHeader } from "@/components/briefing/BriefingHeader";
+import { ArchiveLink } from "@/components/briefing/ArchiveLink";
+import { BriefingBody } from "@/components/briefing/BriefingBody";
 import { EmptyBriefing } from "@/components/briefing/EmptyBriefing";
-import { KnowledgeSection } from "@/components/briefing/KnowledgeSection";
-import { NewsSection } from "@/components/briefing/NewsSection";
 import { Footer } from "@/components/layout/Footer";
 import { Masthead } from "@/components/layout/Masthead";
 import { getTodayKST, isBeforePublishTimeKST } from "@/lib/date";
@@ -31,24 +30,15 @@ export default async function HomePage() {
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-6">
         {briefing ? (
-          <>
-            <BriefingHeader
-              oneLiner={briefing.oneLiner}
-              generatedAt={briefing.generatedAt}
-            />
-
-            {/* Desktop 2단 (Knowledge 35% / News 65%), Mobile 1단 */}
-            <div className="grid gap-12 py-12 lg:grid-cols-[35fr_65fr] lg:gap-16">
-              <KnowledgeSection items={briefing.knowledgeItems} />
-              <NewsSection items={briefing.newsItems} />
-            </div>
-          </>
+          <BriefingBody briefing={briefing} />
         ) : (
           <EmptyBriefing
             beforePublishTime={isBeforePublishTimeKST()}
             latestDate={latest?.briefingDate ?? null}
           />
         )}
+
+        <ArchiveLink />
       </main>
 
       <Footer />
