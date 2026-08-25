@@ -35,6 +35,8 @@ function dayOfMonth(date: DateString): string {
 }
 
 export default async function ArchivePage() {
+  const today = getTodayKST();
+
   let entries: ArchiveEntry[] = [];
 
   try {
@@ -47,7 +49,7 @@ export default async function ArchivePage() {
 
   return (
     <>
-      <Masthead date={getTodayKST()} />
+      <Masthead date={today} />
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-6">
         <section className="border-b border-rule py-12">
@@ -78,6 +80,10 @@ export default async function ArchivePage() {
                         <span className="text-[15px]">
                           {entry.knowledgeTitles.join(" · ") || "브리핑 보기"}
                         </span>
+
+                        {entry.briefingDate === today && (
+                          <span className="label ml-auto shrink-0">Today</span>
+                        )}
                       </Link>
                     </li>
                   ))}
