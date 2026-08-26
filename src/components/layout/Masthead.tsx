@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AuthLink } from "@/components/auth/AuthLink";
 import { APP_NAME, APP_TAGLINE } from "@/config/app";
 import {
   formatIssueNumber,
@@ -6,18 +7,33 @@ import {
   type DateString,
 } from "@/lib/date";
 
-export function Masthead({ date }: { date: DateString }) {
+/**
+ * `loggedIn`은 선택값이다.
+ * loading.tsx는 Suspense fallback이라 그 안에서 쿠키를 읽을 수 없으므로,
+ * 로그인 여부를 모르는 자리에서는 이 링크를 아예 그리지 않는다.
+ */
+export function Masthead({
+  date,
+  loggedIn,
+}: {
+  date: DateString;
+  loggedIn?: boolean;
+}) {
   return (
     <header>
       <div className="mx-auto max-w-6xl px-6">
         {/* 신문처럼 날짜와 호수를 지면 맨 윗줄에 둔다 */}
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-rule py-3">
-          <Link
-            href="/archive"
-            className="label prose-link transition-colors duration-200 hover:text-ink"
-          >
-            Archive
-          </Link>
+          <span className="flex items-baseline gap-3">
+            <Link
+              href="/archive"
+              className="label prose-link transition-colors duration-200 hover:text-ink"
+            >
+              Archive
+            </Link>
+
+            {loggedIn !== undefined && <AuthLink loggedIn={loggedIn} />}
+          </span>
 
           <p className="label">{formatMastheadDate(date)}</p>
 

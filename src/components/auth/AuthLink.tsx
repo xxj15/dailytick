@@ -2,11 +2,20 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { LoginButton } from "@/components/auth/LoginButton";
 
-/** 로그인 진입은 잠긴 메모칸에만 둔다. 여기는 나갈 때만 쓰는 자리다. */
-export function LogoutButton() {
+/**
+ * 제호 윗줄의 로그인/로그아웃.
+ * 본문 링크가 아니라 지면 기물이므로 밑줄 없이 라벨로만 둔다.
+ */
+const LINK_CLASS =
+  "label shrink-0 transition-colors duration-200 hover:text-ink disabled:opacity-50";
+
+export function AuthLink({ loggedIn }: { loggedIn: boolean }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
+
+  if (!loggedIn) return <LoginButton className={LINK_CLASS} />;
 
   async function handleLogout() {
     setPending(true);
@@ -27,7 +36,7 @@ export function LogoutButton() {
       type="button"
       onClick={handleLogout}
       disabled={pending}
-      className="label prose-link shrink-0 transition-colors duration-200 hover:text-ink disabled:opacity-50"
+      className={LINK_CLASS}
     >
       로그아웃
     </button>

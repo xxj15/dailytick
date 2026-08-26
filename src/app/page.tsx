@@ -31,7 +31,7 @@ export default async function HomePage() {
 
   return (
     <>
-      <Masthead date={today} />
+      <Masthead date={today} loggedIn={canEdit} />
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-6">
         {briefing ? (
@@ -48,7 +48,7 @@ export default async function HomePage() {
         )}
       </main>
 
-      <Footer loggedIn={canEdit} />
+      <Footer />
     </>
   );
 }

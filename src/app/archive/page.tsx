@@ -59,7 +59,7 @@ export default async function ArchivePage() {
 
   return (
     <>
-      <Masthead date={today} />
+      <Masthead date={today} loggedIn={canEdit} />
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-6">
         <section className="border-b border-rule py-12">
@@ -131,7 +131,7 @@ export default async function ArchivePage() {
         </div>
       </main>
 
-      <Footer loggedIn={canEdit} />
+      <Footer />
     </>
   );
 }

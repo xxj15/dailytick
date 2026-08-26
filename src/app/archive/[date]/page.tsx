@@ -60,7 +60,7 @@ export default async function ArchiveDatePage({
 
   return (
     <>
-      <Masthead date={date} />
+      <Masthead date={date} loggedIn={canEdit} />
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-6">
         {briefing ? (
@@ -109,7 +109,7 @@ export default async function ArchiveDatePage({
         </nav>
       </main>
 
-      <Footer loggedIn={canEdit} />
+      <Footer />
     </>
   );
 }
