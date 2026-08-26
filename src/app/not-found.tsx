@@ -9,7 +9,7 @@ export default function NotFound() {
     <>
       <Masthead date={getTodayKST()} />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6">
+      <main className="page-width flex-1">
         <section className="border-b border-rule py-20 text-center">
           <p className="label">Not Found</p>
           <p className="headline mt-4 text-xl sm:text-2xl">

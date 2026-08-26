@@ -8,7 +8,7 @@ export default function Loading() {
     <>
       <Masthead date={getTodayKST()} />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6" aria-busy="true">
+      <main className="page-width flex-1" aria-busy="true">
         <div className="border-b border-rule py-12">
           <h2 className="headline text-lg">오늘의 키워드</h2>
 

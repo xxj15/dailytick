@@ -61,7 +61,7 @@ export default async function ArchivePage() {
     <>
       <Masthead date={today} loggedIn={canEdit} />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6">
+      <main className="page-width flex-1">
         <section className="border-b border-rule py-12">
           <p className="label">Archive</p>
           <h1 className="headline mt-4 text-3xl">지난 브리핑</h1>

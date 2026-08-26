@@ -21,7 +21,7 @@ export function Masthead({
 }) {
   return (
     <header>
-      <div className="mx-auto max-w-6xl px-6">
+      <div className="page-width">
         {/*
           신문처럼 날짜와 호수를 지면 맨 윗줄 한가운데 둔다.
           가운데를 진짜 가운데에 세우려면 양옆 칸의 폭이 같아야 하므로

@@ -62,7 +62,7 @@ export default async function ArchiveDatePage({
     <>
       <Masthead date={date} loggedIn={canEdit} />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-6">
+      <main className="page-width flex-1">
         {briefing ? (
           <BriefingBody
             briefing={briefing}
