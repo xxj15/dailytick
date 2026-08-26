@@ -45,7 +45,7 @@ export function BriefingHeader({
                     idPrefix={`keyword-${index}`}
                   />
                   {index < todayKeywords.length - 1 && (
-                    <span aria-hidden="true" className="mx-3 text-rule">
+                    <span aria-hidden="true" className="mx-4 text-rule">
                       ·
                     </span>
                   )}
