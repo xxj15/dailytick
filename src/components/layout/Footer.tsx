@@ -7,7 +7,7 @@ import { LogoutButton } from "@/components/auth/LogoutButton";
  */
 export function Footer({ loggedIn }: { loggedIn?: boolean }) {
   return (
-    <footer className="mt-auto border-t border-rule">
+    <footer className="mt-auto">
       <div className="mx-auto flex max-w-6xl items-end justify-between gap-6 px-6 py-8">
         <p className="text-xs leading-relaxed text-ink-muted">
           Generated with AI from publicly available sources.
