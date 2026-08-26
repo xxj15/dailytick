@@ -45,7 +45,7 @@ export function StudyCompleteToggle() {
         </svg>
       </span>
 
-      완독
+      완료
       {completedAt && (
         <span className="tabular-nums opacity-60">
           {formatKstTime(completedAt)}
