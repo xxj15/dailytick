@@ -11,14 +11,14 @@ export default function Loading() {
       <main className="mx-auto w-full max-w-6xl flex-1 px-6" aria-busy="true">
         <div className="border-b border-rule py-12">
           <h2 className="headline text-lg">오늘의 키워드</h2>
-          <p className="mt-1 text-sm text-ink-muted">
-            오늘 시장을 움직인 단어들이다.
-          </p>
 
-          <div className="mt-6 flex max-w-3xl flex-wrap gap-4 border-l-4 border-rule pl-5">
-            <Bar className="h-8 w-32" />
-            <Bar className="h-8 w-40" />
-            <Bar className="h-8 w-28" />
+          <div className="mt-6 max-w-3xl border-l-4 border-rule pl-5">
+            <div className="flex flex-wrap gap-3">
+              <Bar className="h-7 w-32" />
+              <Bar className="h-7 w-40" />
+              <Bar className="h-7 w-28" />
+            </div>
+            <Bar className="mt-4 h-4 w-9/12" />
           </div>
         </div>
 

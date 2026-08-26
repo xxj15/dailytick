@@ -11,7 +11,7 @@ import type { DateString } from "@/lib/date";
 
 const TABLE = "briefings";
 const COLUMNS =
-  "id, briefing_date, knowledge_items, news_items, today_keywords, generated_at, model, prompt_version";
+  "id, briefing_date, knowledge_items, news_items, today_keywords, one_liner, generated_at, model, prompt_version";
 
 function toBriefing(row: BriefingRow): Briefing {
   return {
@@ -19,8 +19,9 @@ function toBriefing(row: BriefingRow): Briefing {
     briefingDate: row.briefing_date,
     knowledgeItems: row.knowledge_items,
     newsItems: row.news_items,
-    // 키워드 도입 이전 브리핑에는 키워드가 없다. 화면에서 그 줄만 비운다.
+    // 지난 브리핑에는 둘 중 하나가 없을 수 있다. 화면에서 그 줄만 비운다.
     todayKeywords: row.today_keywords ?? [],
+    oneLiner: row.one_liner ?? "",
     generatedAt: row.generated_at,
     model: row.model,
     promptVersion: row.prompt_version,
@@ -142,6 +143,7 @@ export async function saveBriefing(params: {
         knowledge_items: params.content.knowledgeItems,
         news_items: params.content.newsItems,
         today_keywords: params.content.todayKeywords,
+        one_liner: params.content.oneLiner,
         generated_at: new Date().toISOString(),
         model: params.model,
         prompt_version: params.promptVersion,

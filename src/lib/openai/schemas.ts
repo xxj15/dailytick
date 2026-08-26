@@ -89,6 +89,12 @@ export const dailyBriefingSchema = z
       .array(z.string().min(1))
       .min(TODAY_KEYWORDS_PER_DAY.min)
       .max(TODAY_KEYWORDS_PER_DAY.max),
+
+    /**
+     * 키워드 아래 붙는 한 줄. 왜 오늘 이 단어들이 중요한지를 설명한다.
+     * 길이는 프롬프트로만 유도한다. 한두 글자 초과로 브리핑을 버리지 않는다.
+     */
+    oneLiner: z.string().min(1),
   })
   .refine((b) => b.newsItems.some((n) => n.region === "KR"), {
     message: "국내 뉴스가 최소 1개 필요합니다.",
@@ -169,6 +175,7 @@ export const aiDailyBriefingSchema = z.object({
   knowledgeItems: z.array(aiKnowledgeItemSchema),
   newsItems: z.array(aiNewsIssueSchema),
   todayKeywords: z.array(z.string()),
+  oneLiner: z.string(),
 });
 
 /** STEP 1 응답 형식 */

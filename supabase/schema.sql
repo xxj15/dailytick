@@ -11,6 +11,9 @@ create table if not exists briefings (
   -- 지면 맨 위에 거는 오늘의 키워드 (string[])
   today_keywords jsonb not null default '[]'::jsonb,
 
+  -- 키워드 아래 붙는 한 줄. 키워드 도입 이전 row에는 없으므로 nullable.
+  one_liner text,
+
   generated_at timestamptz not null default now(),
 
   model text,
@@ -71,13 +74,13 @@ alter table study_logs enable row level security;
 -- 이미 briefings 테이블이 있는 DB에서는 아래를 한 번 실행한다.
 -- ------------------------------------------------------------------
 
--- 2026-08-26 · 오늘 기억할 한 줄(one_liner) -> 오늘의 키워드(today_keywords)
+-- 2026-08-26 · 지면 맨 위를 키워드 + 한 줄로 바꾼다
+--
+-- 한 줄(one_liner)은 그대로 쓰되, 키워드가 앞에 서고
+-- 한 줄은 그 키워드들이 왜 중요한지를 짧게 받쳐주는 자리로 바뀌었다.
+-- 키워드 이전에 저장된 row에는 today_keywords가 없으므로 기본값을 둔다.
 alter table briefings
   add column if not exists today_keywords jsonb not null default '[]'::jsonb;
 
 alter table briefings
   alter column one_liner drop not null;
-
--- one_liner 컬럼은 과거 브리핑 데이터를 남겨두기 위해 지우지 않는다.
--- 더 이상 읽지도 쓰지도 않으므로, 과거 문장이 필요 없어지면 그때 지운다.
---   alter table briefings drop column one_liner;
