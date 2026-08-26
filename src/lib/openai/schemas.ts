@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NEWS_PER_DAY } from "@/config/app";
+import { NEWS_PER_DAY, TODAY_KEYWORDS_PER_DAY } from "@/config/app";
 
 /**
  * AI 응답 검증 스키마.
@@ -81,7 +81,14 @@ export const dailyBriefingSchema = z
       .array(newsIssueSchema)
       .min(NEWS_PER_DAY.min)
       .max(NEWS_PER_DAY.max),
-    oneLiner: z.string().min(1),
+    /**
+     * 오늘 지면을 여는 키워드.
+     * 글자 수는 프롬프트로만 유도한다. 길이 때문에 브리핑 전체를 버리지 않는다.
+     */
+    todayKeywords: z
+      .array(z.string().min(1))
+      .min(TODAY_KEYWORDS_PER_DAY.min)
+      .max(TODAY_KEYWORDS_PER_DAY.max),
   })
   .refine((b) => b.newsItems.some((n) => n.region === "KR"), {
     message: "국내 뉴스가 최소 1개 필요합니다.",
@@ -161,7 +168,7 @@ const aiKnowledgeItemSchema = z.object({
 export const aiDailyBriefingSchema = z.object({
   knowledgeItems: z.array(aiKnowledgeItemSchema),
   newsItems: z.array(aiNewsIssueSchema),
-  oneLiner: z.string(),
+  todayKeywords: z.array(z.string()),
 });
 
 /** STEP 1 응답 형식 */

@@ -37,7 +37,8 @@ export type BriefingRow = {
   briefing_date: string;
   knowledge_items: KnowledgeItem[];
   news_items: NewsIssue[];
-  one_liner: string;
+  /** 키워드 도입 이전에 저장된 row는 비어 있다. */
+  today_keywords: string[] | null;
   generated_at: string;
   model: string | null;
   prompt_version: string | null;

@@ -21,6 +21,9 @@ export const FIRST_ISSUE_DATE = "2026-08-25";
 export const KNOWLEDGE_PER_DAY = { min: 1, max: 2 } as const;
 export const NEWS_PER_DAY = { min: 3, max: 5, default: 3 } as const;
 
+/** 지면 맨 위에 거는 오늘의 키워드 개수. 한눈에 훑는 자리라 짧게 유지한다. */
+export const TODAY_KEYWORDS_PER_DAY = { min: 3, max: 5 } as const;
+
 /** STEP 1에서 수집할 뉴스 후보 개수. */
 export const NEWS_CANDIDATE_COUNT = { min: 6, max: 10 } as const;
 

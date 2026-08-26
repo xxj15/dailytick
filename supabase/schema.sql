@@ -8,7 +8,8 @@ create table if not exists briefings (
   knowledge_items jsonb not null,
   news_items jsonb not null,
 
-  one_liner text not null,
+  -- 지면 맨 위에 거는 오늘의 키워드 (string[])
+  today_keywords jsonb not null default '[]'::jsonb,
 
   generated_at timestamptz not null default now(),
 
@@ -62,3 +63,21 @@ create table if not exists study_logs (
 );
 
 alter table study_logs enable row level security;
+
+-- ------------------------------------------------------------------
+-- 마이그레이션
+--
+-- create table if not exists는 기존 테이블을 바꾸지 않는다.
+-- 이미 briefings 테이블이 있는 DB에서는 아래를 한 번 실행한다.
+-- ------------------------------------------------------------------
+
+-- 2026-08-26 · 오늘 기억할 한 줄(one_liner) -> 오늘의 키워드(today_keywords)
+alter table briefings
+  add column if not exists today_keywords jsonb not null default '[]'::jsonb;
+
+alter table briefings
+  alter column one_liner drop not null;
+
+-- one_liner 컬럼은 과거 브리핑 데이터를 남겨두기 위해 지우지 않는다.
+-- 더 이상 읽지도 쓰지도 않으므로, 과거 문장이 필요 없어지면 그때 지운다.
+--   alter table briefings drop column one_liner;

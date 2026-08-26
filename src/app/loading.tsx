@@ -10,14 +10,15 @@ export default function Loading() {
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-6" aria-busy="true">
         <div className="border-b border-rule py-12">
-          <h2 className="headline text-lg">오늘 기억할 한 줄</h2>
+          <h2 className="headline text-lg">오늘의 키워드</h2>
           <p className="mt-1 text-sm text-ink-muted">
-            오늘 시장에서 가장 중요한 흐름을 한 문장으로 정리했다.
+            오늘 시장을 움직인 단어들이다.
           </p>
 
-          <div className="mt-6 max-w-3xl space-y-3 border-l-4 border-rule pl-5">
-            <Bar className="h-7 w-11/12" />
-            <Bar className="h-7 w-8/12" />
+          <div className="mt-6 flex max-w-3xl flex-wrap gap-4 border-l-4 border-rule pl-5">
+            <Bar className="h-8 w-32" />
+            <Bar className="h-8 w-40" />
+            <Bar className="h-8 w-28" />
           </div>
         </div>
 

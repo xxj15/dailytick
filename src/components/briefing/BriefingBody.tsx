@@ -18,7 +18,7 @@ export function BriefingBody({
   return (
     <StudyLogProvider date={briefing.briefingDate} initialLog={studyLog}>
       <BriefingHeader
-        oneLiner={briefing.oneLiner}
+        todayKeywords={briefing.todayKeywords}
         generatedAt={briefing.generatedAt}
         action={<StudyCompleteToggle />}
       />
