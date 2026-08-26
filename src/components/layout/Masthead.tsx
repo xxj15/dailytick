@@ -22,22 +22,38 @@ export function Masthead({
   return (
     <header>
       <div className="mx-auto max-w-6xl px-6">
-        {/* 신문처럼 날짜와 호수를 지면 맨 윗줄에 둔다 */}
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-rule py-3">
-          <span className="flex items-baseline gap-3">
-            <Link
-              href="/archive"
-              className="label prose-link transition-colors duration-200 hover:text-ink"
-            >
-              Archive
-            </Link>
+        {/*
+          신문처럼 날짜와 호수를 지면 맨 윗줄 한가운데 둔다.
+          가운데를 진짜 가운데에 세우려면 양옆 칸의 폭이 같아야 하므로
+          justify-between이 아니라 1fr-auto-1fr 3단으로 짠다.
 
-            {loggedIn !== undefined && <AuthLink loggedIn={loggedIn} />}
-          </span>
+          Mobile에서는 세 덩이가 한 줄에 들어가지 않는다.
+          날짜와 호수를 아래 줄로 내려 가운데에 그대로 세운다.
+        */}
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-rule py-3 sm:grid sm:grid-cols-[1fr_auto_1fr]">
+          <Link
+            href="/archive"
+            className="label prose-link transition-colors duration-200 hover:text-ink"
+          >
+            Archive
+          </Link>
 
-          <p className="label">{formatMastheadDate(date)}</p>
+          <p className="label order-last w-full text-center sm:order-none sm:w-auto">
+            {formatMastheadDate(date)}
+            <span aria-hidden="true" className="mx-3 text-rule">
+              ·
+            </span>
+            {formatIssueNumber(date)}
+          </p>
 
-          <p className="label">{formatIssueNumber(date)}</p>
+          {/* loading.tsx는 로그인 여부를 모른다. 빈 칸으로 가운데 정렬만 지킨다 */}
+          {loggedIn === undefined ? (
+            <span aria-hidden="true" />
+          ) : (
+            <span className="sm:justify-self-end">
+              <AuthLink loggedIn={loggedIn} />
+            </span>
+          )}
         </div>
 
         <div className="py-8 text-center sm:py-10">
