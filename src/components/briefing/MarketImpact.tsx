@@ -31,7 +31,7 @@ export function MarketImpact({ impact }: { impact: MarketImpactType }) {
             className="py-2.5 first:pt-0 last:pb-0 sm:grid sm:grid-cols-[5rem_1fr] sm:gap-4"
           >
             <dt className="label sm:pt-[3px]">{entry.label}</dt>
-            <dd className="mt-1 text-sm sm:mt-0">{entry.value}</dd>
+            <dd className="mt-1 text-[15px] leading-relaxed sm:mt-0">{entry.value}</dd>
           </div>
         ))}
       </dl>

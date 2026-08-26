@@ -62,7 +62,7 @@ export default async function ArchivePage() {
         </section>
 
         {groups.length === 0 ? (
-          <p className="py-20 text-center text-sm text-ink-muted">
+          <p className="py-20 text-center text-[15px] text-ink-muted">
             아직 발행된 브리핑이 없습니다.
           </p>
         ) : (
@@ -90,13 +90,16 @@ export default async function ArchivePage() {
                               {entry.knowledgeTitles.join(" · ") || "브리핑 보기"}
                             </span>
 
-                            <span className="label ml-auto shrink-0">
-                              {log?.completedAt
-                                ? "완료"
-                                : entry.briefingDate === today
-                                  ? "Today"
-                                  : ""}
-                            </span>
+                            {/* 완료한 날과 오늘은 목록에서 바로 구분되어야 한다 */}
+                            {log?.completedAt ? (
+                              <span className="label ml-auto shrink-0 rounded-full bg-ink px-2.5 py-1 text-paper">
+                                완료
+                              </span>
+                            ) : entry.briefingDate === today ? (
+                              <span className="label ml-auto shrink-0 rounded-full border border-ink px-2.5 py-1 text-ink">
+                                Today
+                              </span>
+                            ) : null}
                           </div>
 
                           {/* 그날 남긴 메모는 목록에서 바로 보인다 */}

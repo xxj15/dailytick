@@ -34,7 +34,7 @@ export function StudyNote() {
           maxLength={500}
           rows={8}
           placeholder="메모 남기기"
-          className="mt-3 w-full resize-y rounded-lg border border-rule bg-paper p-3 text-sm leading-relaxed outline-none transition-colors duration-200 placeholder:text-rule focus:border-ink"
+          className="mt-3 w-full resize-y rounded-lg border border-rule bg-paper p-3 text-[15px] leading-relaxed outline-none transition-colors duration-200 placeholder:text-ink-muted/60 focus:border-ink focus:ring-1 focus:ring-ink"
         />
 
         <div className="mt-3 flex items-center justify-between gap-2">

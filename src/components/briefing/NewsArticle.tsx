@@ -58,16 +58,16 @@ export function NewsArticle({
 
       <div className="article-body mt-6 rounded-lg bg-muted p-5">
         <p className="label">왜 중요한가</p>
-        <p className="mt-2 text-[15px]">{issue.whyImportant}</p>
+        <p className="mt-2 text-[16px] leading-relaxed">{issue.whyImportant}</p>
       </div>
 
       <MarketImpact impact={issue.marketImpact} />
 
       {/* 해석은 사실과 시각적으로도 구분한다 */}
       {issue.interpretation && (
-        <div className="article-body mt-6 border-l-2 border-rule pl-4">
+        <div className="article-body mt-6 border-l-4 border-rule pl-4">
           <p className="label">해석</p>
-          <p className="mt-1.5 text-sm text-ink-muted">{issue.interpretation}</p>
+          <p className="mt-1.5 text-[15px] text-ink-muted">{issue.interpretation}</p>
         </div>
       )}
 

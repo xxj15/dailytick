@@ -21,7 +21,7 @@ export function EmptyBriefing({
       </p>
 
       {!beforePublishTime && (
-        <p className="mt-3 text-sm text-ink-muted">잠시 후 다시 확인해주세요.</p>
+        <p className="mt-3 text-[15px] text-ink-muted">잠시 후 다시 확인해주세요.</p>
       )}
 
       {latestDate && (

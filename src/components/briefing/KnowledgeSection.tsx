@@ -27,26 +27,32 @@ export function KnowledgeSection({ items }: { items: KnowledgeItem[] }) {
               )}
             </div>
 
-            <h3 className="headline mt-2 text-2xl">{item.title}</h3>
+            <h3 className="headline mt-2 text-2xl sm:text-[1.75rem]">{item.title}</h3>
 
-            <p className="mt-4 text-[15px] font-medium">{item.definition}</p>
-            <p className="mt-3 text-[15px]">{item.explanation}</p>
+            <p className="article-body mt-4 text-[17px] leading-relaxed font-medium">
+              {item.definition}
+            </p>
+            <p className="article-body mt-3 text-[16px] leading-relaxed text-ink-muted">
+              {item.explanation}
+            </p>
 
             {item.example && (
-              <div className="mt-4 border-l-2 border-rule pl-4">
+              <div className="article-body mt-4 border-l-4 border-rule pl-4">
                 <p className="label">Example</p>
-                <p className="mt-1.5 text-sm text-ink-muted">{item.example}</p>
+                <p className="mt-1.5 text-[15px] text-ink-muted">{item.example}</p>
               </div>
             )}
 
-            <div className="mt-6 border-t border-rule pt-4">
+            <div className="article-body mt-6 rounded-lg bg-muted p-5">
               <p className="label">Why it matters</p>
-              <p className="mt-1.5 text-sm">{item.securitiesPoint}</p>
+              <p className="mt-2 text-[15px] leading-relaxed">
+                {item.securitiesPoint}
+              </p>
             </div>
 
-            <div className="mt-5">
+            <div className="article-body mt-6 border-l-4 border-ink pl-4">
               <p className="label">Interview</p>
-              <p className="headline mt-1.5 text-base">
+              <p className="headline mt-1.5 text-lg">
                 &ldquo;{item.interviewQuestion}&rdquo;
               </p>
             </div>
