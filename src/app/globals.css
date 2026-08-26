@@ -12,9 +12,13 @@
   --color-ink-muted: #4a4a4a;
   --color-rule: #d4d4d4;
   --color-muted: #f1f1f1;
-  /* 용어 하이라이트. 지면을 흐트러뜨리지 않을 만큼만 옅게 깐다 */
-  --color-highlight: #f7f7f7;
-  --color-highlight-hover: #eaeaea;
+  /*
+   * 용어 하이라이트. 지면에서 유일하게 무채색이 아닌 자리다.
+   * 장식이 아니라 '여기에 설명이 있다'는 기능 표시라 형광펜 노랑을 쓴다.
+   * 채도는 낮게 유지한다. 흑백 지면에서 이 이상 진해지면 튄다.
+   */
+  --color-highlight: #fdf6d3;
+  --color-highlight-hover: #f7e9a6;
 
   /* 제목·본문 모두 Pretendard 하나로 통일한다. */
   --font-sans:
