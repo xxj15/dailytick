@@ -14,14 +14,21 @@ export function BriefingHeader({
   return (
     <section className="border-b border-rule py-12">
       <div className="flex flex-wrap items-start justify-between gap-6">
-        <p className="label">Today&apos;s Takeaway</p>
+        {/* 영문 라벨만 두면 무슨 자리인지 읽히지 않는다. 한 줄로 설명해준다 */}
+        <div>
+          <h2 className="headline text-lg">오늘 기억할 한 줄</h2>
+          <p className="mt-1 text-sm text-ink-muted">
+            오늘 시장에서 가장 중요한 흐름을 한 문장으로 정리했다.
+          </p>
+        </div>
+
         {action}
       </div>
 
       {/* 오늘 금융시장을 한 문장으로 기억하게 만드는 자리 */}
-      <blockquote className="headline mt-5 max-w-3xl text-2xl leading-snug sm:text-[2rem]">
-        &ldquo;{oneLiner}&rdquo;
-      </blockquote>
+      <p className="headline mt-6 max-w-3xl border-l-4 border-ink pl-5 text-2xl leading-snug sm:text-[2rem]">
+        {oneLiner}
+      </p>
 
       {generatedAt && (
         <p className="label mt-6">Generated {formatKstTime(generatedAt)}</p>
