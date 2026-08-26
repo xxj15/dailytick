@@ -12,6 +12,9 @@
   --color-ink-muted: #4a4a4a;
   --color-rule: #d4d4d4;
   --color-muted: #f1f1f1;
+  /* 용어 하이라이트. 지면을 흐트러뜨리지 않을 만큼만 옅게 깐다 */
+  --color-highlight: #f7f7f7;
+  --color-highlight-hover: #eaeaea;
 
   /* 제목·본문 모두 Pretendard 하나로 통일한다. */
   --font-sans:
@@ -85,6 +88,26 @@ body {
 .article-body {
   max-width: 44rem;
   text-wrap: pretty;
+}
+
+/*
+ * 용어 하이라이트. 형광펜으로 그은 것처럼 글자 아래쪽만 덮는다.
+ * 큰 글씨에 배경을 통째로 깔면 블록처럼 보여서 지면이 얼룩진다.
+ */
+.glossary-mark {
+  background-image: linear-gradient(
+    to top,
+    var(--color-highlight) 0.62em,
+    transparent 0.62em
+  );
+}
+
+.group:hover .glossary-mark {
+  background-image: linear-gradient(
+    to top,
+    var(--color-highlight-hover) 0.62em,
+    transparent 0.62em
+  );
 }
 
 /* 본문 안 링크는 밑줄로만 구분한다 */

@@ -34,7 +34,7 @@ export function GlossaryText({
             <button
               type="button"
               aria-describedby={tooltipId}
-              className="box-decoration-clone cursor-help bg-muted px-1.5 py-0.5 transition-colors group-hover:bg-rule focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+              className="glossary-mark box-decoration-clone cursor-help rounded-sm px-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
             >
               {segment.text}
             </button>
