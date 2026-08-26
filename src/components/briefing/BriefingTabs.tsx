@@ -1,23 +1,8 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useState,
-  type ReactNode,
-} from "react";
+import { useState, type ReactNode } from "react";
 
 type TabKey = "knowledge" | "news";
-
-const SectionContext = createContext<((key: TabKey) => void) | null>(null);
-
-/** 톱기사에서 경제 이슈 지면으로 넘어갈 때 쓴다. */
-export function useOpenSection() {
-  const open = useContext(SectionContext);
-  if (!open) throw new Error("useOpenSection은 BriefingTabs 안에서만 쓴다.");
-  return open;
-}
 
 /**
  * 증권 상식과 경제 이슈를 한 화면에 나란히 두면 어느 쪽도 눈에 들어오지 않는다.
@@ -28,18 +13,13 @@ export function BriefingTabs({
   news,
   knowledgeCount,
   newsCount,
-  lead,
 }: {
   knowledge: ReactNode;
   news: ReactNode;
   knowledgeCount: number;
   newsCount: number;
-  /** 섹션 위에 올리는 톱기사. */
-  lead?: ReactNode;
 }) {
   const [active, setActive] = useState<TabKey>("knowledge");
-
-  const open = useCallback((key: TabKey) => setActive(key), []);
 
   const tabs = [
     {
@@ -57,12 +37,10 @@ export function BriefingTabs({
   ];
 
   return (
-    <SectionContext value={open}>
-      {lead}
-
+    <>
       <div
         role="tablist"
-        className="sticky top-0 z-20 flex gap-8 border-b-2 border-ink bg-paper sm:gap-12"
+        className="sticky top-0 z-20 flex gap-2 border-b-2 border-ink bg-paper sm:gap-3"
       >
         {tabs.map((tab) => {
           const selected = tab.key === active;
@@ -76,13 +54,20 @@ export function BriefingTabs({
               aria-controls="briefing-panel"
               id={`tab-${tab.key}`}
               onClick={() => setActive(tab.key)}
-              className="group relative py-4 text-left"
+              className="group relative px-3 py-4 text-left sm:px-4"
             >
-              {/* 글자는 본문 왼쪽 선에 맞춰두고, 색만 좌우로 조금 넓게 깐다 */}
               <span
                 aria-hidden
-                className={`absolute -inset-x-3 inset-y-0 transition-colors duration-200 ${
-                  selected ? "bg-muted" : "bg-transparent group-hover:bg-muted/60"
+                className={`absolute inset-0 transition-colors duration-200 ${
+                  selected ? "bg-muted" : "bg-transparent group-hover:bg-muted"
+                }`}
+              />
+
+              {/* 지금 펼친 섹션 위에 신문 섹션기처럼 굵은 줄을 하나 얹는다 */}
+              <span
+                aria-hidden
+                className={`absolute inset-x-0 top-0 h-[3px] transition-colors duration-200 ${
+                  selected ? "bg-ink" : "bg-transparent"
                 }`}
               />
 
@@ -95,7 +80,7 @@ export function BriefingTabs({
                   {tab.section}
                 </span>
 
-                <span className="mt-1 flex items-baseline gap-2">
+                <span className="mt-1 flex items-center gap-2">
                   <span
                     className={`headline text-base transition-colors duration-200 sm:text-lg ${
                       selected
@@ -105,9 +90,12 @@ export function BriefingTabs({
                   >
                     {tab.label}
                   </span>
+
                   <span
-                    className={`text-xs tabular-nums transition-colors duration-200 ${
-                      selected ? "text-ink" : "text-rule"
+                    className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold tabular-nums transition-colors duration-200 ${
+                      selected
+                        ? "bg-ink text-paper"
+                        : "bg-muted text-ink-muted group-hover:bg-paper"
                     }`}
                   >
                     {tab.count}
@@ -129,6 +117,6 @@ export function BriefingTabs({
       >
         {active === "knowledge" ? knowledge : news}
       </div>
-    </SectionContext>
+    </>
   );
 }
