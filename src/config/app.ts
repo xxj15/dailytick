@@ -17,8 +17,7 @@ export const PUBLISH_MINUTE_KST = 30;
 /** 창간일. Issue Number 계산 기준. */
 export const FIRST_ISSUE_DATE = "2026-08-25";
 
-/** 하루 콘텐츠 분량. */
-export const KNOWLEDGE_PER_DAY = { min: 1, max: 2 } as const;
+/** 하루 뉴스 분량. */
 export const NEWS_PER_DAY = { min: 3, max: 5, default: 3 } as const;
 
 /** 지면 맨 위에 거는 오늘의 키워드 개수. 한눈에 훑는 자리라 짧게 유지한다. */

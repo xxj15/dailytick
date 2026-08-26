@@ -64,15 +64,8 @@ export function getPublishTimeLabel(): string {
   return `${pad(PUBLISH_HOUR_KST)}:${pad(PUBLISH_MINUTE_KST)}`;
 }
 
-/** 'YYYY-MM-DD' 에서 n일 전/후 날짜. */
-export function shiftDate(date: DateString, days: number): DateString {
-  const [y, m, d] = date.split("-").map(Number);
-  const shifted = new Date(Date.UTC(y, m - 1, d + days));
-  return shifted.toISOString().slice(0, 10);
-}
-
 /** 두 날짜 사이의 일수 차이 (to - from). */
-export function diffDays(from: DateString, to: DateString): number {
+function diffDays(from: DateString, to: DateString): number {
   const toUtc = (value: DateString) => {
     const [y, m, d] = value.split("-").map(Number);
     return Date.UTC(y, m - 1, d);
@@ -81,7 +74,7 @@ export function diffDays(from: DateString, to: DateString): number {
 }
 
 /** 창간일 기준 발행 호수. 예: 'NO. 001' */
-export function getIssueNumber(date: DateString): number {
+function getIssueNumber(date: DateString): number {
   return Math.max(1, diffDays(FIRST_ISSUE_DATE, date) + 1);
 }
 
