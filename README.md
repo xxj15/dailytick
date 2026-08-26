@@ -1,14 +1,12 @@
-<div align="center">
+
 
 # DAILY TICK
 
-**증권사 취준생을 위한 데일리 금융 학습 서비스**
+- **증권사/금융권에 관심이 많은 사람들을 위한 데일리 금융 학습 서비스**입니다.  
 
-매일 아침 최신 경제 이슈와 증권 상식을 한 번에 확인할 수 있습니다.
+- 매일 아침 최신 경제 이슈와 증권 상식을 한 번에 확인할 수 있습니다.
 
-`Next.js` · `TypeScript` · `Tailwind CSS` · `Supabase` · `OpenAI API` · `Vercel`
-
-</div>
+- `Next.js` · `TypeScript` · `Tailwind CSS` · `Supabase` · `OpenAI API` · `Vercel`
 
 ---
 
