@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { BriefingBody } from "@/components/briefing/BriefingBody";
 import { Footer } from "@/components/layout/Footer";
 import { Masthead } from "@/components/layout/Masthead";
+import { isLoggedIn } from "@/lib/auth";
 import { formatKoreanDate, isDateString, type DateString } from "@/lib/date";
 import {
   getAdjacentBriefingDates,
@@ -28,6 +29,8 @@ export default async function ArchiveDatePage({
   // URL은 사용자가 직접 입력할 수 있다. 형식부터 확인한다.
   if (!isDateString(date)) notFound();
 
+  const canEdit = await isLoggedIn();
+
   // DB 오류로 페이지가 500이 되지 않게 한다. '없음'(404)과 '조회 실패'는 구분한다.
   let briefing: Briefing | null = null;
   let studyLog: StudyLog | null = null;
@@ -35,7 +38,7 @@ export default async function ArchiveDatePage({
 
   try {
     briefing = await getBriefingByDate(date);
-    if (briefing) studyLog = await getStudyLog(date);
+    if (briefing && canEdit) studyLog = await getStudyLog(date);
   } catch (error) {
     console.error(`[archive/${date}] 브리핑 조회 실패`, error);
     failed = true;
@@ -61,7 +64,11 @@ export default async function ArchiveDatePage({
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-6">
         {briefing ? (
-          <BriefingBody briefing={briefing} studyLog={studyLog} />
+          <BriefingBody
+            briefing={briefing}
+            studyLog={studyLog}
+            canEdit={canEdit}
+          />
         ) : (
           <section className="border-b border-rule py-20 text-center">
             <p className="headline text-xl sm:text-2xl">
@@ -102,7 +109,7 @@ export default async function ArchiveDatePage({
         </nav>
       </main>
 
-      <Footer />
+      <Footer loggedIn={canEdit} />
     </>
   );
 }

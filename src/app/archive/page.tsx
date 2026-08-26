@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Footer } from "@/components/layout/Footer";
 import { Masthead } from "@/components/layout/Masthead";
+import { isLoggedIn } from "@/lib/auth";
 import {
   formatMonthLabel,
   getTodayKST,
@@ -37,12 +38,17 @@ function dayOfMonth(date: DateString): string {
 
 export default async function ArchivePage() {
   const today = getTodayKST();
+  // 목록에는 그날 남긴 메모가 그대로 보인다. 주인일 때만 함께 조회한다.
+  const canEdit = await isLoggedIn();
 
   let entries: ArchiveEntry[] = [];
   let logs: StudyLog[] = [];
 
   try {
-    [entries, logs] = await Promise.all([getArchiveEntries(), getStudyLogs()]);
+    [entries, logs] = await Promise.all([
+      getArchiveEntries(),
+      canEdit ? getStudyLogs() : [],
+    ]);
   } catch (error) {
     console.error("[archive] 목록 조회 실패", error);
   }
@@ -125,7 +131,7 @@ export default async function ArchivePage() {
         </div>
       </main>
 
-      <Footer />
+      <Footer loggedIn={canEdit} />
     </>
   );
 }

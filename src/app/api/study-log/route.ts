@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isLoggedIn } from "@/lib/auth";
 import { DATE_STRING_PATTERN } from "@/lib/date";
 import { saveStudyLog } from "@/lib/supabase/study-logs";
 import type { NextRequest } from "next/server";
@@ -13,6 +14,14 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  // 학습 기록은 주인만 쓴다. UI를 숨기는 것만으로는 막을 수 없다.
+  if (!(await isLoggedIn())) {
+    return Response.json(
+      { ok: false, error: "로그인이 필요합니다." },
+      { status: 401 },
+    );
+  }
+
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
 
   if (!parsed.success) {

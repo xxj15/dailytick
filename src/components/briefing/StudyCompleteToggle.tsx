@@ -6,17 +6,21 @@ import { formatKstTime } from "@/lib/date";
 /**
  * 오늘 지면을 다 읽었는지 표시한다.
  * 본문 맨 아래가 아니라 제호 바로 아래에 두어 '체크하는' 감각을 준다.
+ *
+ * 비로그인 방문자에게는 잠긴 채로 보인다. (메모와 같은 규칙)
  */
 export function StudyCompleteToggle() {
-  const { completed, completedAt, status, toggleCompleted } = useStudyLog();
+  const { canEdit, completed, completedAt, status, toggleCompleted } =
+    useStudyLog();
 
   return (
     <button
       type="button"
       onClick={toggleCompleted}
-      disabled={status === "saving"}
+      disabled={!canEdit || status === "saving"}
       aria-pressed={completed}
-      className={`group flex items-center gap-2.5 rounded-full border px-4 py-2 text-sm transition-colors duration-200 disabled:opacity-50 ${
+      title={canEdit ? undefined : "완료 표시 잠김"}
+      className={`group flex items-center gap-2.5 rounded-full border px-4 py-2 text-sm transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${
         completed
           ? "border-ink bg-ink text-paper"
           : "border-rule text-ink-muted hover:border-ink hover:text-ink"

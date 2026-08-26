@@ -11,12 +11,19 @@ import type { Briefing, StudyLog } from "@/types/briefing";
 export function BriefingBody({
   briefing,
   studyLog,
+  canEdit,
 }: {
   briefing: Briefing;
   studyLog: StudyLog | null;
+  /** 로그인한 지면 주인만 완료 표시와 메모를 쓸 수 있다. */
+  canEdit: boolean;
 }) {
   return (
-    <StudyLogProvider date={briefing.briefingDate} initialLog={studyLog}>
+    <StudyLogProvider
+      date={briefing.briefingDate}
+      initialLog={studyLog}
+      canEdit={canEdit}
+    >
       <BriefingHeader
         todayKeywords={briefing.todayKeywords}
         oneLiner={briefing.oneLiner}

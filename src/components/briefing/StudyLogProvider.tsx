@@ -6,6 +6,8 @@ import type { StudyLog } from "@/types/briefing";
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 type StudyLogValue = {
+  /** 로그인한 지면 주인만 true. false면 UI는 보이되 잠겨 있다. */
+  canEdit: boolean;
   completed: boolean;
   completedAt: string | null;
   note: string;
@@ -29,14 +31,19 @@ export function useStudyLog() {
  * 완료 표시(지면 상단)와 메모(오른쪽 단)는 화면에서 떨어져 있지만
  * DB에서는 하루 한 행을 함께 쓴다. 한쪽만 저장하면 다른 쪽 값을 덮어쓰므로
  * 상태와 저장을 여기서 함께 들고 있는다.
+ *
+ * 비로그인 방문자에게도 이 자리는 보여준다. 다만 `initialLog`이 서버에서
+ * 아예 오지 않으므로 남의 메모가 새지 않고, 입력과 저장은 잠겨 있다.
  */
 export function StudyLogProvider({
   date,
   initialLog,
+  canEdit,
   children,
 }: {
   date: string;
   initialLog: StudyLog | null;
+  canEdit: boolean;
   children: ReactNode;
 }) {
   const [completedAt, setCompletedAt] = useState(initialLog?.completedAt ?? null);
@@ -47,6 +54,9 @@ export function StudyLogProvider({
   const completed = completedAt !== null;
 
   async function save(nextCompleted: boolean, nextNote: string) {
+    // 서버도 401로 막지만, 잠긴 UI에서 요청 자체가 나가지 않게 한다.
+    if (!canEdit) return;
+
     setStatus("saving");
 
     try {
@@ -73,6 +83,7 @@ export function StudyLogProvider({
   }
 
   const value: StudyLogValue = {
+    canEdit,
     completed,
     completedAt,
     note,
