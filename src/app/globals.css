@@ -17,8 +17,8 @@
    * 장식이 아니라 '여기에 설명이 있다'는 기능 표시라 형광펜 노랑을 쓴다.
    * 채도는 낮게 유지한다. 흑백 지면에서 이 이상 진해지면 튄다.
    */
-  --color-highlight: #fdf6d3;
-  --color-highlight-hover: #f7e9a6;
+  --color-highlight: #fdfae3;
+  --color-highlight-hover: #f8f0bf;
 
   /* 제목·본문 모두 Pretendard 하나로 통일한다. */
   --font-sans:
