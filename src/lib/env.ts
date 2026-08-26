@@ -55,3 +55,43 @@ export function getServerEnv(): ServerEnv {
 /** 브라우저에도 노출되는 값. */
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
+/**
+ * 로그인용 환경변수.
+ *
+ * 이 서비스의 사용자는 한 명이므로 회원 테이블을 두지 않고
+ * 계정 정보를 환경변수에 둔다. (명세 §50의 Password Gate를 확장한 형태)
+ *
+ * OpenAI/Supabase 설정과 분리해 둔다.
+ * 로그인 설정이 없다고 해서 브리핑 생성까지 막힐 이유는 없다.
+ */
+const authEnvSchema = z.object({
+  AUTH_ID: z.string().min(1, "AUTH_ID가 필요합니다."),
+  AUTH_PASSWORD: z.string().min(8, "AUTH_PASSWORD는 8자 이상이어야 합니다."),
+  // 세션 쿠키 서명용. 추측 가능한 값이면 쿠키를 위조할 수 있다.
+  AUTH_SECRET: z.string().min(32, "AUTH_SECRET은 32자 이상이어야 합니다."),
+});
+
+export type AuthEnv = z.infer<typeof authEnvSchema>;
+
+let cachedAuth: AuthEnv | null = null;
+
+export function getAuthEnv(): AuthEnv {
+  if (cachedAuth) return cachedAuth;
+
+  const parsed = authEnvSchema.safeParse({
+    AUTH_ID: process.env.AUTH_ID,
+    AUTH_PASSWORD: process.env.AUTH_PASSWORD,
+    AUTH_SECRET: process.env.AUTH_SECRET,
+  });
+
+  if (!parsed.success) {
+    const issues = parsed.error.issues
+      .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
+      .join("\n");
+    throw new Error(`로그인 환경변수 설정이 올바르지 않습니다.\n${issues}`);
+  }
+
+  cachedAuth = parsed.data;
+  return cachedAuth;
+}
