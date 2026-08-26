@@ -6,7 +6,6 @@
  */
 @theme {
   --color-paper: #ffffff;
-  --color-paper-white: #ffffff;
   --color-ink: #0a0a0a;
   /* 보조 텍스트와 경계선은 한 단계씩 진하게. 흑백 지면에서는 이게 곧 가독성이다 */
   --color-ink-muted: #4a4a4a;
@@ -24,7 +23,6 @@
   --font-sans:
     "Pretendard Variable", Pretendard, system-ui, -apple-system, "Segoe UI",
     sans-serif;
-  --font-serif: var(--font-sans);
 }
 
 /* 폼 컨트롤은 body에서 font-family를 상속받지 않으므로 따로 지정한다 */
@@ -54,7 +52,6 @@ body {
 
 /* 신문 라벨: 'TODAY'S KNOWLEDGE', '01 / RATES' 같은 작은 대문자 제목 */
 .label {
-  font-family: var(--font-sans);
   font-size: 0.75rem;
   font-weight: 700;
   /* 작은 글자에 자간까지 넓으면 한글이 흩어져 읽힌다 */
@@ -64,7 +61,6 @@ body {
 }
 
 .headline {
-  font-family: var(--font-sans);
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.3;
