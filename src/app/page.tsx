@@ -1,4 +1,3 @@
-import { ArchiveLink } from "@/components/briefing/ArchiveLink";
 import { BriefingBody } from "@/components/briefing/BriefingBody";
 import { EmptyBriefing } from "@/components/briefing/EmptyBriefing";
 import { Footer } from "@/components/layout/Footer";
@@ -47,8 +46,6 @@ export default async function HomePage() {
             latestDate={latest?.briefingDate ?? null}
           />
         )}
-
-        <ArchiveLink />
       </main>
 
       <Footer loggedIn={canEdit} />
