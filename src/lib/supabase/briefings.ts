@@ -28,7 +28,6 @@ function toBriefing(row: BriefingRow): Briefing {
   };
 }
 
-/** 특정 날짜의 브리핑. 없으면 null. */
 export async function getBriefingByDate(
   date: DateString,
 ): Promise<Briefing | null> {

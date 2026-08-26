@@ -14,7 +14,6 @@ function toStudyLog(row: StudyLogRow): StudyLog {
   };
 }
 
-/** 특정 날짜의 학습 기록. 없으면 null. */
 export async function getStudyLog(date: DateString): Promise<StudyLog | null> {
   const { data, error } = await getSupabase()
     .from(TABLE)

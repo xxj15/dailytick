@@ -39,7 +39,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/** 로그아웃. */
 export async function DELETE() {
   await destroySession();
   return Response.json({ ok: true });
