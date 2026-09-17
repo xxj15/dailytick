@@ -10,6 +10,7 @@ import {
 } from "@/lib/openai/schemas";
 import type {
   DailyBriefingContent,
+  KnowledgeItem,
   NewsCandidate,
   NewsIssue,
 } from "@/types/briefing";
@@ -28,6 +29,58 @@ function orderNewsIssues(items: NewsIssue[]): NewsIssue[] {
     ...byRank.filter((item) => item.region === "KR"),
     ...byRank.filter((item) => item.region !== "KR"),
   ].map((item, index) => ({ ...item, rank: index + 1 }));
+}
+
+type AlignResult =
+  | { ok: true; items: KnowledgeItem[] }
+  | { ok: false; message: string };
+
+/**
+ * 오늘 다룰 개념은 코드가 정한다. (select-next-concepts.ts)
+ * AI가 정말 그 개념을 설명했는지 확인하고, 식별 정보는 curriculum 값으로 되돌린다.
+ *
+ * slug는 DB에 학습 이력으로 남아 다음 날 출제를 결정한다.
+ * AI가 적어 보낸 값을 그대로 저장하면 그 개념은 영원히 미학습으로 남아
+ * 매일 다시 출제된다. 에러가 나지 않으므로 눈에도 띄지 않는다.
+ */
+function alignKnowledgeItems(
+  items: KnowledgeItem[],
+  concepts: CurriculumConcept[],
+): AlignResult {
+  if (items.length !== concepts.length) {
+    return {
+      ok: false,
+      message: `- knowledgeItems: 오늘 다룰 개념은 ${concepts.length}개인데 ${items.length}개를 작성했습니다. 전달한 개념만 그 개수대로 작성하세요.`,
+    };
+  }
+
+  const bySlug = new Map(items.map((item) => [item.slug, item]));
+
+  const aligned = concepts.map((concept) => {
+    const item = bySlug.get(concept.slug);
+    if (!item) return null;
+
+    // 설명은 AI가 쓰지만, 무엇을 설명한 것인지는 curriculum이 정한다.
+    return {
+      ...item,
+      slug: concept.slug,
+      title: concept.title,
+      level: concept.level,
+      category: concept.category,
+    };
+  });
+
+  if (aligned.some((item) => item === null)) {
+    const expected = concepts.map((c) => c.slug).join(", ");
+    const received = items.map((i) => i.slug).join(", ");
+
+    return {
+      ok: false,
+      message: `- knowledgeItems.slug: 전달한 개념(${expected}) 대신 다른 값(${received})을 썼습니다. slug는 전달받은 값을 그대로 사용하세요.`,
+    };
+  }
+
+  return { ok: true, items: aligned as KnowledgeItem[] };
 }
 
 export type GenerateBriefingParams = {
@@ -49,7 +102,8 @@ export type GenerateBriefingResult = {
 /**
  * STEP 2 — Daily Briefing 생성.
  *
- * AI 응답을 그대로 신뢰하지 않는다. 반드시 canonical 스키마 검증을 통과해야 한다.
+ * AI 응답을 그대로 신뢰하지 않는다. 반드시 canonical 스키마 검증을 통과하고,
+ * 코드가 정한 개념을 설명했는지까지 확인해야 한다.
  * 검증에 실패하면 무엇이 틀렸는지 알려주고 1회 재시도한다. (명세 §46)
  * 두 번째도 실패하면 저장하지 않고 던진다. 잘못된 데이터를 DB에 넣지 않는다.
  */
@@ -94,21 +148,33 @@ ${lastError}`;
       stripNulls(response.output_parsed),
     );
 
-    if (parsed.success) {
-      return {
-        content: {
-          ...parsed.data,
-          newsItems: orderNewsIssues(parsed.data.newsItems),
-        },
-        inputTokens,
-        outputTokens,
-        attempts: attempt,
-      };
+    if (!parsed.success) {
+      lastError = parsed.error.issues
+        .map((issue) => `- ${issue.path.join(".") || "(root)"}: ${issue.message}`)
+        .join("\n");
+      continue;
     }
 
-    lastError = parsed.error.issues
-      .map((issue) => `- ${issue.path.join(".") || "(root)"}: ${issue.message}`)
-      .join("\n");
+    const knowledge = alignKnowledgeItems(
+      parsed.data.knowledgeItems,
+      params.concepts,
+    );
+
+    if (!knowledge.ok) {
+      lastError = knowledge.message;
+      continue;
+    }
+
+    return {
+      content: {
+        ...parsed.data,
+        knowledgeItems: knowledge.items,
+        newsItems: orderNewsIssues(parsed.data.newsItems),
+      },
+      inputTokens,
+      outputTokens,
+      attempts: attempt,
+    };
   }
 
   throw new Error(`브리핑 검증 실패(2회 시도):\n${lastError}`);
