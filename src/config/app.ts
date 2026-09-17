@@ -23,6 +23,16 @@ export const NEWS_PER_DAY = { min: 3, max: 5, default: 3 } as const;
 /** 지면 맨 위에 거는 오늘의 키워드 개수. 한눈에 훑는 자리라 짧게 유지한다. */
 export const TODAY_KEYWORDS_PER_DAY = { min: 3, max: 5 } as const;
 
+/**
+ * 출처 게시 시각의 발행 하한선. 기준일 자정에서 이만큼 거슬러 올라간다.
+ * 뉴스마다 이 범위 안에 든 출처가 최소 하나는 있어야 발행한다. (명세 §12)
+ *
+ * 24시간 우선·48시간 확대라는 우선순위는 프롬프트가 유도한다.
+ * 이 상수는 그보다 느슨한 '명백히 오래된 근거'의 경계다.
+ * 월요일 지면은 금요일 장 마감 뒤 보도를 근거로 쓰므로 72시간이어야 한다.
+ */
+export const SOURCE_MAX_AGE_HOURS = 72;
+
 /** STEP 1에서 수집할 뉴스 후보 개수. */
 export const NEWS_CANDIDATE_COUNT = { min: 6, max: 10 } as const;
 

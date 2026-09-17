@@ -2,6 +2,7 @@ import {
   NEWS_CANDIDATE_COUNT,
   NEWS_PER_DAY,
   PREFERRED_PUBLISHERS,
+  SOURCE_MAX_AGE_HOURS,
   USER_PROFILE,
 } from "@/config/app";
 import type { CurriculumConcept } from "@/data/curriculum";
@@ -13,7 +14,7 @@ import type { NewsCandidate } from "@/types/briefing";
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고,
  * 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v8";
+export const PROMPT_VERSION = "v9";
 
 /**
  * 모든 단계에 공통으로 적용되는 편집 원칙.
@@ -347,6 +348,8 @@ importance가 5점 미만인 후보는 원칙적으로 제외한다.
 - 알 수 있으면 timezone 정보가 포함된 ISO 8601 형식으로 작성한다.
 - 사건 발생 시각과 기사 게시 시각을 혼동하지 않는다.
 - 정확한 게시 시각을 확인할 수 없다면 null로 둔다.
+- 다만 후보마다 게시 시각을 확인한 출처가 최소 하나는 있어야 한다.
+  모든 출처의 시각을 확인할 수 없다면 그 후보는 제출하지 않는다.
 
 ## 최종 점검
 
@@ -668,6 +671,12 @@ sources는 반드시 후보에 포함되어 있던 출처만 사용한다.
 - 한 이슈에 국내 매체와 해외 매체 기사가 모두 있으면
   국내 매체를 sources 맨 앞에 둔다.
 
+각 뉴스에는 게시 시각(publishedAt)이 확인된 출처가 최소 하나 있어야 한다.
+
+- publishedAt은 후보에 적힌 값을 그대로 옮긴다. 임의로 만들거나 바꾸지 않는다.
+- 최근 ${SOURCE_MAX_AGE_HOURS}시간 안에 게시된 출처가 하나도 없는 이슈는
+  오늘 지면에 올리지 않는다. 그런 이슈는 다른 후보로 교체한다.
+
 publisher에는 매체 이름 하나만 쓴다.
 
 매체가 여러 개라면
@@ -804,6 +813,7 @@ oneLiner는 키워드 바로 아래 붙는 한 줄이다.
 - marketImpact를 억지로 채우지 않았는가?
 - 실제 수치를 임의로 만들어내지 않았는가?
 - 후보에 없는 URL이나 출처를 추가하지 않았는가?
+- 각 뉴스에 게시 시각이 확인된 최신 출처가 최소 하나 있는가?
 - 오늘 새롭게 바뀐 내용이 없는 오래된 이슈를 반복하지 않았는가?
 
 [키워드와 한 줄]

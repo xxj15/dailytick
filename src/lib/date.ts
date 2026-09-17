@@ -1,5 +1,6 @@
 import {
   FIRST_ISSUE_DATE,
+  SOURCE_MAX_AGE_HOURS,
   PUBLISH_HOUR_KST,
   PUBLISH_MINUTE_KST,
   SERVICE_TIMEZONE,
@@ -16,6 +17,8 @@ import {
 export type DateString = string;
 
 export const DATE_STRING_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+const HOUR_MS = 3_600_000;
 
 export function isDateString(value: string): value is DateString {
   return DATE_STRING_PATTERN.test(value) && !Number.isNaN(Date.parse(value));
@@ -129,6 +132,36 @@ export function formatKstTime(isoTimestamp: string): string {
   }).format(new Date(isoTimestamp));
 
   return `${time} KST`;
+}
+
+/** 'YYYY-MM-DD' KST 자정의 UTC epoch(ms). KST는 서머타임이 없어 고정 +9다. */
+function kstMidnightMs(date: DateString): number {
+  const [y, m, d] = date.split("-").map(Number);
+  return Date.UTC(y, m - 1, d) - 9 * HOUR_MS;
+}
+
+/**
+ * 출처 게시 시각이 기준일 지면에 쓸 만큼 최신인가. (명세 §12)
+ *
+ * 허용 범위는 기준일 자정 기준 -SOURCE_MAX_AGE_HOURS ~ +24시간이다.
+ * 위를 막는 이유는 아직 오지 않은 시각에 보도된 기사가 있을 수 없기 때문이다.
+ * 시각이 없거나 파싱되지 않으면 최신이라고 보지 않는다. 확인할 수 없는 값이다.
+ */
+export function isFreshSource(
+  publishedAt: string | undefined,
+  date: DateString,
+): boolean {
+  if (!publishedAt) return false;
+
+  const published = Date.parse(publishedAt);
+  if (Number.isNaN(published)) return false;
+
+  const midnight = kstMidnightMs(date);
+
+  return (
+    published >= midnight - SOURCE_MAX_AGE_HOURS * HOUR_MS &&
+    published < midnight + 24 * HOUR_MS
+  );
 }
 
 /**
