@@ -234,6 +234,16 @@ failed
 
 토큰 사용량, `web_search` 호출 수, 오류 내용도 함께 저장합니다.
 
+생성을 몇 번 시도했는지와 검증에 걸린 사례도 남깁니다.
+재시도로 통과한 경우의 1차 위반까지 남기므로,
+어떤 기준이 가장 자주 깨지는지 확인할 수 있습니다.
+
+```sql
+select v->>'code' as code, count(*)
+from generation_logs, jsonb_array_elements(violations) v
+group by 1 order by 2 desc;
+```
+
 ### `study_logs`
 
 사용자의 학습 완료 여부와 메모를 저장합니다.
@@ -323,7 +333,16 @@ npm install
 npm run dev
 ```
 
-### 4. 브리핑 수동 생성
+### 4. 테스트
+
+```bash
+npm test
+```
+
+날짜 계산, 개념 선정, 발행 기준을 확인합니다.
+DB와 OpenAI를 호출하지 않습니다.
+
+### 5. 브리핑 수동 생성
 
 ```bash
 curl -X POST "http://localhost:3000/api/cron/daily-briefing" \
