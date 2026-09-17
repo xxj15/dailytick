@@ -5,7 +5,10 @@ import {
 } from "@/lib/curriculum/select-next-concepts";
 import type { DateString } from "@/lib/date";
 import { collectMarketNews } from "@/lib/openai/collect-news";
-import { generateDailyBriefing } from "@/lib/openai/generate-briefing";
+import {
+  BriefingValidationError,
+  generateDailyBriefing,
+} from "@/lib/openai/generate-briefing";
 import { getModel } from "@/lib/openai/client";
 import { PROMPT_VERSION } from "@/lib/openai/prompts";
 import {
@@ -85,13 +88,21 @@ export async function createDailyBriefing(
       inputTokens: news.inputTokens + generated.inputTokens,
       outputTokens: news.outputTokens + generated.outputTokens,
       webSearchCalls: news.webSearchCalls,
+      attempts: generated.attempts,
+      // 재시도로 통과했다면 1차에 무엇이 걸렸는지 여기에만 남는다.
+      violations: generated.violations,
     });
 
     return { briefing, reused: false };
   } catch (error) {
+    const violations =
+      error instanceof BriefingValidationError ? error.violations : undefined;
+
     // 생성에 실패해도 기존 브리핑은 절대 지우지 않는다.
     await finishGenerationLog(logId, {
       status: "failed",
+      attempts: violations?.[violations.length - 1]?.attempt,
+      violations,
       errorMessage: error instanceof Error ? error.message : String(error),
     });
     throw error;

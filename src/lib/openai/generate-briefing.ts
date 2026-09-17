@@ -10,6 +10,7 @@ import {
   stripNulls,
 } from "@/lib/openai/schemas";
 import type {
+  BriefingViolation,
   DailyBriefingContent,
   KnowledgeItem,
   NewsCandidate,
@@ -34,9 +35,23 @@ function orderNewsIssues(items: NewsIssue[]): NewsIssue[] {
 
 /**
  * 스키마만으로는 판정할 수 없는 발행 기준.
- * 위반 한 줄이 그대로 재시도 프롬프트에 들어가므로, 무엇을 어떻게 고칠지까지 쓴다.
+ *
+ * message는 그대로 재시도 프롬프트에 들어가므로 무엇을 어떻게 고칠지까지 쓰고,
+ * code는 나중에 세어 보기 위한 분류다. 무엇이 재시도를 가장 많이 유발하는지
+ * 알아야 기준을 고칠 수 있다.
  */
-type Violation = string;
+type Violation = Omit<BriefingViolation, "attempt">;
+
+/** 2회 모두 통과하지 못했다. 위반 내역을 로그에 남기려고 함께 들고 나간다. */
+export class BriefingValidationError extends Error {
+  constructor(
+    readonly violations: BriefingViolation[],
+    lastError: string,
+  ) {
+    super(`브리핑 검증 실패(2회 시도):\n${lastError}`);
+    this.name = "BriefingValidationError";
+  }
+}
 
 /**
  * 오늘 다룰 개념은 코드가 정한다. (select-next-concepts.ts)
@@ -52,7 +67,10 @@ function knowledgeViolations(
 ): Violation[] {
   if (items.length !== concepts.length) {
     return [
-      `- knowledgeItems: 오늘 다룰 개념은 ${concepts.length}개인데 ${items.length}개를 작성했습니다. 전달한 개념만 그 개수대로 작성하세요.`,
+      {
+        code: "knowledge.count",
+        message: `- knowledgeItems: 오늘 다룰 개념은 ${concepts.length}개인데 ${items.length}개를 작성했습니다. 전달한 개념만 그 개수대로 작성하세요.`,
+      },
     ];
   }
 
@@ -61,11 +79,14 @@ function knowledgeViolations(
   if (concepts.every((concept) => received.has(concept.slug))) return [];
 
   return [
-    `- knowledgeItems.slug: 전달한 개념(${concepts
-      .map((c) => c.slug)
-      .join(", ")}) 대신 다른 값(${items
-      .map((i) => i.slug)
-      .join(", ")})을 썼습니다. slug는 전달받은 값을 그대로 사용하세요.`,
+    {
+      code: "knowledge.slug",
+      message: `- knowledgeItems.slug: 전달한 개념(${concepts
+        .map((c) => c.slug)
+        .join(", ")}) 대신 다른 값(${items
+        .map((i) => i.slug)
+        .join(", ")})을 썼습니다. slug는 전달받은 값을 그대로 사용하세요.`,
+    },
   ];
 }
 
@@ -84,7 +105,10 @@ function freshnessViolations(
     item.sources.some((source) => isFreshSource(source.publishedAt, date))
       ? []
       : [
-          `- newsItems.${index}.sources: "${item.title}"에 최근 ${SOURCE_MAX_AGE_HOURS}시간 이내에 게시된 출처가 없습니다. publishedAt을 기사 게시 시각으로 정확히 적거나, 오늘 새로 보도된 기사를 인용하세요.`,
+          {
+            code: "news.freshness",
+            message: `- newsItems.${index}.sources: "${item.title}"에 최근 ${SOURCE_MAX_AGE_HOURS}시간 이내에 게시된 출처가 없습니다. publishedAt을 기사 게시 시각으로 정확히 적거나, 오늘 새로 보도된 기사를 인용하세요.`,
+          },
         ],
   );
 }
@@ -124,6 +148,8 @@ export type GenerateBriefingResult = {
   inputTokens: number;
   outputTokens: number;
   attempts: number;
+  /** 성공까지 걸린 위반 내역. 통과했다면 비어 있다. */
+  violations: BriefingViolation[];
 };
 
 /**
@@ -143,7 +169,15 @@ export async function generateDailyBriefing(
   let outputTokens = 0;
   let lastError = "";
 
+  // 재시도로 성공하더라도 1차에 무엇이 걸렸는지 남긴다.
+  const history: BriefingViolation[] = [];
+
   for (let attempt = 1; attempt <= 2; attempt++) {
+    const fail = (found: Violation[]) => {
+      history.push(...found.map((violation) => ({ attempt, ...violation })));
+      lastError = found.map((violation) => violation.message).join("\n");
+    };
+
     const input =
       attempt === 1
         ? basePrompt
@@ -167,7 +201,9 @@ ${lastError}`;
     outputTokens += response.usage?.output_tokens ?? 0;
 
     if (!response.output_parsed) {
-      lastError = "구조화된 응답을 받지 못했습니다.";
+      fail([
+        { code: "no_output", message: "구조화된 응답을 받지 못했습니다." },
+      ]);
       continue;
     }
 
@@ -176,9 +212,12 @@ ${lastError}`;
     );
 
     if (!parsed.success) {
-      lastError = parsed.error.issues
-        .map((issue) => `- ${issue.path.join(".") || "(root)"}: ${issue.message}`)
-        .join("\n");
+      fail(
+        parsed.error.issues.map((issue) => ({
+          code: `schema.${String(issue.path[0] ?? "root")}`,
+          message: `- ${issue.path.join(".") || "(root)"}: ${issue.message}`,
+        })),
+      );
       continue;
     }
 
@@ -189,7 +228,7 @@ ${lastError}`;
     ];
 
     if (violations.length > 0) {
-      lastError = violations.join("\n");
+      fail(violations);
       continue;
     }
 
@@ -205,8 +244,9 @@ ${lastError}`;
       inputTokens,
       outputTokens,
       attempts: attempt,
+      violations: history,
     };
   }
 
-  throw new Error(`브리핑 검증 실패(2회 시도):\n${lastError}`);
+  throw new BriefingValidationError(history, lastError);
 }

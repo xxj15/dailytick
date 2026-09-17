@@ -41,6 +41,13 @@ create table if not exists generation_logs (
   output_tokens integer,
   web_search_calls integer,
 
+  -- 생성을 몇 번 시도했는가. 2면 첫 응답이 검증을 통과하지 못한 것이다.
+  attempts integer,
+
+  -- 검증에 걸린 사례. [{ attempt, code, message }]
+  -- 재시도로 성공한 1차 위반도 남는다. 성공만 보면 무엇을 고쳐야 할지 알 수 없다.
+  violations jsonb,
+
   error_message text,
 
   created_at timestamptz not null default now()
@@ -84,3 +91,17 @@ alter table briefings
 
 alter table briefings
   alter column one_liner drop not null;
+
+-- 2026-09-17 · 검증에 걸린 사례를 기록한다
+--
+-- 재시도로 성공하면 1차 위반이 어디에도 남지 않았다.
+-- 무엇이 재시도를 가장 많이 유발하는지 알아야 기준을 고칠 수 있다.
+--
+--   select v->>'code' as code, count(*)
+--   from generation_logs, jsonb_array_elements(violations) v
+--   group by 1 order by 2 desc;
+alter table generation_logs
+  add column if not exists attempts integer;
+
+alter table generation_logs
+  add column if not exists violations jsonb;

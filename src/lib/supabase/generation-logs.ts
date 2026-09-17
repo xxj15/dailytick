@@ -1,7 +1,7 @@
 import "server-only";
 import { getSupabase } from "@/lib/supabase/client";
 import type { DateString } from "@/lib/date";
-import type { GenerationStatus } from "@/types/briefing";
+import type { BriefingViolation, GenerationStatus } from "@/types/briefing";
 
 const TABLE = "generation_logs";
 
@@ -36,6 +36,8 @@ export async function finishGenerationLog(
     inputTokens?: number;
     outputTokens?: number;
     webSearchCalls?: number;
+    attempts?: number;
+    violations?: BriefingViolation[];
     errorMessage?: string;
   },
 ): Promise<void> {
@@ -50,6 +52,9 @@ export async function finishGenerationLog(
         input_tokens: result.inputTokens ?? null,
         output_tokens: result.outputTokens ?? null,
         web_search_calls: result.webSearchCalls ?? null,
+        attempts: result.attempts ?? null,
+        // 통과한 날은 비워 둔다. 남은 행이 곧 고칠 거리다.
+        violations: result.violations?.length ? result.violations : null,
         // 긴 스택 전체를 넣지 않는다.
         error_message: result.errorMessage?.slice(0, 1000) ?? null,
       })

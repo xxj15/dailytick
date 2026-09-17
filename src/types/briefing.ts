@@ -74,3 +74,14 @@ export type StudyLogRow = {
 };
 
 export type GenerationStatus = "running" | "success" | "failed";
+
+/**
+ * 검증에 걸린 사례 한 건.
+ * 재시도로 성공한 1차 위반도 남긴다. 성공한 결과만 보면 무엇을 고쳐야 할지 알 수 없다.
+ */
+export type BriefingViolation = {
+  attempt: number;
+  /** 집계용 분류. 예: "news.freshness", "knowledge.slug", "schema.newsItems" */
+  code: string;
+  message: string;
+};
