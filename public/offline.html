@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>오프라인 — Daily Tick</title>
+    <!-- 서비스 워커가 미리 받아둔 폰트가 있으면 쓰고, 없으면 시스템 폰트로 내려간다 -->
+    <link rel="stylesheet" href="/fonts/pretendard/pretendard.css" />
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        box-sizing: border-box;
+        background: #ffffff;
+        color: #0a0a0a;
+        font-family:
+          "Pretendard Variable", Pretendard, system-ui, -apple-system,
+          "Segoe UI", sans-serif;
+        line-height: 1.75;
+        word-break: keep-all;
+      }
+      main {
+        max-width: 28rem;
+        width: 100%;
+        border-top: 3px solid #0a0a0a;
+        border-bottom: 1px solid #d4d4d4;
+        padding: 24px 0;
+      }
+      .label {
+        margin: 0;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        color: #4a4a4a;
+      }
+      h1 {
+        margin: 8px 0 12px;
+        font-size: 1.5rem;
+        line-height: 1.35;
+      }
+      p {
+        margin: 0;
+        color: #4a4a4a;
+      }
+      button {
+        margin-top: 20px;
+        padding: 8px 16px;
+        border: 1px solid #0a0a0a;
+        background: #0a0a0a;
+        color: #ffffff;
+        font: inherit;
+        font-size: 0.875rem;
+        font-weight: 700;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="label">DAILY TICK · OFFLINE</p>
+      <h1>지금은 지면을 받아올 수 없습니다</h1>
+      <p>
+        인터넷 연결을 확인해 주세요. 한 번 열어본 브리핑은 연결이 없어도 다시
+        볼 수 있습니다.
+      </p>
+      <button type="button" onclick="location.reload()">다시 시도</button>
+    </main>
+  </body>
+</html>
