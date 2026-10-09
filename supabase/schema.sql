@@ -48,6 +48,9 @@ create table if not exists generation_logs (
   -- 재시도로 성공한 1차 위반도 남는다. 성공만 보면 무엇을 고쳐야 할지 알 수 없다.
   violations jsonb,
 
+  -- 실제 검색 기록, 근거 문장·출처 hash, 탈락 이유, 의미 검토 결과
+  audit jsonb,
+
   error_message text,
 
   created_at timestamptz not null default now()
@@ -105,3 +108,7 @@ alter table generation_logs
 
 alter table generation_logs
   add column if not exists violations jsonb;
+
+-- 2026-10-09 · 뉴스 근거 추적
+alter table generation_logs
+  add column if not exists audit jsonb;

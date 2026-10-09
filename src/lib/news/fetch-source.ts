@@ -35,8 +35,9 @@ export function validateSourceUrl(value: string): URL {
 export type SourceResponse = { url: string; body: string; contentType: string };
 
 /** DNS 결과를 검사한 뒤 같은 주소로 연결한다. redirect마다 다시 검사한다. */
-export async function fetchSource(value: string): Promise<SourceResponse> {
-  const signal = AbortSignal.timeout(TIMEOUT_MS);
+export async function fetchSource(value: string, parentSignal?: AbortSignal): Promise<SourceResponse> {
+  const timeout = AbortSignal.timeout(TIMEOUT_MS);
+  const signal = parentSignal ? AbortSignal.any([timeout, parentSignal]) : timeout;
   let url = validateSourceUrl(value);
   for (let redirect = 0; redirect <= 3; redirect++) {
     signal.throwIfAborted();

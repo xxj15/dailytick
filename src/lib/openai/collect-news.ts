@@ -9,7 +9,13 @@ import {
 import type { DateString } from "@/lib/date";
 import type { NewsCandidate } from "@/types/briefing";
 import { zodTextFormat } from "openai/helpers/zod";
-import { auditSearchResults, type SearchTrace } from "@/lib/news/search-provenance";
+import { auditSearchResults, searchTraceFromCalls, SearchAuditError, type SearchTrace } from "@/lib/news/search-provenance";
+
+export class NewsCollectionError extends Error {
+  constructor(message: string, readonly usage: { inputTokens: number; outputTokens: number; webSearchCalls: number }, readonly trace: SearchTrace[], readonly rejectedUrls: string[] = []) {
+    super(message);
+  }
+}
 
 export type CollectNewsResult = {
   candidates: NewsCandidate[];
@@ -30,6 +36,7 @@ export type CollectNewsResult = {
  */
 export async function collectMarketNews(
   date: DateString,
+  signal?: AbortSignal,
 ): Promise<CollectNewsResult> {
   const response = await getOpenAI().responses.parse({
     model: getModel(),
@@ -40,10 +47,18 @@ export async function collectMarketNews(
     text: {
       format: zodTextFormat(aiNewsCandidateListSchema, "news_candidates"),
     },
-  });
+  }, { timeout: 60_000, maxRetries: 0, signal });
+
+  const calls = response.output.filter((item) => item.type === "web_search_call");
+  const usage = {
+    inputTokens: response.usage?.input_tokens ?? 0,
+    outputTokens: response.usage?.output_tokens ?? 0,
+    webSearchCalls: calls.filter((call) => call.action.type === "search").length,
+  };
+  const trace = searchTraceFromCalls(calls);
 
   if (!response.output_parsed) {
-    throw new Error("뉴스 후보 수집 실패: 구조화된 응답을 받지 못했습니다.");
+    throw new NewsCollectionError("뉴스 후보 수집 실패: 구조화된 응답을 받지 못했습니다.", usage, trace);
   }
 
   // AI 응답의 null을 걷어낸 뒤 canonical 스키마로 다시 검증한다.
@@ -52,22 +67,25 @@ export async function collectMarketNews(
   );
 
   if (!parsed.success) {
-    throw new Error(
+    throw new NewsCollectionError(
       `뉴스 후보 검증 실패: ${parsed.error.issues
         .map((i) => `${i.path.join(".")}: ${i.message}`)
-        .join(", ")}`,
+        .join(", ")}`, usage, trace,
     );
   }
 
-  const calls = response.output.filter((item) => item.type === "web_search_call");
-  const audited = auditSearchResults(parsed.data.candidates, calls);
+  let audited;
+  try {
+    audited = auditSearchResults(parsed.data.candidates, calls);
+  } catch (error) {
+    if (error instanceof SearchAuditError) throw new NewsCollectionError(error.message, usage, error.trace, error.rejectedUrls);
+    throw error;
+  }
 
   return {
     candidates: audited.candidates,
     searchTrace: audited.trace,
     rejectedUrls: audited.rejectedUrls,
-    inputTokens: response.usage?.input_tokens ?? 0,
-    outputTokens: response.usage?.output_tokens ?? 0,
-    webSearchCalls: calls.filter((call) => call.action.type === "search").length,
+    ...usage,
   };
 }

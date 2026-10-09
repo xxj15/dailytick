@@ -3,7 +3,7 @@ import { getTodayKST, isDateString } from "@/lib/date";
 import { getServerEnv } from "@/lib/env";
 import type { NextRequest } from "next/server";
 
-/** 뉴스 검색 + 2단계 생성이라 오래 걸린다. */
+/** 뉴스 검색·본문 수집·근거 선택·작성·검토를 수행한다. */
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 

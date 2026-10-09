@@ -1,6 +1,7 @@
 import { SOURCE_MAX_AGE_HOURS } from "@/config/app";
 import type { CurriculumConcept } from "@/data/curriculum";
 import { isFreshSource, type DateString } from "@/lib/date";
+import type { GroundedCandidate } from "@/lib/news/evidence-types";
 import type {
   BriefingViolation,
   DailyBriefingContent,
@@ -27,6 +28,7 @@ export type Violation = Omit<BriefingViolation, "attempt">;
 export type VerifyContext = {
   date: DateString;
   concepts: CurriculumConcept[];
+  candidates?: GroundedCandidate[];
 };
 
 /**
@@ -35,12 +37,37 @@ export type VerifyContext = {
  */
 export function verifyBriefing(
   content: DailyBriefingContent,
-  { date, concepts }: VerifyContext,
+  { date, concepts, candidates }: VerifyContext,
 ): Violation[] {
   return [
     ...knowledgeViolations(content.knowledgeItems, concepts),
     ...freshnessViolations(content.newsItems, date),
+    ...(candidates ? evidenceViolations(content.newsItems, candidates) : []),
   ];
+}
+
+function evidenceViolations(items: NewsIssue[], candidates: GroundedCandidate[]): Violation[] {
+  return items.flatMap((item) => {
+    const evidence = item.evidence;
+    const candidate = candidates.find((entry) => entry.id === evidence?.candidateId);
+    if (!evidence || !candidate || evidence.facts.length === 0 || evidence.facts.some((fact) => {
+      const original = candidate.facts.find((entry) => entry.id === fact.id);
+      return !original || original.quote !== fact.quote || original.sourceId !== fact.sourceId;
+    }) || item.whatHappened !== evidence.facts.map((fact) => fact.quote).join(" ")) {
+      return [{ code: "news.evidence", message: `뉴스 ${item.rank}: 검증된 사실과 본문이 일치하지 않습니다.` }];
+    }
+    const expected = candidate.documents.filter((doc) => evidence.facts.some((fact) => fact.sourceId === doc.id));
+    if (item.sources.length !== expected.length || item.sources.some((source, index) => {
+      const actual = expected[index]?.source;
+      return !actual || source.url !== actual.url || source.publishedAt !== actual.publishedAt || source.title !== actual.title || source.publisher !== actual.publisher;
+    })) return [{ code: "news.source", message: `뉴스 ${item.rank}: 실제 수집한 출처 정보와 일치하지 않습니다.` }];
+    // 해설에 새로운 숫자를 끼워 넣는 흔한 오류는 AI 검토 전에 차단한다.
+    const numbers = (value: string) => value.match(/\d+(?:[,.]\d+)*/g) ?? [];
+    const allowed = new Set(evidence.facts.flatMap((fact) => numbers(fact.quote)));
+    const written = [item.title, item.whyImportant, ...Object.values(item.marketImpact), item.interpretation].filter((text): text is string => !!text).join(" ");
+    const added = numbers(written).filter((number) => !allowed.has(number));
+    return added.length ? [{ code: "news.unsupported_number", message: `뉴스 ${item.rank}: 선택한 근거에 없는 숫자 ${[...new Set(added)].join(", ")}를 삭제하세요.` }] : [];
+  });
 }
 
 /**

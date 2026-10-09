@@ -2,6 +2,7 @@ import "server-only";
 import { getSupabase } from "@/lib/supabase/client";
 import type { DateString } from "@/lib/date";
 import type { BriefingViolation, GenerationStatus } from "@/types/briefing";
+import type { GenerationAudit } from "@/lib/news/generation-audit";
 
 const TABLE = "generation_logs";
 
@@ -39,6 +40,7 @@ export async function finishGenerationLog(
     attempts?: number;
     violations?: BriefingViolation[];
     errorMessage?: string;
+    audit?: GenerationAudit;
   },
 ): Promise<void> {
   if (!id) return;
@@ -61,6 +63,11 @@ export async function finishGenerationLog(
       .eq("id", id);
 
     if (error) throw new Error(error.message);
+    // 기존 DB에서도 기본 로그는 남긴다. audit 열의 마이그레이션 전에는 이 업데이트만 실패한다.
+    if (result.audit) {
+      const { error: auditError } = await getSupabase().from(TABLE).update({ audit: result.audit }).eq("id", id);
+      if (auditError) console.error("[generation-log] 근거 로그 저장 실패: audit 열 마이그레이션을 확인하세요.", auditError.message);
+    }
   } catch (error) {
     console.error("[generation-log] 종료 기록 실패", error);
   }

@@ -10,6 +10,12 @@ export function normalizeEvidenceText(value: string): string {
 /** timezone 없는 날짜는 서버 timezone으로 해석하지 않는다. 날짜만 있으면 보수적으로 KST 자정. */
 export function parsePublishedAt(value: string | undefined): string | undefined {
   if (!value) return undefined;
+  value = value.trim().replace(/^(등록일|작성일|입력|게시일)\s*[:：]?\s*/, "");
+  const englishDate = /^(January|February|March|April|May|June|July|August|September|October|November|December) (\d{1,2}), (\d{4})$/.exec(value);
+  if (englishDate) {
+    const month = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].indexOf(englishDate[1]) + 1;
+    value = `${englishDate[3]}-${String(month).padStart(2, "0")}-${englishDate[2].padStart(2, "0")}`;
+  }
   const dateOnly = /^(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})\.?$/.exec(value.trim());
   const normalized = dateOnly
     ? `${dateOnly[1]}-${dateOnly[2].padStart(2, "0")}-${dateOnly[3].padStart(2, "0")}T00:00:00+09:00`
@@ -47,18 +53,31 @@ export function extractSource(response: SourceResponse, requestedUrl: string, fe
   }
   const meta = (key: string) => $(`meta[property='${key}'], meta[name='${key}'], meta[itemprop='${key}']`).first().attr("content");
   const title = normalizeEvidenceText(meta("og:title") ?? $("h1").first().text() ?? "") || normalizeEvidenceText($("title").text());
-  const publisher = normalizeEvidenceText(meta("og:site_name") ?? new URL(response.url).hostname);
+  const publisher = normalizeEvidenceText(meta("og:site_name") ?? meta("publisher") ?? new URL(response.url).hostname);
+  // 메뉴·관련 기사에 표시된 오늘 날짜를 원문의 게시일로 쓰지 않는다.
+  const dateScope = $("article, #article, .bd-view, .article-view").first();
   const rawDate = meta("article:published_time") ?? meta("datePublished") ?? meta("pubdate") ??
     articles.map((article) => article.datePublished).find((date): date is string => typeof date === "string") ??
-    $("time[datetime]").first().attr("datetime") ??
-    $(".date, .view_date, .reg_date").first().text().trim();
-  const publishedAt = parsePublishedAt(rawDate);
-  $("script, style, nav, footer, aside, form, noscript, iframe, [hidden], [aria-hidden='true'], .advertisement, .ad, .related, .copyright").remove();
+    dateScope.find("time[itemprop='datePublished'], time[pubdate]").first().attr("datetime") ??
+    dateScope.find(".article__time, .date, .view_date, .reg_date").first().text().trim();
+  let publishedAt = parsePublishedAt(rawDate);
+  const hostname = new URL(response.url).hostname;
+  // Fed는 본문 날짜와 공개 시각·timezone을 서로 다른 요소에 표시한다.
+  if (hostname === "www.federalreserve.gov" || hostname === "federalreserve.gov") {
+    const clock = /For release at (\d{1,2}):(\d{2})\s*([ap])\.m\.\s*(EDT|EST)/i.exec($(".releaseTime").text());
+    if (clock && publishedAt && /^[A-Za-z]+ \d{1,2}, \d{4}$/.test(rawDate.trim())) {
+      const day = new Date(Date.parse(publishedAt) + 9 * 3_600_000).toISOString().slice(0, 10);
+      const hour = (Number(clock[1]) % 12) + (clock[3].toLowerCase() === "p" ? 12 : 0);
+      publishedAt = parsePublishedAt(`${day}T${String(hour).padStart(2, "0")}:${clock[2]}:00${clock[4].toUpperCase() === "EDT" ? "-04:00" : "-05:00"}`);
+    }
+  }
+  // 기관 게시판은 본문 전체를 form 안에 넣기도 하므로 form 자체를 지우지 않는다.
+  $("script, style, nav, footer, aside, input, button, select, textarea, noscript, iframe, [hidden], [aria-hidden='true'], .advertisement, .ad, .related, .copyright").remove();
   $("br").replaceWith(" ");
   $("p, div, li, h1, h2, h3, tr").append(" ");
   const selectors = [
     "[itemprop='articleBody']", "#dic_area", "#newsct_article", "#articletxt", "#article-view-content-div",
-    "#articleBody", ".article_body", ".article-body", ".article_view", ".news_cnt_detail_wrap",
+    "#articleBody", "#article", ".article_body", ".article-body", ".article_view", ".news_cnt_detail_wrap",
     ".dbdata", ".bd_view_detail", ".view_cont", "article",
   ];
   let text = "";
