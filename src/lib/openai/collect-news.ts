@@ -9,12 +9,15 @@ import {
 import type { DateString } from "@/lib/date";
 import type { NewsCandidate } from "@/types/briefing";
 import { zodTextFormat } from "openai/helpers/zod";
+import { auditSearchResults, type SearchTrace } from "@/lib/news/search-provenance";
 
 export type CollectNewsResult = {
   candidates: NewsCandidate[];
   inputTokens: number;
   outputTokens: number;
   webSearchCalls: number;
+  searchTrace: SearchTrace[];
+  rejectedUrls: string[];
 };
 
 /**
@@ -32,6 +35,8 @@ export async function collectMarketNews(
     model: getModel(),
     input: buildNewsCollectionPrompt(date),
     tools: [{ type: "web_search" }],
+    tool_choice: "required",
+    include: ["web_search_call.action.sources"],
     text: {
       format: zodTextFormat(aiNewsCandidateListSchema, "news_candidates"),
     },
@@ -54,12 +59,15 @@ export async function collectMarketNews(
     );
   }
 
+  const calls = response.output.filter((item) => item.type === "web_search_call");
+  const audited = auditSearchResults(parsed.data.candidates, calls);
+
   return {
-    candidates: parsed.data.candidates,
+    candidates: audited.candidates,
+    searchTrace: audited.trace,
+    rejectedUrls: audited.rejectedUrls,
     inputTokens: response.usage?.input_tokens ?? 0,
     outputTokens: response.usage?.output_tokens ?? 0,
-    webSearchCalls: response.output.filter(
-      (item) => item.type === "web_search_call",
-    ).length,
+    webSearchCalls: calls.filter((call) => call.action.type === "search").length,
   };
 }
