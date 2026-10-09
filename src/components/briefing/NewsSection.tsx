@@ -10,6 +10,11 @@ export function NewsSection({ items }: { items: NewsIssue[] }) {
       />
 
       <div className="min-w-0">
+        {items.some((item) => item.evidence) && items.length < 3 && (
+          <p className="mb-8 text-sm leading-relaxed text-ink-muted">
+            오늘은 본문 근거를 확보한 이슈 {items.length}건을 전합니다.
+          </p>
+        )}
         {items.map((issue, index) => (
           <NewsArticle
             key={`${issue.rank}-${issue.title}`}

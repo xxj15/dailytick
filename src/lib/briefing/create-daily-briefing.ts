@@ -5,6 +5,7 @@ import {
 } from "@/lib/curriculum/select-next-concepts";
 import type { DateString } from "@/lib/date";
 import { collectMarketNews } from "@/lib/openai/collect-news";
+import { groundMarketNews } from "@/lib/openai/ground-news";
 import {
   BriefingValidationError,
   generateDailyBriefing,
@@ -55,12 +56,14 @@ export async function createDailyBriefing(
     const learnedTitles = collectLearnedTitles(history);
 
     const news = await collectMarketNews(date);
+    const grounded = await groundMarketNews(news.candidates, date);
+    if (!grounded.candidates.length) throw new Error("실제 본문으로 확인한 최신 뉴스가 없습니다.");
 
     const generated = await generateDailyBriefing({
       date,
       concepts,
       mode,
-      candidates: news.candidates,
+      candidates: grounded.candidates,
       learnedTitles,
     });
 
@@ -85,8 +88,8 @@ export async function createDailyBriefing(
 
     await finishGenerationLog(logId, {
       status: "success",
-      inputTokens: news.inputTokens + generated.inputTokens,
-      outputTokens: news.outputTokens + generated.outputTokens,
+      inputTokens: news.inputTokens + grounded.inputTokens + generated.inputTokens,
+      outputTokens: news.outputTokens + grounded.outputTokens + generated.outputTokens,
       webSearchCalls: news.webSearchCalls,
       attempts: generated.attempts,
       // 재시도로 통과했다면 1차에 무엇이 걸렸는지 여기에만 남는다.

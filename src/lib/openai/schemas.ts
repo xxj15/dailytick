@@ -34,6 +34,15 @@ export const marketImpactSchema = z.object({
   industry: z.string().optional(),
 });
 
+/** 과거 row에는 없으므로 newsIssueSchema의 evidence 필드만 optional이다. */
+export const newsEvidenceSchema = z.object({
+  candidateId: z.string().min(1),
+  facts: z.array(z.object({ id: z.string(), sourceId: z.string(), quote: z.string().min(25).max(400) })).min(1).max(3),
+  documents: z.array(z.object({
+    id: z.string(), requestedUrl: z.url(), url: z.url(), fetchedAt: z.string(), contentHash: z.string(),
+  })).min(1),
+});
+
 export const newsIssueSchema = z.object({
   rank: z.number().int().positive(),
   title: z.string().min(1),
@@ -49,6 +58,7 @@ export const newsIssueSchema = z.object({
   interpretation: z.string().optional(),
 
   sources: z.array(newsSourceSchema).min(1, "출처 없는 뉴스는 발행하지 않는다."),
+  evidence: newsEvidenceSchema.optional(),
 });
 
 export const knowledgeItemSchema = z.object({
@@ -95,14 +105,6 @@ export const dailyBriefingSchema = z
      * 길이는 프롬프트로만 유도한다. 한두 글자 초과로 브리핑을 버리지 않는다.
      */
     oneLiner: z.string().min(1),
-  })
-  .refine((b) => b.newsItems.some((n) => n.region === "KR"), {
-    message: "국내 뉴스가 최소 1개 필요합니다.",
-    path: ["newsItems"],
-  })
-  .refine((b) => b.newsItems.some((n) => n.region === "GLOBAL"), {
-    message: "글로벌 뉴스가 최소 1개 필요합니다.",
-    path: ["newsItems"],
   });
 
 /** STEP 1 — 뉴스 후보 수집 결과 */
@@ -147,14 +149,12 @@ const aiMarketImpactSchema = z.object({
 
 const aiNewsIssueSchema = z.object({
   rank: z.number(),
+  candidateId: z.string(),
+  factIds: z.array(z.string()),
   title: z.string(),
-  region: newsRegionSchema,
-  category: newsCategorySchema,
-  whatHappened: z.string(),
   whyImportant: z.string(),
   marketImpact: aiMarketImpactSchema,
   interpretation: z.string().nullable(),
-  sources: z.array(aiNewsSourceSchema),
 });
 
 const aiKnowledgeItemSchema = z.object({

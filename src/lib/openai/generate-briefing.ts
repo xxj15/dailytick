@@ -16,9 +16,10 @@ import {
 import type {
   BriefingViolation,
   DailyBriefingContent,
-  NewsCandidate,
 } from "@/types/briefing";
 import { zodTextFormat } from "openai/helpers/zod";
+import { materializeBriefing } from "@/lib/briefing/materialize";
+import type { GroundedCandidate } from "@/lib/news/evidence-types";
 
 /** 2회 모두 통과하지 못했다. 위반 내역을 로그에 남기려고 함께 들고 나간다. */
 export class BriefingValidationError extends Error {
@@ -36,7 +37,7 @@ export type GenerateBriefingParams = {
   concepts: CurriculumConcept[];
   /** 커리큘럼을 한 바퀴 돈 뒤라면 "review". 설명 방식이 달라진다. */
   mode: "new" | "review";
-  candidates: NewsCandidate[];
+  candidates: GroundedCandidate[];
   learnedTitles: string[];
 };
 
@@ -60,6 +61,7 @@ export type GenerateBriefingResult = {
 export async function generateDailyBriefing(
   params: GenerateBriefingParams,
 ): Promise<GenerateBriefingResult> {
+  if (!params.candidates.length) throw new Error("근거가 확보된 뉴스가 없어 브리핑을 생성하지 않습니다.");
   const basePrompt = buildBriefingPrompt(params);
 
   let inputTokens = 0;
@@ -104,9 +106,14 @@ ${lastError}`;
       continue;
     }
 
-    const parsed = dailyBriefingSchema.safeParse(
-      stripNulls(response.output_parsed),
-    );
+    let materialized;
+    try {
+      materialized = materializeBriefing(response.output_parsed, params.candidates);
+    } catch (error) {
+      fail([{ code: "news.evidence", message: error instanceof Error ? error.message : String(error) }]);
+      continue;
+    }
+    const parsed = dailyBriefingSchema.safeParse(stripNulls(materialized));
 
     if (!parsed.success) {
       fail(

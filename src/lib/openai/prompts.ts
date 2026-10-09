@@ -7,14 +7,14 @@ import {
 } from "@/config/app";
 import type { CurriculumConcept } from "@/data/curriculum";
 import { formatKoreanDate, type DateString } from "@/lib/date";
-import type { NewsCandidate } from "@/types/briefing";
+import type { GroundedCandidate } from "@/lib/news/evidence-types";
 
 /**
  * Prompt는 Component가 아니라 이 파일에서만 관리한다.
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고,
  * 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v9";
+export const PROMPT_VERSION = "v10";
 
 /**
  * 모든 단계에 공통으로 적용되는 편집 원칙.
@@ -185,16 +185,16 @@ const NEWS_CRITERIA = `우선적으로 탐색할 주제:
  */
 const SOURCE_PREFERENCE = `출처 선호 순서:
 
-1순위 — 국내 경제지
-${PREFERRED_PUBLISHERS.kr.join(" / ")}
-
-2순위 — 공식 발표 자료
+1순위 — 공식 발표 자료
 ${PREFERRED_PUBLISHERS.official.join(" / ")}
+
+2순위 — 국내 경제지
+${PREFERRED_PUBLISHERS.kr.join(" / ")}
 
 3순위 — 해외 매체 (보조)
 ${PREFERRED_PUBLISHERS.global.join(" / ")}
 
-글로벌 이슈라도 국내 경제지가 이미 보도했다면 그 기사를 대표 출처로 삼는다.
+가능하면 모든 후보에 기사와 함께 공개적으로 접근할 수 있는 공식 발표 원문 URL을 포함한다.
 
 해외 매체는 국내 보도가 없거나
 수치·원문을 확인해야 할 때 함께 붙인다.
@@ -372,7 +372,7 @@ export function buildBriefingPrompt(params: {
   date: DateString;
   concepts: CurriculumConcept[];
   mode: "new" | "review";
-  candidates: NewsCandidate[];
+  candidates: GroundedCandidate[];
   learnedTitles: string[];
 }): string {
   const { date, concepts, mode, candidates, learnedTitles } = params;
@@ -521,10 +521,13 @@ ${learnedBlock}
 
 # PART 2. 오늘의 경제 이슈
 
-아래 데이터는 앞 단계에서 최신 검색과 확인을 거쳐 수집한 뉴스 후보다.
+아래 데이터는 서버가 직접 확보한 본문에서 근거 문장을 대조한 뉴스 후보다.
+facts.quote에 있는 내용만 사실로 사용할 수 있다. 검색 후보 title은 힌트이며 사실의 근거가 아니다.
 
 <news_candidates>
-${JSON.stringify(candidates, null, 2)}
+${JSON.stringify(candidates.map(({ documents, ...candidate }) => ({
+  ...candidate, documents: documents.map((doc) => ({ sourceId: doc.id, ...doc.source })),
+})), null, 2)}
 </news_candidates>
 
 위 후보 가운데 오늘 금융시장을 이해하는 데 가장 중요한 뉴스를 선정한다.
@@ -532,7 +535,7 @@ ${JSON.stringify(candidates, null, 2)}
 ## 뉴스 선정 개수
 
 - 기본적으로 ${NEWS_PER_DAY.default}개를 선정한다.
-- 최소 ${NEWS_PER_DAY.min}개는 선정한다.
+- 근거가 충분한 후보가 적다면 ${NEWS_PER_DAY.min}~2개만 선정할 수 있다. 개수를 맞추려고 내용을 보태지 않는다.
 - 정말 중요한 이슈가 많은 경우 최대 ${NEWS_PER_DAY.max}개까지 선정할 수 있다.
 
 기본 개수보다 추가로 뉴스를 선정하려면 다음 조건을 모두 충족해야 한다.
@@ -544,10 +547,8 @@ ${JSON.stringify(candidates, null, 2)}
 
 ## 지역 구성
 
-- KR 뉴스 최소 1개
-- GLOBAL 뉴스 최소 1개
-
-를 반드시 포함한다.
+- 가능하면 KR과 GLOBAL을 모두 포함한다.
+- 근거가 확보된 후보만 사용한다. 지역 할당을 맞추려고 후보나 사실을 만들지 않는다.
 
 단, 국내 기업 뉴스라는 이유만으로 KR,
 미국 언론이 보도했다는 이유만으로 GLOBAL로 판단하지 않는다.
@@ -597,16 +598,16 @@ rank는 그 순서대로 1부터 매긴다.
 - 클릭을 유도하는 과장된 표현을 사용하지 않는다.
 - 불필요하게 자극적인 표현을 쓰지 않는다.
 
-### whatHappened
+### 사실 선택
 
-- 확인된 사실만 작성한다.
-- 2~3문장 정도로 설명한다.
-- 누가 무엇을 발표·결정·발표했는지 명확하게 쓴다.
-- 가능하면 사건 발생 날짜나 기준 시점을 분명히 한다.
-- 전망이나 편집자의 의견을 넣지 않는다.
+- whatHappened와 sources는 출력하지 않는다. 서버가 선택된 근거 문장과 실제 출처로 조합한다.
+- 각 뉴스에 candidateId와 그 후보에 속하는 factIds 1~3개를 출력한다.
+- region·category·publishedAt도 출력하지 않는다. 서버가 후보에서 사용한다.
+- title도 선택한 근거 범위 안에서만 작성한다. 기사 게시일을 사건 발생일로 바꾸지 않는다.
 
 ### whyImportant
 
+- facts에 없는 실제 통계·발언·정책 세부사항·시장 반응을 추가하지 않는다.
 - 이 사건이 왜 금융시장에서 중요한지 설명한다.
 - 단순히 "시장이 주목하고 있다"라고 쓰지 않는다.
 - 어떤 경제 주체나 자산에 영향을 줄 수 있는지 연결한다.
@@ -662,7 +663,10 @@ rank는 그 순서대로 1부터 매긴다.
 
 ${SOURCE_PREFERENCE}
 
-sources는 반드시 후보에 포함되어 있던 출처만 사용한다.
+sources는 출력하지 않는다. 서버가 선택한 factIds에 해당하는 실제 출처만 조합한다.
+설명에는 선택한 factIds의 근거만 사용한다. URL·게시일·인용문을 새로 만들지 않는다.
+
+출처를 이해할 때 다음 원칙을 따른다.
 
 - 후보에 없는 URL을 새로 만들지 않는다.
 - URL 문자열을 임의로 수정하지 않는다.

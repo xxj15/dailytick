@@ -18,7 +18,8 @@ export const PUBLISH_MINUTE_KST = 30;
 export const FIRST_ISSUE_DATE = "2026-08-25";
 
 /** 하루 뉴스 분량. */
-export const NEWS_PER_DAY = { min: 3, max: 5, default: 3 } as const;
+// 개수·지역 할당보다 근거 확보가 우선이다. 근거가 없으면 발행 자체를 중단한다.
+export const NEWS_PER_DAY = { min: 1, max: 5, default: 3 } as const;
 
 /** 지면 맨 위에 거는 오늘의 키워드 개수. 한눈에 훑는 자리라 짧게 유지한다. */
 export const TODAY_KEYWORDS_PER_DAY = { min: 3, max: 5 } as const;

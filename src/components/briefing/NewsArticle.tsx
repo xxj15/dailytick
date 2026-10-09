@@ -52,7 +52,7 @@ export function NewsArticle({
 
       {/* 리드 문단. 무슨 일이 있었는지가 가장 먼저, 가장 크게 읽혀야 한다 */}
       <div className="article-body mt-6">
-        <p className="label">무슨 일이 있었나</p>
+        <p className="label">무슨 일이 있었나{issue.evidence ? " · 출처 원문 발췌" : ""}</p>
         <p className="mt-2 text-[17px] leading-relaxed">{issue.whatHappened}</p>
       </div>
 
