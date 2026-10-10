@@ -1,8 +1,5 @@
 <div align="center">
 
-  <img src="./docs/assets/readme-banner.svg" width="100%" alt="DAILY TICK — Daily Financial Briefing" />
-
-  <br />
 
   <p>
     <strong>AI와 함께, 화면부터 백엔드·검증 흐름까지 구현하는 개인 프로젝트.</strong><br />
