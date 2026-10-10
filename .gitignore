@@ -44,3 +44,6 @@ next-env.d.ts
 # agent working docs (kept local only)
 CLAUDE.md
 AGENTS.md
+
+# personal AI collaboration notes and Velog drafts (kept local only)
+/notes/

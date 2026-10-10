@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="280" viewBox="0 0 1200 280" role="img" aria-labelledby="title desc">
+  <title id="title">DAILY TICK · AI와 함께 개발하는 과정</title>
+  <desc id="desc">서비스 목표와 우선순위를 정하고 확인할 조건을 구체화한다. AI와 화면·API·DB를 구현한다. 코드 리뷰와 실패 입력·장애 주입, 자동 테스트로 동작을 확인한다. 결과를 확인하고 수정 이유와 검증 근거를 문서와 코드에 연결한다.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+      <path d="M1 1L6 4L1 7" fill="none" stroke="#AA9ABA" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+  <rect x="1" y="1" width="1198" height="278" rx="22" fill="#FAF9FD" stroke="#E5DFEE" stroke-width="2"/>
+  <g font-family="'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', sans-serif">
+    <text x="36" y="40" fill="#8B78A4" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" letter-spacing="2">DEVELOPMENT / WORKING WITH CODEX</text>
+    <text x="36" y="79" fill="#272035" font-size="30" font-weight="700">구현하고, 확인하고, 다시 개선하기</text>
+    <g fill="#FFFFFF" stroke="#E2DAEE" stroke-width="1.5">
+      <rect x="36" y="106" width="258" height="138" rx="14"/>
+      <rect x="326" y="106" width="258" height="138" rx="14"/>
+      <rect x="616" y="106" width="258" height="138" rx="14"/>
+      <rect x="906" y="106" width="258" height="138" rx="14"/>
+    </g>
+    <rect x="616" y="106" width="258" height="138" rx="14" fill="#F1EBFC" stroke="#C8B4EB" stroke-width="1.5"/>
+    <g fill="none" stroke="#AA9ABA" stroke-width="2" marker-end="url(#arrow)">
+      <path d="M301 175H319"/>
+      <path d="M591 175H609"/>
+      <path d="M881 175H899"/>
+    </g>
+    <g fill="#7C3AED" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" letter-spacing="1.2">
+      <text x="56" y="135">01 / DEFINE</text>
+      <text x="346" y="135">02 / BUILD</text>
+      <text x="636" y="135">03 / VERIFY</text>
+      <text x="926" y="135">04 / REFINE</text>
+    </g>
+    <g fill="#30243F" font-size="25" font-weight="700">
+      <text x="56" y="170">목표와 기준</text>
+      <text x="346" y="170">AI와 구현</text>
+      <text x="636" y="170">재현과 검증</text>
+      <text x="926" y="170">개선과 기록</text>
+    </g>
+    <g fill="#74677F" font-size="20">
+      <text x="56" y="202">서비스 방향·우선순위</text>
+      <text x="56" y="229">확인할 조건 구체화</text>
+      <text x="346" y="202">화면·API·DB 연결</text>
+      <text x="346" y="229">검증 로직·문서 정리</text>
+      <text x="636" y="202">실패 입력·장애 주입</text>
+      <text x="636" y="229">코드 리뷰·자동 테스트</text>
+      <text x="926" y="202">결과 확인·요구 보완</text>
+      <text x="926" y="229">수정 이유·근거 연결</text>
+    </g>
+  </g>
+</svg>
