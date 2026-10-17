@@ -6,7 +6,9 @@ import type { Concept } from "@/data/curriculum";
  * 경제 커리큘럼과 같은 규칙을 따른다. AI가 주제를 고르지 않고 이 배열 순서대로 나간다.
  * 독자는 현업 프론트엔드 개발자지만, 출퇴근길에 가볍게 읽는 자리다.
  * 교과서 목차 대신 "어, 그거 왜 그렇지?" 싶은 질문으로 제목을 단다.
- * 쉬운 질문에서 시작해 브라우저 → JS → CSS → React → 성능·보안 → 인프라 → AI로 깊어진다.
+ *
+ * 아래 목록은 고치기 쉽도록 분야별로 묶어 두었다. 실제 출제 순서는 분야를 하나씩 돌아가며 섞는다.
+ * 한 분야만 며칠씩 이어지지 않게 하고, 각 분야 안에서는 쉬운 것부터 나가는 순서를 지킨다.
  */
 
 export type TechCurriculumCategory =
@@ -24,7 +26,7 @@ export type TechCurriculumCategory =
 
 export type TechCurriculumConcept = Concept & { category: TechCurriculumCategory };
 
-export const TECH_CURRICULUM: TechCurriculumConcept[] = [
+const BY_CATEGORY: TechCurriculumConcept[] = [
   // LEVEL 1 — 매일 보지만 신기한 것들
   { slug: "q-url-enter", title: "주소창에 URL을 치고 엔터를 누르면 생기는 일", level: 1, category: "internet" },
   { slug: "q-dns", title: "DNS: 인터넷은 주소를 어떻게 찾아갈까", level: 1, category: "internet" },
@@ -109,3 +111,25 @@ export const TECH_CURRICULUM: TechCurriculumConcept[] = [
   { slug: "q-mcp", title: "MCP: AI에게 손발을 달아주는 표준", level: 9, category: "ai" },
   { slug: "q-ai-agent", title: "AI 에이전트는 챗봇과 뭐가 다를까", level: 9, category: "ai" },
 ];
+
+/**
+ * 분야마다 한 개씩 돌아가며 꺼낸다. 분야 순서는 목록에 처음 나온 순서다.
+ * 짝 개념(pairWith)은 떨어져 있어도 선정 코드가 같은 날 함께 꺼낸다.
+ */
+function rotateByCategory(concepts: TechCurriculumConcept[]): TechCurriculumConcept[] {
+  const queues = new Map<TechCurriculumCategory, TechCurriculumConcept[]>();
+  for (const concept of concepts) {
+    queues.set(concept.category, [...(queues.get(concept.category) ?? []), concept]);
+  }
+
+  const rotated: TechCurriculumConcept[] = [];
+  while (rotated.length < concepts.length) {
+    for (const queue of queues.values()) {
+      const next = queue.shift();
+      if (next) rotated.push(next);
+    }
+  }
+  return rotated;
+}
+
+export const TECH_CURRICULUM = rotateByCategory(BY_CATEGORY);

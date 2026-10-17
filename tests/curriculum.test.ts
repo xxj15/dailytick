@@ -113,3 +113,14 @@ test("IT 커리큘럼을 다 돌면 가장 오래된 두 개를 복습한다", (
   assert.equal(mode, "review");
   assert.deepEqual(concepts.map((c) => c.slug), all.slice(0, 2));
 });
+
+test("IT 상식은 분야를 돌아가며 나가고, 분야 안에서는 쉬운 것부터 나간다", () => {
+  // 앞쪽 2주(하루 두 개)는 같은 분야가 연달아 붙지 않는다
+  for (let i = 1; i < 28; i++) {
+    assert.notEqual(TECH_CURRICULUM[i].category, TECH_CURRICULUM[i - 1].category, `${i}번째`);
+  }
+  // 분야 안의 순서는 작성한 대로다 (자바스크립트: 0.1+0.2 → 싱글 스레드)
+  const js = TECH_CURRICULUM.filter((c) => c.category === "javascript").map((c) => c.slug);
+  assert.ok(js.indexOf("q-zero-point-one") < js.indexOf("q-single-thread"));
+  assert.equal(new Set(TECH_CURRICULUM.map((c) => c.slug)).size, TECH_CURRICULUM.length);
+});
