@@ -116,7 +116,7 @@ export const USER_PROFILE = {
   locale: "ko-KR",
   timezone: SERVICE_TIMEZONE,
   preferredLength: "concise",
-  newsGoal: "신문을 따로 읽지 않아도 오늘의 1면급 주요 뉴스를 파악",
+  newsGoal: "요즘 사람들의 생활과 사회의 흐름을 파악",
   techGoal: "IT 기본기(CS 지식)를 쌓고 요즘 기술 트렌드를 따라가기",
   techLevel: "non-major",
 } as const;
