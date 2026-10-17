@@ -4,107 +4,108 @@ import type { Concept } from "@/data/curriculum";
  * IT 개념 Curriculum.
  *
  * 경제 커리큘럼과 같은 규칙을 따른다. AI가 주제를 고르지 않고 이 배열 순서대로 나간다.
- * 독자는 현업 프론트엔드 개발자다. 매일 쓰지만 원리까지는 설명하기 어려운 것부터
- * 웹 플랫폼 → JS·TS → React → 성능 → 인프라 → CS 기초 → AI 개발 순서로 쌓는다.
+ * 독자는 현업 프론트엔드 개발자지만, 출퇴근길에 가볍게 읽는 자리다.
+ * 교과서 목차 대신 "어, 그거 왜 그렇지?" 싶은 질문으로 제목을 단다.
+ * 쉬운 질문에서 시작해 브라우저 → JS → CSS → React → 성능·보안 → 인프라 → AI로 깊어진다.
  */
 
 export type TechCurriculumCategory =
-  | "web-platform"
+  | "internet"
+  | "browser"
   | "javascript"
-  | "typescript"
+  | "css"
   | "react"
   | "performance"
-  | "web-security"
+  | "security"
   | "infra"
-  | "cs"
-  | "ai-dev";
+  | "data"
+  | "ai"
+  | "dev-life";
 
 export type TechCurriculumConcept = Concept & { category: TechCurriculumCategory };
 
 export const TECH_CURRICULUM: TechCurriculumConcept[] = [
-  // LEVEL 1 — 브라우저와 웹 플랫폼
-  { slug: "browser-rendering", title: "브라우저 렌더링 파이프라인", level: 1, category: "web-platform", pairWith: "reflow-repaint" },
-  { slug: "reflow-repaint", title: "리플로우와 리페인트", level: 1, category: "web-platform" },
-  { slug: "event-loop", title: "이벤트 루프와 태스크 큐", level: 1, category: "web-platform", pairWith: "microtask" },
-  { slug: "microtask", title: "마이크로태스크와 매크로태스크", level: 1, category: "web-platform" },
-  { slug: "dom-events", title: "이벤트 버블링·캡처링과 위임", level: 1, category: "web-platform" },
-  { slug: "web-storage", title: "쿠키·localStorage·sessionStorage", level: 1, category: "web-platform" },
-  { slug: "http-cache", title: "HTTP 캐시와 Cache-Control", level: 1, category: "web-platform" },
-  { slug: "http2-http3", title: "HTTP/2와 HTTP/3", level: 1, category: "web-platform" },
-  { slug: "web-workers", title: "Web Worker와 Service Worker", level: 1, category: "web-platform" },
+  // LEVEL 1 — 매일 보지만 신기한 것들
+  { slug: "q-url-enter", title: "주소창에 URL을 치고 엔터를 누르면 생기는 일", level: 1, category: "internet" },
+  { slug: "q-dns", title: "DNS: 인터넷은 주소를 어떻게 찾아갈까", level: 1, category: "internet" },
+  { slug: "q-https-lock", title: "주소창 자물쇠는 정확히 뭘 지켜줄까", level: 1, category: "internet" },
+  { slug: "q-refresh-old-page", title: "새로고침했는데 왜 옛날 화면이 보일까", level: 1, category: "browser" },
+  { slug: "q-cookie-banner", title: "사이트마다 '쿠키 허용' 창이 뜨는 이유", level: 1, category: "browser" },
+  { slug: "q-emoji", title: "이모지는 어떻게 화면에 그려질까", level: 1, category: "internet" },
+  { slug: "q-hangul-broken", title: "한글이 '뷁'처럼 깨지는 이유", level: 1, category: "internet" },
+  { slug: "q-zero-point-one", title: "0.1 + 0.2가 0.3이 아닌 이유", level: 1, category: "javascript" },
 
-  // LEVEL 2 — JavaScript
-  { slug: "closure", title: "클로저", level: 2, category: "javascript" },
-  { slug: "this-binding", title: "this 바인딩", level: 2, category: "javascript" },
-  { slug: "prototype", title: "프로토타입 체인", level: 2, category: "javascript" },
-  { slug: "promise-async", title: "Promise와 async/await", level: 2, category: "javascript" },
-  { slug: "es-modules", title: "ES 모듈과 CommonJS", level: 2, category: "javascript" },
-  { slug: "garbage-collection", title: "가비지 컬렉션과 메모리 누수", level: 2, category: "javascript" },
-  { slug: "equality-coercion", title: "타입 변환과 동등 비교", level: 2, category: "javascript" },
+  // LEVEL 2 — 브라우저 속사정
+  { slug: "q-tabs-memory", title: "탭을 많이 열면 왜 컴퓨터가 버벅일까", level: 2, category: "browser" },
+  { slug: "q-60fps", title: "화면이 '버벅'인다는 건 정확히 무슨 뜻일까", level: 2, category: "browser" },
+  { slug: "q-font-flash", title: "웹폰트가 늦게 뜨면서 글자가 번쩍이는 이유", level: 2, category: "browser" },
+  { slug: "q-blurry-image", title: "이미지가 흐릿하다가 선명해지는 사이트의 비밀", level: 2, category: "performance" },
+  { slug: "q-offline-web", title: "인터넷이 끊겨도 열리는 웹사이트", level: 2, category: "browser" },
+  { slug: "q-pwa", title: "웹사이트를 앱처럼 홈 화면에 설치하는 법", level: 2, category: "browser" },
+  { slug: "q-mobile-100vh", title: "모바일에서 100vh가 이상하게 동작하는 이유", level: 2, category: "css" },
 
-  // LEVEL 3 — TypeScript
-  { slug: "structural-typing", title: "구조적 타이핑", level: 3, category: "typescript" },
-  { slug: "generics", title: "제네릭", level: 3, category: "typescript" },
-  { slug: "type-narrowing", title: "타입 좁히기와 판별 유니온", level: 3, category: "typescript" },
-  { slug: "utility-types", title: "유틸리티 타입과 조건부 타입", level: 3, category: "typescript" },
-  { slug: "any-unknown-never", title: "any·unknown·never", level: 3, category: "typescript" },
+  // LEVEL 3 — 자바스크립트의 수상한 점
+  { slug: "q-single-thread", title: "JS는 한 번에 하나만 하는데 어떻게 동시에 여러 일을 할까", level: 3, category: "javascript" },
+  { slug: "q-settimeout-zero", title: "setTimeout(fn, 0)이 바로 실행되지 않는 이유", level: 3, category: "javascript" },
+  { slug: "q-closure-loop", title: "반복문 안 클릭 핸들러가 전부 마지막 값을 찍는 이유", level: 3, category: "javascript" },
+  { slug: "q-this-lost", title: "this가 갑자기 undefined가 되는 순간", level: 3, category: "javascript" },
+  { slug: "q-npm-install", title: "npm install을 누르면 무슨 일이 일어날까", level: 3, category: "dev-life" },
+  { slug: "q-node-modules", title: "node_modules는 왜 그렇게 무거울까", level: 3, category: "dev-life" },
+  { slug: "q-timezone", title: "날짜·시간 처리가 개발자의 악몽인 이유", level: 3, category: "javascript" },
+  { slug: "q-why-typescript", title: "타입스크립트를 쓰면 정말 버그가 줄어들까", level: 3, category: "javascript" },
 
-  // LEVEL 4 — React와 렌더링 전략
-  { slug: "reconciliation", title: "Virtual DOM과 재조정", level: 4, category: "react" },
-  { slug: "react-rendering", title: "리렌더링이 일어나는 조건", level: 4, category: "react", pairWith: "memoization" },
-  { slug: "memoization", title: "memo·useMemo·useCallback", level: 4, category: "react" },
-  { slug: "useeffect", title: "useEffect와 의존성 배열", level: 4, category: "react" },
-  { slug: "state-management", title: "상태 관리: 로컬·전역·서버 상태", level: 4, category: "react" },
-  { slug: "concurrent-rendering", title: "동시성 렌더링과 Suspense", level: 4, category: "react" },
-  { slug: "csr-ssr-ssg", title: "CSR·SSR·SSG·ISR", level: 4, category: "react", pairWith: "hydration" },
-  { slug: "hydration", title: "하이드레이션", level: 4, category: "react" },
-  { slug: "server-components", title: "React 서버 컴포넌트", level: 4, category: "react" },
+  // LEVEL 4 — CSS 미스터리
+  { slug: "q-zindex", title: "z-index를 9999로 줘도 안 올라오는 이유", level: 4, category: "css" },
+  { slug: "q-flex-grid", title: "flex와 grid, 언제 뭘 써야 할까", level: 4, category: "css" },
+  { slug: "q-css-hard", title: "CSS가 유독 어렵게 느껴지는 이유", level: 4, category: "css" },
+  { slug: "q-dark-mode", title: "다크 모드는 어떻게 만들까", level: 4, category: "css" },
+  { slug: "q-animation-smooth", title: "어떤 애니메이션은 부드럽고 어떤 건 끊길까", level: 4, category: "css" },
 
-  // LEVEL 5 — 성능과 접근성
-  { slug: "core-web-vitals", title: "Core Web Vitals (LCP·INP·CLS)", level: 5, category: "performance" },
-  { slug: "bundling-tree-shaking", title: "번들링과 트리 셰이킹", level: 5, category: "performance" },
-  { slug: "code-splitting", title: "코드 스플리팅과 지연 로딩", level: 5, category: "performance" },
-  { slug: "image-optimization", title: "이미지 최적화", level: 5, category: "performance" },
-  { slug: "debounce-throttle", title: "디바운스와 스로틀", level: 5, category: "performance" },
-  { slug: "virtualization-list", title: "리스트 가상화", level: 5, category: "performance" },
-  { slug: "web-accessibility", title: "웹 접근성과 ARIA", level: 5, category: "performance" },
+  // LEVEL 5 — React와 렌더링 전략
+  { slug: "q-react-rerender", title: "React는 왜 화면을 자꾸 다시 그릴까", level: 5, category: "react" },
+  { slug: "q-effect-twice", title: "useEffect가 두 번 실행되는 이유", level: 5, category: "react" },
+  { slug: "q-key-prop", title: "리스트에 key를 꼭 넣으라는 이유", level: 5, category: "react" },
+  { slug: "q-where-render", title: "화면은 어디서 그려질까: CSR과 SSR", level: 5, category: "react", pairWith: "q-hydration" },
+  { slug: "q-hydration", title: "하이드레이션: 그려진 화면에 생명을 불어넣기", level: 5, category: "react" },
+  { slug: "q-static-site", title: "블로그는 왜 미리 만들어 두면 빠를까 (SSG·ISR)", level: 5, category: "react" },
+  { slug: "q-server-components", title: "서버 컴포넌트는 뭐가 그렇게 다를까", level: 5, category: "react" },
+  { slug: "q-state-where", title: "상태는 어디에 둬야 할까: 로컬·전역·서버 상태", level: 5, category: "react" },
 
-  // LEVEL 6 — 웹 보안
-  { slug: "cors", title: "CORS", level: 6, category: "web-security" },
-  { slug: "xss-csrf", title: "XSS와 CSRF", level: 6, category: "web-security" },
-  { slug: "csp", title: "콘텐츠 보안 정책(CSP)", level: 6, category: "web-security" },
-  { slug: "auth-jwt-session", title: "세션 인증과 JWT", level: 6, category: "web-security" },
-  { slug: "oauth-oidc", title: "OAuth 2.0과 OIDC", level: 6, category: "web-security" },
-  { slug: "supply-chain", title: "npm 공급망 보안", level: 6, category: "web-security" },
+  // LEVEL 6 — 빠른 사이트의 비밀
+  { slug: "q-lighthouse", title: "Lighthouse 점수는 뭘 보고 매기는 걸까", level: 6, category: "performance" },
+  { slug: "q-tree-shaking", title: "안 쓰는 코드는 어떻게 털어낼까 (트리 셰이킹)", level: 6, category: "performance" },
+  { slug: "q-lazy-loading", title: "필요할 때만 불러오기: 코드 스플리팅과 지연 로딩", level: 6, category: "performance" },
+  { slug: "q-infinite-scroll", title: "무한 스크롤은 어떻게 만들까", level: 6, category: "performance" },
+  { slug: "q-skeleton", title: "로딩 스피너 vs 스켈레톤, 뭐가 더 빠르게 느껴질까", level: 6, category: "performance" },
+  { slug: "q-debounce", title: "검색창이 글자마다 요청을 보내지 않는 비결", level: 6, category: "performance" },
 
-  // LEVEL 7 — 인프라와 배포
-  { slug: "dns-tls", title: "DNS와 TLS 핸드셰이크", level: 7, category: "infra" },
-  { slug: "cdn-edge", title: "CDN과 엣지 컴퓨팅", level: 7, category: "infra" },
-  { slug: "serverless", title: "서버리스와 콜드 스타트", level: 7, category: "infra" },
-  { slug: "ci-cd", title: "CI/CD와 프리뷰 배포", level: 7, category: "infra" },
-  { slug: "containers", title: "컨테이너와 Docker", level: 7, category: "infra" },
-  { slug: "monorepo", title: "모노레포", level: 7, category: "infra" },
-  { slug: "observability", title: "로그·메트릭·트레이싱", level: 7, category: "infra" },
+  // LEVEL 7 — 해킹과 로그인
+  { slug: "q-cors-error", title: "CORS 에러는 왜 나를 괴롭힐까", level: 7, category: "security" },
+  { slug: "q-stay-logged-in", title: "로그인은 어떻게 유지될까: 세션과 토큰", level: 7, category: "security" },
+  { slug: "q-google-login", title: "'구글로 로그인'의 원리 (OAuth)", level: 7, category: "security" },
+  { slug: "q-password-storage", title: "비밀번호는 서버에 어떻게 저장될까", level: 7, category: "security" },
+  { slug: "q-xss", title: "댓글 하나로 사이트를 해킹하는 법 (XSS)", level: 7, category: "security" },
+  { slug: "q-captcha", title: "캡차는 사람과 봇을 어떻게 구분할까", level: 7, category: "security" },
+  { slug: "q-npm-attack", title: "npm 패키지 하나로 회사가 털리는 이유", level: 7, category: "security" },
 
-  // LEVEL 8 — CS 기초
-  { slug: "time-complexity", title: "시간복잡도와 Big-O", level: 8, category: "cs" },
-  { slug: "hash-table", title: "해시 테이블", level: 8, category: "cs" },
-  { slug: "tree-graph", title: "트리와 그래프 탐색", level: 8, category: "cs" },
-  { slug: "process-thread", title: "프로세스와 스레드", level: 8, category: "cs" },
-  { slug: "tcp-udp", title: "TCP와 UDP", level: 8, category: "cs" },
-  { slug: "db-index-transaction", title: "DB 인덱스와 트랜잭션", level: 8, category: "cs" },
-  { slug: "rest-graphql", title: "REST와 GraphQL", level: 8, category: "cs" },
-  { slug: "websocket-sse", title: "WebSocket과 SSE", level: 8, category: "cs" },
+  // LEVEL 8 — 서비스가 돌아가는 곳
+  { slug: "q-cdn", title: "전 세계 어디서나 빠른 사이트의 비결 (CDN)", level: 8, category: "infra" },
+  { slug: "q-serverless", title: "서버리스는 정말 서버가 없을까", level: 8, category: "infra" },
+  { slug: "q-docker", title: "'내 컴퓨터에선 되는데'를 없애는 도커", level: 8, category: "infra" },
+  { slug: "q-preview-deploy", title: "PR마다 미리보기 사이트가 생기는 원리", level: 8, category: "infra" },
+  { slug: "q-realtime-chat", title: "카톡 메시지는 어떻게 실시간으로 올까", level: 8, category: "data" },
+  { slug: "q-youtube-stream", title: "유튜브는 어떻게 끊김 없이 영상을 보여줄까", level: 8, category: "data" },
+  { slug: "q-map-zoom", title: "지도 앱은 어떻게 부드럽게 확대될까", level: 8, category: "data" },
+  { slug: "q-git-time-travel", title: "Git은 어떻게 과거로 돌아갈까", level: 8, category: "dev-life" },
 
-  // LEVEL 9 — AI와 개발
-  { slug: "llm-tokens-context", title: "LLM의 토큰과 컨텍스트 윈도", level: 9, category: "ai-dev" },
-  { slug: "prompt-design", title: "프롬프트 설계", level: 9, category: "ai-dev" },
-  { slug: "structured-output", title: "구조화된 출력과 도구 호출", level: 9, category: "ai-dev" },
-  { slug: "embedding-vector", title: "임베딩과 벡터 검색", level: 9, category: "ai-dev", pairWith: "rag" },
-  { slug: "rag", title: "RAG(검색 증강 생성)", level: 9, category: "ai-dev" },
-  { slug: "ai-agent", title: "AI 에이전트", level: 9, category: "ai-dev" },
-  { slug: "mcp", title: "MCP(Model Context Protocol)", level: 9, category: "ai-dev" },
-  { slug: "streaming-ui", title: "AI 응답 스트리밍 UI", level: 9, category: "ai-dev" },
-  { slug: "ai-evaluation", title: "LLM 응답 평가", level: 9, category: "ai-dev" },
-  { slug: "hallucination", title: "AI 환각과 대응", level: 9, category: "ai-dev" },
+  // LEVEL 9 — AI랑 같이 일하기
+  { slug: "q-chatgpt-typing", title: "AI 답변은 왜 한 글자씩 타자 치듯 나올까", level: 9, category: "ai" },
+  { slug: "q-tokens", title: "토큰: AI가 글자를 세는 방법", level: 9, category: "ai" },
+  { slug: "q-ai-lies", title: "AI는 왜 가끔 그럴듯한 거짓말을 할까", level: 9, category: "ai" },
+  { slug: "q-prompt-matters", title: "프롬프트 한 줄로 결과가 달라지는 이유", level: 9, category: "ai" },
+  { slug: "q-ai-reads-code", title: "AI 코딩 도구는 내 코드를 어떻게 이해할까", level: 9, category: "ai" },
+  { slug: "q-vector-search", title: "말뜻이 비슷한 글을 찾는 법 (벡터 검색)", level: 9, category: "ai", pairWith: "q-rag" },
+  { slug: "q-rag", title: "AI에게 커닝 페이퍼 쥐여주기 (RAG)", level: 9, category: "ai" },
+  { slug: "q-mcp", title: "MCP: AI에게 손발을 달아주는 표준", level: 9, category: "ai" },
+  { slug: "q-ai-agent", title: "AI 에이전트는 챗봇과 뭐가 다를까", level: 9, category: "ai" },
 ];

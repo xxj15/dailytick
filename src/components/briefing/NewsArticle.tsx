@@ -1,4 +1,5 @@
 import { MarketImpact } from "@/components/briefing/MarketImpact";
+import { RichText } from "@/components/briefing/RichText";
 import { SourceLinks } from "@/components/briefing/SourceLinks";
 import { NEWS_CATEGORY_LABEL, NEWS_REGION_LABEL } from "@/lib/labels";
 import type { NewsIssue } from "@/types/briefing";
@@ -53,12 +54,12 @@ export function NewsArticle({
       {/* 리드 문단. 무슨 일이 있었는지가 가장 먼저, 가장 크게 읽혀야 한다 */}
       <div className="article-body mt-6">
         <p className="label">무슨 일이 있었나{issue.evidence ? " · 출처 원문 발췌" : ""}</p>
-        <p className="mt-2 text-[17px] leading-relaxed">{issue.whatHappened}</p>
+        <p className="mt-2 text-[17px] leading-[1.8] text-ink-body">{issue.whatHappened}</p>
       </div>
 
       <div className="article-body mt-6 rounded-[20px] bg-primary-weak p-5">
         <p className="label text-primary">왜 중요한가</p>
-        <p className="mt-2 text-[16px] leading-relaxed">{issue.whyImportant}</p>
+        <RichText text={issue.whyImportant} className="mt-2 text-[16px] leading-[1.75] text-ink-body" />
       </div>
 
       <MarketImpact impact={issue.marketImpact} />
@@ -67,7 +68,7 @@ export function NewsArticle({
       {issue.interpretation && (
         <div className="article-body card mt-3 p-5">
           <p className="label">해석</p>
-          <p className="mt-1.5 text-[15px] leading-relaxed text-ink-soft">{issue.interpretation}</p>
+          <RichText text={issue.interpretation} className="mt-1.5 text-[15px] leading-[1.75] text-ink-soft" />
         </div>
       )}
 

@@ -11,6 +11,8 @@
   --color-ink-muted: #6b7684;
   /* 본문 보조 문단. muted보다 한 단계 진해야 긴 글이 읽힌다 */
   --color-ink-soft: #4e5968;
+  /* 긴 설명문 본문. soft보다 진하고 ink보다 부드럽다 (토스 기술 블로그 본문 톤) */
+  --color-ink-body: #333d4b;
   --color-rule: #e5e8eb;
   --color-muted: #f2f4f6;
   --color-surface: #f9fafb;
@@ -72,6 +74,41 @@ body {
   line-height: 1.35;
   /* 제목은 줄 길이를 고르게 나눈다 */
   text-wrap: balance;
+}
+
+/*
+ * 설명문 본문. 기술 블로그(토스·velog)처럼 짧은 문단과 넉넉한 줄간격으로 읽힌다.
+ * 코드는 옅은 회색 면 위에 고정폭 글꼴로 둔다.
+ */
+.rich-text > * + * {
+  margin-top: 0.85em;
+}
+
+.rich-text code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  border-radius: 6px;
+  background-color: rgba(2, 32, 71, 0.05);
+  padding: 0.12em 0.4em;
+  color: var(--color-ink);
+  word-break: break-all;
+}
+
+.rich-text pre {
+  overflow-x: auto;
+  border-radius: 12px;
+  background-color: rgba(2, 32, 71, 0.05);
+  padding: 1rem 1.125rem;
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+
+.rich-text pre code {
+  background: none;
+  padding: 0;
+  font-size: inherit;
+  white-space: pre;
+  word-break: normal;
 }
 
 /* 연한 면으로 영역을 나누는 카드 */
