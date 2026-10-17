@@ -66,3 +66,15 @@ test("게시 정보 태그가 없으면 주소의 /YYYY/MM/DD/를 게시일로 �
   // 경로 중간의 숫자 묶음을 날짜로 오인하지 않는다
   assert.equal(extractSource(page("https://example.com/item/2026/10/15abc"), "https://example.com/item/2026/10/15abc").source.publishedAt, undefined);
 });
+
+test("국내 매체 byline의 '발행일' 시각을 KST로 읽고, 표시 없는 시각은 추측하지 않는다", () => {
+  assert.equal(parsePublishedAt("발행일 2026-10-16 14:19:31"), "2026-10-16T05:19:31.000Z");
+  assert.equal(parsePublishedAt("2026-10-16 14:19:31"), undefined);
+  const page = { url: "https://www.ddaily.co.kr/page/view/1", contentType: "text/html", body: `<title>기사</title><div class="byline"><span class="date">발행일 2026-10-16 14:19:31 </span></div><div class="article-body">${text}</div>` };
+  assert.equal(extractSource(page, page.url).source.publishedAt, "2026-10-16T05:19:31.000Z");
+});
+
+test("WordPress 계열(.entry-content) 본문을 읽는다", () => {
+  const page = { url: "https://techcrunch.com/2026/10/16/post/", contentType: "text/html", body: `<title>기사</title><div class="entry-content wp-block-post-content">${text}</div>` };
+  assert.ok(extractSource(page, page.url).text.length >= 200);
+});

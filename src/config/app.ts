@@ -50,7 +50,7 @@ export const TECH_SOURCE_MAX_AGE_HOURS = 168;
 export const NEWS_CANDIDATE_COUNT = { min: 6, max: 10 } as const;
 
 /** IT 파트 STEP 1 후보 개수. 3개를 내려면 근거 단계에서 탈락할 몫까지 모아야 한다. */
-export const TECH_NEWS_CANDIDATE_COUNT = { min: 5, max: 8 } as const;
+export const TECH_NEWS_CANDIDATE_COUNT = { min: 6, max: 10 } as const;
 
 /**
  * 뉴스 출처 선호 매체. (명세 §17)
@@ -89,8 +89,10 @@ export const PREFERRED_PUBLISHERS = {
 
 /** IT 파트 출처 선호 매체. 경제 파트와 같은 우선순위 규칙이다. */
 export const PREFERRED_TECH_PUBLISHERS = {
-  kr: ["요즘IT", "ZDNet Korea", "디지털데일리", "블로터", "전자신문", "아이뉴스24"],
-  global: ["The Verge", "TechCrunch", "Ars Technica", "InfoQ", "The Register", "Reuters"],
+  // 서버가 본문과 게시일을 실제로 읽을 수 있는 매체만 둔다. (2026-10-17 수집 점검)
+  // The Verge는 유료 표시, openai.com·axios.com은 자동 수집 차단이라 근거로 쓸 수 없다.
+  kr: ["ZDNet Korea", "블로터", "아이뉴스24", "디지털데일리", "전자신문"],
+  global: ["InfoQ", "The Register", "Ars Technica", "TechCrunch", "Reuters"],
   /** 릴리스 노트·공식 블로그. 프레임워크·도구 소식은 원문이 가장 정확하다. */
   official: [
     "React 블로그",

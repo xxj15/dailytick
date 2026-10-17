@@ -18,7 +18,7 @@ import type { GroundedCandidate } from "@/lib/news/evidence-types";
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고,
  * 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v16";
+export const PROMPT_VERSION = "v17";
 
 /**
  * 모든 단계에 공통으로 적용되는 편집 원칙.
@@ -885,8 +885,9 @@ ${TECH_NEWS_CRITERIA}
 
 ## 출처 접근
 
-- 서버가 기사 본문을 직접 읽어 게시일을 확인한다. 봇 접근을 막는 사이트(예: openai.com, axios.com)는
-  본문을 읽을 수 없어 탈락하므로, 같은 소식을 다룬 다른 매체나 공식 블로그 기사를 함께 찾아 sources에 넣는다.
+- 서버가 기사 본문을 직접 읽어 게시일을 확인한다. 봇 접근을 막거나 유료로 표시된 사이트
+  (openai.com, axios.com, theverge.com 등)는 탈락하므로, 같은 소식을 다룬 다른 매체나 공식 블로그 기사를 함께 찾아 sources에 넣는다.
+- 후보마다 출처를 2개 이상 넣으면 하나가 막혀도 살아남는다.
 - 목록·카테고리·태그 페이지가 아니라 개별 기사·릴리스 노트 URL이어야 한다.
 
 ## 지역 구성

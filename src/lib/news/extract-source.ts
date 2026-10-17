@@ -10,7 +10,11 @@ export function normalizeEvidenceText(value: string): string {
 /** timezone 없는 날짜는 서버 timezone으로 해석하지 않는다. 날짜만 있으면 보수적으로 KST 자정. */
 export function parsePublishedAt(value: string | undefined): string | undefined {
   if (!value) return undefined;
-  value = value.trim().replace(/^(등록일|작성일|입력|게시일)\s*[:：]?\s*/, "");
+  const labeled = /^(등록일|작성일|입력|게시일|발행일)/.test(value.trim());
+  value = value.trim().replace(/^(등록일|작성일|입력|게시일|발행일)\s*[:：]?\s*/, "");
+  // 국내 매체가 '발행일 2026-10-16 14:19:31'처럼 표시한 시각만 KST로 읽는다. 표시 없는 시각은 추측하지 않는다.
+  const labeledClock = labeled && /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value);
+  if (labeledClock) value = `${labeledClock[1]}-${labeledClock[2]}-${labeledClock[3]}T${labeledClock[4]}:${labeledClock[5]}:${labeledClock[6] ?? "00"}+09:00`;
   const englishDate = /^(January|February|March|April|May|June|July|August|September|October|November|December) (\d{1,2}), (\d{4})$/.exec(value);
   if (englishDate) {
     const month = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].indexOf(englishDate[1]) + 1;
@@ -56,10 +60,12 @@ export function extractSource(response: SourceResponse, requestedUrl: string, fe
   const publisher = normalizeEvidenceText(meta("og:site_name") ?? meta("publisher") ?? new URL(response.url).hostname);
   // 메뉴·관련 기사에 표시된 오늘 날짜를 원문의 게시일로 쓰지 않는다.
   const dateScope = $("article, #article, .bd-view, .article-view").first();
-  const rawDate = meta("article:published_time") ?? meta("datePublished") ?? meta("pubdate") ??
+  const rawDate = (meta("article:published_time") ?? meta("datePublished") ?? meta("pubdate") ??
     articles.map((article) => article.datePublished).find((date): date is string => typeof date === "string") ??
     dateScope.find("time[itemprop='datePublished'], time[pubdate]").first().attr("datetime") ??
-    dateScope.find(".article__time, .date, .view_date, .reg_date").first().text().trim();
+    dateScope.find(".article__time, .date, .view_date, .reg_date").first().text().trim()) ||
+    // 본문 바깥 기사 머리(byline)에 발행일을 두는 매체가 있다. 메뉴의 오늘 날짜와 섞이지 않게 byline 안만 본다.
+    $(".byline .date").first().text().trim();
   // 게시 정보 태그가 없는 블로그·릴리스 노트는 주소의 /YYYY/MM/DD/를 쓴다. 날짜만 있으므로 KST 자정이다.
   const urlDate = /\/(20\d{2})\/(\d{2})\/(\d{2})(?:\/|$)/.exec(new URL(response.url).pathname);
   let publishedAt = parsePublishedAt(rawDate) ?? (urlDate ? parsePublishedAt(`${urlDate[1]}-${urlDate[2]}-${urlDate[3]}`) : undefined);
@@ -80,7 +86,7 @@ export function extractSource(response: SourceResponse, requestedUrl: string, fe
   const selectors = [
     "[itemprop='articleBody']", "#dic_area", "#newsct_article", "#articletxt", "#article-view-content-div",
     "#articleBody", "#article", ".article_body", ".article-body", ".article_view", ".news_cnt_detail_wrap",
-    ".dbdata", ".bd_view_detail", ".view_cont", "article",
+    ".dbdata", ".bd_view_detail", ".view_cont", ".entry-content", "article",
   ];
   let text = "";
   for (const selector of selectors) {
