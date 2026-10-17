@@ -70,7 +70,7 @@ export default async function ArchiveDatePage({
             canEdit={canEdit}
           />
         ) : (
-          <section className="border-b border-rule py-20 text-center">
+          <section className="card mt-8 px-6 py-16 text-center">
             <p className="headline text-xl sm:text-2xl">
               브리핑을 불러오지 못했습니다.
             </p>
@@ -80,19 +80,19 @@ export default async function ArchiveDatePage({
           </section>
         )}
 
-        <nav className="flex items-center justify-between gap-4 border-t border-rule py-8">
+        <nav className="flex items-center justify-between gap-4 border-t border-rule py-8 text-sm font-semibold">
           <span className="flex-1">
             {adjacent.prev && (
               <Link
                 href={`/archive/${adjacent.prev}`}
-                className="label prose-link hover:text-ink"
+                className="text-ink-soft transition-colors duration-200 hover:text-primary"
               >
                 ← 이전 호
               </Link>
             )}
           </span>
 
-          <Link href="/archive" className="label prose-link hover:text-ink">
+          <Link href="/archive" className="text-ink-soft transition-colors duration-200 hover:text-primary">
             Archive
           </Link>
 
@@ -100,7 +100,7 @@ export default async function ArchiveDatePage({
             {adjacent.next && (
               <Link
                 href={`/archive/${adjacent.next}`}
-                className="label prose-link hover:text-ink"
+                className="text-ink-soft transition-colors duration-200 hover:text-primary"
               >
                 다음 호 →
               </Link>

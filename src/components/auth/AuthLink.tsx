@@ -9,7 +9,7 @@ import { LoginButton } from "@/components/auth/LoginButton";
  * 본문 링크가 아니라 지면 기물이므로 밑줄 없이 라벨로만 둔다.
  */
 const LINK_CLASS =
-  "label shrink-0 transition-colors duration-200 hover:text-ink disabled:opacity-50";
+  "shrink-0 transition-colors duration-200 hover:text-ink disabled:opacity-50";
 
 export function AuthLink({ loggedIn }: { loggedIn: boolean }) {
   const router = useRouter();

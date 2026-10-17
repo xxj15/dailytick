@@ -34,7 +34,7 @@ export function GlossaryText({
             <button
               type="button"
               aria-describedby={tooltipId}
-              className="glossary-mark box-decoration-clone cursor-help rounded-sm px-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+              className="glossary-mark box-decoration-clone cursor-help rounded-sm px-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
             >
               {segment.text}
             </button>
@@ -42,7 +42,7 @@ export function GlossaryText({
             <span
               id={tooltipId}
               role="tooltip"
-              className="invisible absolute top-full left-0 z-20 mt-3 w-max max-w-[min(28rem,calc(100vw-5rem))] border border-ink bg-paper px-4 py-3 text-left opacity-0 transition-opacity duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+              className="invisible absolute top-full left-0 z-20 mt-3 w-max max-w-[min(28rem,calc(100vw-5rem))] rounded-xl bg-paper px-4 py-3 shadow-[0_8px_24px_rgba(25,31,40,0.16)] text-left opacity-0 transition-opacity duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
             >
               <span className="block text-sm leading-normal font-semibold text-ink">
                 {segment.entry.term}

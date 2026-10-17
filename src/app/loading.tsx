@@ -9,25 +9,25 @@ export default function Loading() {
       <Masthead date={getTodayKST()} />
 
       <main className="page-width flex-1" aria-busy="true">
-        <div className="border-b border-rule py-12">
-          <h2 className="headline text-lg">오늘의 키워드</h2>
+        <div className="card mt-8 p-6 sm:p-8">
+          <h2 className="label">오늘의 키워드</h2>
 
-          <div className="mt-6 max-w-3xl border-l-4 border-rule pl-5">
+          <div className="mt-4 max-w-3xl">
             <div className="flex flex-wrap gap-3">
-              <Bar className="h-7 w-32" />
-              <Bar className="h-7 w-40" />
-              <Bar className="h-7 w-28" />
+              <Bar className="h-7 w-32 bg-rule" />
+              <Bar className="h-7 w-40 bg-rule" />
+              <Bar className="h-7 w-28 bg-rule" />
             </div>
-            <Bar className="mt-4 h-4 w-9/12" />
+            <Bar className="mt-4 h-4 w-9/12 bg-rule" />
           </div>
         </div>
 
-        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-10">
+        <div className="mt-10 lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-10">
           <div className="min-w-0">
             {/* 섹션 탭 자리 */}
-            <div className="flex gap-3 border-b-2 border-ink py-4">
-              <Bar className="h-10 w-40" />
-              <Bar className="h-10 w-40" />
+            <div className="flex gap-6 border-b border-rule py-4">
+              <Bar className="h-5 w-28" />
+              <Bar className="h-5 w-28" />
             </div>
 
             <div className="space-y-4 pt-10">
@@ -39,9 +39,8 @@ export default function Loading() {
             </div>
           </div>
 
-          <div className="mt-12 space-y-3 border-t border-rule pt-6 lg:mt-0 lg:border-t-0 lg:border-l lg:pt-10 lg:pl-6">
-            <Bar className="h-3 w-24" />
-            <Bar className="h-40 w-full rounded-lg" />
+          <div className="mt-12 lg:mt-0 lg:pt-20">
+            <Bar className="h-52 w-full rounded-[20px]" />
           </div>
         </div>
       </main>
@@ -52,5 +51,5 @@ export default function Loading() {
 }
 
 function Bar({ className }: { className: string }) {
-  return <div className={`animate-pulse bg-muted ${className}`} />;
+  return <div className={`animate-pulse rounded-lg bg-muted ${className}`} />;
 }

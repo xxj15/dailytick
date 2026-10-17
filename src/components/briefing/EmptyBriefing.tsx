@@ -13,7 +13,7 @@ export function EmptyBriefing({
   latestDate: DateString | null;
 }) {
   return (
-    <section className="border-b border-rule py-20 text-center">
+    <section className="card mt-8 px-6 py-16 text-center">
       <p className="headline text-xl sm:text-2xl">
         {beforePublishTime
           ? `오늘의 브리핑은 오전 ${getPublishTimeLabel()}에 발행됩니다.`
@@ -25,10 +25,10 @@ export function EmptyBriefing({
       )}
 
       {latestDate && (
-        <p className="label mt-8">
+        <p className="mt-8 text-sm font-semibold">
           <Link
             href={`/archive/${latestDate}`}
-            className="prose-link hover:text-ink"
+            className="text-primary hover:text-primary-strong"
           >
             가장 최근 브리핑 · {formatKoreanDate(latestDate)}
           </Link>

@@ -20,17 +20,17 @@ export function BriefingHeader({
   const explained = new Set<string>();
 
   return (
-    <section className="border-b border-rule py-12">
-      <div className="flex flex-wrap items-start justify-between gap-6">
+    <section className="card mt-8 p-6 sm:p-8">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         {/* 키워드가 없는 지난 브리핑은 한 줄만 남으므로 제목을 걸지 않는다 */}
-        {hasKeywords && <h2 className="headline text-lg">오늘의 키워드</h2>}
+        {hasKeywords && <h2 className="label">오늘의 키워드</h2>}
 
         {action && <div className="ml-auto">{action}</div>}
       </div>
 
       {/* 단어로 먼저 훑고, 왜 중요한지는 아래 한 줄이 받쳐준다 */}
       {(hasKeywords || oneLiner) && (
-        <div className="mt-6 max-w-3xl border-l-4 border-ink pl-5">
+        <div className="mt-4 max-w-3xl">
           {/* 설명 상자는 이 줄을 기준으로 자리를 잡는다. 화면 밖으로 나가지 않게 */}
           {hasKeywords && (
             <ul className="relative flex flex-wrap items-baseline">
@@ -45,7 +45,7 @@ export function BriefingHeader({
                     idPrefix={`keyword-${index}`}
                   />
                   {index < todayKeywords.length - 1 && (
-                    <span aria-hidden="true" className="mx-4 text-rule">
+                    <span aria-hidden="true" className="mx-3 text-ink-muted/40">
                       ·
                     </span>
                   )}
@@ -56,7 +56,7 @@ export function BriefingHeader({
 
           {oneLiner && (
             <p
-              className={`text-base leading-relaxed text-ink-muted sm:text-lg ${
+              className={`text-base leading-relaxed text-ink-soft sm:text-lg ${
                 hasKeywords ? "mt-3" : ""
               }`}
             >
@@ -67,7 +67,7 @@ export function BriefingHeader({
       )}
 
       {generatedAt && (
-        <p className="label mt-6">Generated {formatKstTime(generatedAt)}</p>
+        <p className="label mt-5 font-medium">{formatKstTime(generatedAt)} 발행</p>
       )}
     </section>
   );

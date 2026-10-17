@@ -17,24 +17,24 @@ export function NewsArticle({
     <article
       id={`news-${issue.rank}`}
       // 목차에서 건너뛸 때 붙어 있는 섹션 탭에 제목이 가리지 않게 한다
-      className="animate-panel-in scroll-mt-32 border-t border-ink pt-8 pb-14 first:border-t-0 first:pt-0"
+      className="animate-panel-in scroll-mt-32 border-t border-rule pt-12 pb-12 first:border-t-0 first:pt-0"
       style={{ animationDelay: `${index * 70}ms` }}
     >
-      <div className="flex flex-wrap items-center gap-3">
-        {/* 신문 기사 번호. 지면에서 순서를 먼저 읽게 한다 */}
-        <span className="headline text-4xl leading-none tabular-nums">
+      <div className="flex flex-wrap items-center gap-2">
+        {/* 기사 번호. 지면에서 순서를 먼저 읽게 한다 */}
+        <span className="mr-1 text-lg font-bold text-primary tabular-nums">
           {String(issue.rank).padStart(2, "0")}
         </span>
 
-        <span className="label rounded-full border border-rule px-2.5 py-1">
+        <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-ink-soft">
           {NEWS_CATEGORY_LABEL[issue.category]}
         </span>
-        <span className="label rounded-full border border-rule px-2.5 py-1">
+        <span className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-ink-soft">
           {NEWS_REGION_LABEL[issue.region]}
         </span>
       </div>
 
-      <h3 className="headline mt-4 text-2xl sm:text-3xl">{issue.title}</h3>
+      <h3 className="headline mt-3 text-2xl sm:text-[1.75rem]">{issue.title}</h3>
 
       {primary && (
         <a
@@ -43,8 +43,8 @@ export function NewsArticle({
           rel="noopener noreferrer"
           className="group mt-3 inline-flex items-baseline gap-2 text-sm"
         >
-          <span className="label text-ink">{primary.publisher}</span>
-          <span className="text-ink-muted transition-colors duration-200 group-hover:text-ink group-hover:underline">
+          <span className="font-semibold text-ink-soft">{primary.publisher}</span>
+          <span className="text-primary transition-colors duration-200 group-hover:text-primary-strong group-hover:underline">
             원문 읽기 ↗
           </span>
         </a>
@@ -56,8 +56,8 @@ export function NewsArticle({
         <p className="mt-2 text-[17px] leading-relaxed">{issue.whatHappened}</p>
       </div>
 
-      <div className="article-body mt-6 rounded-lg bg-muted p-5">
-        <p className="label">왜 중요한가</p>
+      <div className="article-body mt-6 rounded-[20px] bg-primary-weak p-5">
+        <p className="label text-primary">왜 중요한가</p>
         <p className="mt-2 text-[16px] leading-relaxed">{issue.whyImportant}</p>
       </div>
 
@@ -65,9 +65,9 @@ export function NewsArticle({
 
       {/* 해석은 사실과 시각적으로도 구분한다 */}
       {issue.interpretation && (
-        <div className="article-body mt-6 border-l-4 border-rule pl-4">
+        <div className="article-body card mt-3 p-5">
           <p className="label">해석</p>
-          <p className="mt-1.5 text-[15px] text-ink-muted">{issue.interpretation}</p>
+          <p className="mt-1.5 text-[15px] leading-relaxed text-ink-soft">{issue.interpretation}</p>
         </div>
       )}
 

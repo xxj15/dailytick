@@ -20,10 +20,10 @@ export function StudyCompleteToggle() {
       disabled={!canEdit || status === "saving"}
       aria-pressed={completed}
       title={canEdit ? undefined : "완료 표시 잠김"}
-      className={`group flex items-center gap-2.5 rounded-full border px-4 py-2 text-sm transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${
+      className={`group flex items-center gap-2.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${
         completed
-          ? "border-ink bg-ink text-paper"
-          : "border-rule text-ink-muted hover:border-ink hover:text-ink"
+          ? "bg-primary text-paper"
+          : "bg-paper text-ink-soft hover:text-ink"
       }`}
     >
       <span
@@ -31,7 +31,7 @@ export function StudyCompleteToggle() {
         className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors duration-200 ${
           completed
             ? "border-paper bg-paper"
-            : "border-rule group-hover:border-ink"
+            : "border-ink-muted/50 group-hover:border-ink-soft"
         }`}
       >
         <svg
@@ -41,7 +41,7 @@ export function StudyCompleteToggle() {
           strokeWidth={4}
           strokeLinecap="round"
           strokeLinejoin="round"
-          className={`h-2.5 w-2.5 text-ink transition-transform duration-300 ease-out ${
+          className={`h-2.5 w-2.5 text-primary transition-transform duration-300 ease-out ${
             completed ? "scale-100" : "scale-0"
           }`}
         >

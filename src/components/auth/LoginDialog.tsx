@@ -77,7 +77,7 @@ export function LoginDialog({
       onClick={(event) => {
         if (event.target === dialogRef.current) handleClose();
       }}
-      className="m-auto w-[calc(100%-3rem)] max-w-xs rounded-xl border border-ink bg-paper p-6 text-ink backdrop:bg-ink/40"
+      className="m-auto w-[calc(100%-3rem)] max-w-xs rounded-[20px] bg-paper p-6 text-ink shadow-[0_16px_40px_rgba(25,31,40,0.16)] backdrop:bg-ink/40"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
@@ -91,7 +91,7 @@ export function LoginDialog({
             value={id}
             onChange={(event) => setId(event.target.value)}
             required
-            className="mt-2 w-full rounded-lg border border-rule bg-paper px-3 py-2.5 text-[15px] outline-none transition-colors duration-200 focus:border-ink focus:ring-1 focus:ring-ink"
+            className="mt-2 w-full rounded-lg border border-rule bg-paper px-3 py-2.5 text-[15px] outline-none transition-colors duration-200 focus:border-primary focus:ring-1 focus:ring-primary"
           />
         </div>
 
@@ -107,7 +107,7 @@ export function LoginDialog({
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             required
-            className="mt-2 w-full rounded-lg border border-rule bg-paper px-3 py-2.5 text-[15px] outline-none transition-colors duration-200 focus:border-ink focus:ring-1 focus:ring-ink"
+            className="mt-2 w-full rounded-lg border border-rule bg-paper px-3 py-2.5 text-[15px] outline-none transition-colors duration-200 focus:border-primary focus:ring-1 focus:ring-primary"
           />
         </div>
 
@@ -121,7 +121,7 @@ export function LoginDialog({
           <button
             type="button"
             onClick={handleClose}
-            className="label flex-1 rounded-full border border-rule px-4 py-2.5 transition-colors duration-200 hover:border-ink hover:text-ink"
+            className="flex-1 rounded-xl bg-muted px-4 py-3 text-[15px] font-semibold text-ink-soft transition-colors duration-200 hover:bg-rule"
           >
             취소
           </button>
@@ -129,7 +129,7 @@ export function LoginDialog({
           <button
             type="submit"
             disabled={submitting}
-            className="label flex-1 rounded-full border border-ink bg-ink px-4 py-2.5 text-paper transition-opacity duration-200 hover:opacity-80 disabled:opacity-50"
+            className="flex-1 rounded-xl bg-primary px-4 py-3 text-[15px] font-semibold text-paper transition-colors duration-200 hover:bg-primary-strong disabled:opacity-50"
           >
             {submitting ? "확인 중" : "로그인"}
           </button>

@@ -19,7 +19,7 @@ export default function Error({
 
   return (
     <main className="page-width flex flex-1 flex-col justify-center py-24 text-center">
-      <p className="label">Error</p>
+      <p className="label">오류</p>
 
       <p className="headline mt-4 text-xl sm:text-2xl">
         화면을 불러오지 못했습니다.
@@ -29,7 +29,7 @@ export default function Error({
         <button
           type="button"
           onClick={retry}
-          className="label border border-ink px-5 py-2.5 hover:bg-ink hover:text-paper"
+          className="rounded-xl bg-primary px-5 py-3 text-[15px] font-semibold text-paper transition-colors duration-200 hover:bg-primary-strong"
         >
           다시 시도
         </button>

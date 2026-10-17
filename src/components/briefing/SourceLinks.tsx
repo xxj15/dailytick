@@ -6,8 +6,8 @@ export function SourceLinks({ sources }: { sources: NewsSource[] }) {
   if (sources.length === 0) return null;
 
   return (
-    <div className="mt-6 border-t border-rule pt-4">
-      <p className="label">Source</p>
+    <div className="article-body mt-6">
+      <p className="label">출처</p>
 
       <ul className="mt-2.5 space-y-2">
         {sources.map((source) => {
@@ -21,14 +21,14 @@ export function SourceLinks({ sources }: { sources: NewsSource[] }) {
                 rel="noopener noreferrer"
                 className="group flex flex-wrap items-baseline gap-x-2"
               >
-                <span className="label text-ink group-hover:underline">
+                <span className="font-semibold text-ink-soft group-hover:underline">
                   {source.publisher}
                 </span>
-                <span className="text-ink-muted group-hover:text-ink">
+                <span className="text-ink-muted group-hover:text-ink-soft">
                   {source.title}
                 </span>
                 {publishedAt && (
-                  <span className="label shrink-0 tabular-nums">
+                  <span className="shrink-0 text-xs text-ink-muted/80 tabular-nums">
                     {publishedAt}
                   </span>
                 )}

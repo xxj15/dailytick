@@ -56,7 +56,7 @@ export function NewsRail({ items }: { items: RailItem[] }) {
                 <span
                   aria-hidden
                   className={`mb-1.5 block h-px transition-all duration-300 ${
-                    on ? "w-8 bg-ink" : "w-4 bg-ink-muted/40 group-hover:bg-ink-muted"
+                    on ? "w-8 bg-primary" : "w-4 bg-rule group-hover:bg-ink-muted"
                   }`}
                 />
 

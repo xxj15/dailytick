@@ -14,8 +14,8 @@ export function StudyNote() {
   const { canEdit, note, status, dirty, changeNote, saveNote } = useStudyLog();
 
   return (
-    <aside className="mt-12 border-t border-rule pt-6 lg:sticky lg:top-28 lg:mt-0 lg:self-start lg:border-t-0 lg:pt-10">
-      <div className="lg:border-l lg:border-rule lg:pl-6">
+    <aside className="mt-12 lg:sticky lg:top-32 lg:mt-0 lg:self-start lg:pt-20">
+      <div className="card p-5">
         <div className="flex items-baseline justify-between gap-2">
           <label htmlFor="study-note" className="label">
             한 줄 메모
@@ -39,7 +39,7 @@ export function StudyNote() {
           maxLength={500}
           rows={8}
           placeholder={canEdit ? "메모 남기기" : "메모 기능 잠김"}
-          className="mt-3 w-full resize-y rounded-lg border border-rule bg-paper p-3 text-[15px] leading-relaxed outline-none transition-colors duration-200 placeholder:text-ink-muted/60 focus:border-ink focus:ring-1 focus:ring-ink disabled:cursor-not-allowed disabled:resize-none disabled:bg-muted"
+          className="mt-3 w-full resize-y rounded-xl border border-rule bg-paper p-3 text-[15px] leading-relaxed outline-none transition-colors duration-200 placeholder:text-ink-muted/60 focus:border-primary focus:ring-1 focus:ring-primary disabled:cursor-not-allowed disabled:resize-none disabled:bg-muted"
         />
 
         <div className="mt-3 flex items-center justify-between gap-2">
@@ -51,13 +51,13 @@ export function StudyNote() {
                 type="button"
                 onClick={saveNote}
                 disabled={status === "saving" || !dirty}
-                className="label rounded-full border border-ink px-3.5 py-1.5 transition-colors duration-200 hover:bg-ink hover:text-paper disabled:border-rule disabled:text-ink-muted disabled:hover:bg-transparent disabled:hover:text-ink-muted"
+                className="rounded-lg bg-primary px-3.5 py-1.5 text-sm font-semibold text-paper transition-colors duration-200 hover:bg-primary-strong disabled:bg-muted disabled:text-ink-muted"
               >
                 저장
               </button>
             </>
           ) : (
-            <LoginButton className="label prose-link ml-auto hover:text-ink">
+            <LoginButton className="ml-auto text-sm font-semibold text-primary hover:text-primary-strong">
               로그인 →
             </LoginButton>
           )}

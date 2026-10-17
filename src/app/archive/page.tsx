@@ -62,33 +62,32 @@ export default async function ArchivePage() {
       <Masthead date={today} loggedIn={canEdit} />
 
       <main className="page-width flex-1">
-        <section className="border-b border-rule py-12">
-          <p className="label">Archive</p>
-          <h1 className="headline mt-4 text-3xl">지난 브리핑</h1>
+        <section className="pt-10 pb-4">
+          <h1 className="headline text-2xl sm:text-3xl">지난 브리핑</h1>
         </section>
 
         {groups.length === 0 ? (
-          <p className="py-20 text-center text-[15px] text-ink-muted">
+          <p className="card mt-6 px-6 py-16 text-center text-[15px] text-ink-muted">
             아직 발행된 브리핑이 없습니다.
           </p>
         ) : (
           <div className="py-12">
             {groups.map((group) => (
               <section key={group.label} className="mb-12 last:mb-0">
-                <h2 className="label border-b border-ink pb-2">{group.label}</h2>
+                <h2 className="label pb-3">{group.label}</h2>
 
-                <ul>
+                <ul className="card overflow-hidden">
                   {group.entries.map((entry) => {
                     const log = logByDate.get(entry.briefingDate);
 
                     return (
-                      <li key={entry.briefingDate} className="border-b border-rule">
+                      <li key={entry.briefingDate} className="border-b border-rule last:border-b-0">
                         <Link
                           href={`/archive/${entry.briefingDate}`}
-                          className="block py-4 hover:bg-muted"
+                          className="block px-5 py-4 transition-colors duration-200 hover:bg-muted"
                         >
                           <div className="flex items-baseline gap-4 sm:gap-6">
-                            <span className="headline w-8 shrink-0 text-lg tabular-nums">
+                            <span className="w-8 shrink-0 text-lg font-bold text-primary tabular-nums">
                               {dayOfMonth(entry.briefingDate)}
                             </span>
 
@@ -98,11 +97,11 @@ export default async function ArchivePage() {
 
                             {/* 완료한 날과 오늘은 목록에서 바로 구분되어야 한다 */}
                             {log?.completedAt ? (
-                              <span className="label ml-auto shrink-0 rounded-full bg-ink px-2.5 py-1 text-paper">
+                              <span className="ml-auto shrink-0 rounded-full bg-primary px-2.5 py-1 text-xs font-semibold text-paper">
                                 완료
                               </span>
                             ) : entry.briefingDate === today ? (
-                              <span className="label ml-auto shrink-0 rounded-full border border-ink px-2.5 py-1 text-ink">
+                              <span className="ml-auto shrink-0 rounded-full bg-primary-weak px-2.5 py-1 text-xs font-semibold text-primary">
                                 Today
                               </span>
                             ) : null}
@@ -124,8 +123,8 @@ export default async function ArchivePage() {
           </div>
         )}
 
-        <div className="border-t border-rule py-8">
-          <Link href="/" className="label prose-link hover:text-ink">
+        <div className="py-8">
+          <Link href="/" className="text-sm font-semibold text-primary hover:text-primary-strong">
             ← 오늘의 브리핑
           </Link>
         </div>

@@ -3,7 +3,7 @@ import { AuthLink } from "@/components/auth/AuthLink";
 import { APP_NAME, APP_TAGLINE } from "@/config/app";
 import {
   formatIssueNumber,
-  formatMastheadDate,
+  formatKoreanDate,
   type DateString,
 } from "@/lib/date";
 
@@ -19,53 +19,37 @@ export function Masthead({
   date: DateString;
   loggedIn?: boolean;
 }) {
+  // 제호의 마지막 단어만 한 단계 옅게 둔다 (Daily *Tick*)
+  const [lead, ...rest] = APP_NAME.split(" ");
+
   return (
-    <header>
-      <div className="page-width">
-        {/*
-          신문처럼 날짜와 호수를 지면 맨 윗줄 한가운데 둔다.
-          가운데를 진짜 가운데에 세우려면 양옆 칸의 폭이 같아야 하므로
-          justify-between이 아니라 1fr-auto-1fr 3단으로 짠다.
-
-          Mobile에서는 세 덩이가 한 줄에 들어가지 않는다.
-          날짜와 호수를 아래 줄로 내려 가운데에 그대로 세운다.
-        */}
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-rule py-3 sm:grid sm:grid-cols-[1fr_auto_1fr]">
-          <Link
-            href="/archive"
-            className="label prose-link transition-colors duration-200 hover:text-ink"
-          >
-            Archive
-          </Link>
-
-          <p className="label order-last w-full text-center sm:order-none sm:w-auto">
-            {formatMastheadDate(date)}
-            <span aria-hidden="true" className="mx-3 text-rule">
-              ·
-            </span>
-            {formatIssueNumber(date)}
-          </p>
-
-          {/* loading.tsx는 로그인 여부를 모른다. 빈 칸으로 가운데 정렬만 지킨다 */}
-          {loggedIn === undefined ? (
-            <span aria-hidden="true" />
-          ) : (
-            <span className="sm:justify-self-end">
-              <AuthLink loggedIn={loggedIn} />
-            </span>
-          )}
-        </div>
-
-        <div className="py-8 text-center sm:py-10">
+    <>
+      {/* 스크롤해도 제호와 메뉴는 위에 붙어 있다. body 바로 아래에 있어야 끝까지 붙는다 */}
+      <header className="sticky top-0 z-30 border-b border-rule bg-paper/90 backdrop-blur-md">
+        <div className="page-width flex h-14 items-center justify-between gap-4">
           {/* 제호를 누르면 언제나 오늘 지면으로 돌아온다 */}
-          <Link href="/" className="inline-block">
-            <h1 className="headline text-[2rem] uppercase tracking-[0.18em] sm:text-5xl sm:tracking-[0.22em]">
-              {APP_NAME}
-            </h1>
+          <Link href="/" className="text-lg font-extrabold tracking-tight">
+            {lead}
+            {rest.length > 0 && <span className="text-ink-muted"> {rest.join(" ")}</span>}
           </Link>
-          <p className="label mt-3">{APP_TAGLINE}</p>
+
+          <nav className="flex items-center gap-5 text-[15px] font-medium text-ink-muted">
+            <Link href="/archive" className="transition-colors duration-200 hover:text-ink">
+              Archive
+            </Link>
+            {/* loading.tsx는 로그인 여부를 모른다 */}
+            {loggedIn !== undefined && <AuthLink loggedIn={loggedIn} />}
+          </nav>
         </div>
+      </header>
+
+      <div className="page-width pt-10 sm:pt-14">
+        <p className="text-sm font-semibold text-primary">{APP_TAGLINE}</p>
+        <p className="headline mt-2 text-[1.75rem] sm:text-4xl">
+          {formatKoreanDate(date)}
+        </p>
+        <p className="label mt-2 tabular-nums">{formatIssueNumber(date)}</p>
       </div>
-    </header>
+    </>
   );
 }
