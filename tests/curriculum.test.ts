@@ -86,22 +86,24 @@ test("IT 커리큘럼은 slug가 겹치지 않고 짝 개념이 실제로 있다
 });
 
 test("IT 개념은 IT 커리큘럼과 IT 이력으로 따로, 하루 두 개씩 고른다", () => {
-  const learned = TECH_CURRICULUM.slice(0, 1).map((c) => c.slug);
+  // 짝이 없는 구간에서 시작해 순서대로 두 개를 채우는지 본다
+  const closure = TECH_CURRICULUM.findIndex((c) => c.slug === "closure");
+  const learned = TECH_CURRICULUM.slice(0, closure).map((c) => c.slug);
   const { concepts, mode } = selectTodayConcepts(history(learned), TECH_CURRICULUM, 2);
 
   assert.equal(mode, "new");
   assert.deepEqual(
     concepts.map((c) => c.slug),
-    TECH_CURRICULUM.slice(1, 3).map((c) => c.slug),
+    TECH_CURRICULUM.slice(closure, closure + 2).map((c) => c.slug),
   );
 });
 
 test("하루 두 개를 고를 때 짝 개념이 있으면 짝이 먼저 들어간다", () => {
-  const memory = TECH_CURRICULUM.findIndex((c) => c.slug === "semiconductor-memory");
-  const learned = TECH_CURRICULUM.slice(0, memory).map((c) => c.slug);
+  const rendering = TECH_CURRICULUM.findIndex((c) => c.slug === "react-rendering");
+  const learned = TECH_CURRICULUM.slice(0, rendering).map((c) => c.slug);
   const { concepts } = selectTodayConcepts(history(learned), TECH_CURRICULUM, 2);
 
-  assert.deepEqual(concepts.map((c) => c.slug), ["semiconductor-memory", "hbm"]);
+  assert.deepEqual(concepts.map((c) => c.slug), ["react-rendering", "memoization"]);
 });
 
 test("IT 커리큘럼을 다 돌면 가장 오래된 두 개를 복습한다", () => {

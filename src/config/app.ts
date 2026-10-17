@@ -60,6 +60,7 @@ export const PREFERRED_PUBLISHERS = {
     "동아일보",
     "한겨레",
     "경향신문",
+    "한국일보",
     "KBS",
     "한국경제",
     "매일경제",
@@ -82,27 +83,19 @@ export const PREFERRED_PUBLISHERS = {
 
 /** IT 파트 출처 선호 매체. 경제 파트와 같은 우선순위 규칙이다. */
 export const PREFERRED_TECH_PUBLISHERS = {
-  kr: [
-    "전자신문",
-    "ZDNet Korea",
-    "디지털데일리",
-    "블로터",
-    "아이뉴스24",
-    "연합뉴스",
-    "한국경제",
-  ],
-  global: ["Reuters", "Bloomberg", "The Verge", "TechCrunch", "Ars Technica"],
-  /** 제품·모델 발표 원문. 기업 공식 뉴스룸·블로그와 정부 발표를 가리킨다. */
+  kr: ["요즘IT", "ZDNet Korea", "디지털데일리", "블로터", "전자신문", "아이뉴스24"],
+  global: ["The Verge", "TechCrunch", "Ars Technica", "InfoQ", "The Register", "Reuters"],
+  /** 릴리스 노트·공식 블로그. 프레임워크·도구 소식은 원문이 가장 정확하다. */
   official: [
-    "과학기술정보통신부",
-    "개인정보보호위원회",
-    "삼성전자 뉴스룸",
-    "SK하이닉스 뉴스룸",
-    "NVIDIA",
+    "React 블로그",
+    "Next.js·Vercel 블로그",
+    "Chrome for Developers",
+    "GitHub 블로그",
+    "TypeScript 블로그",
+    "Anthropic",
     "OpenAI",
     "Google",
     "Microsoft",
-    "Apple",
   ],
 } as const;
 
@@ -116,7 +109,7 @@ export const USER_PROFILE = {
   locale: "ko-KR",
   timezone: SERVICE_TIMEZONE,
   preferredLength: "concise",
-  newsGoal: "요즘 사람들의 생활과 사회의 흐름을 파악",
-  techGoal: "IT 기본기(CS 지식)를 쌓고 요즘 기술 트렌드를 따라가기",
-  techLevel: "non-major",
+  newsGoal: "신문을 따로 읽지 않아도 오늘 주요 일간지 1면 뉴스를 파악",
+  techGoal: "개발·AI 쪽 흐름을 따라가고 프론트엔드 실무 지식을 원리부터 다지기",
+  techLevel: "프론트엔드 개발자 (React·TypeScript)",
 } as const;

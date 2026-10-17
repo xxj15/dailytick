@@ -51,12 +51,6 @@ export function KnowledgeSection({ items }: { items: KnowledgeItem[] }) {
               </p>
             </div>
 
-            <div className="article-body mt-3 rounded-[20px] border border-rule p-5">
-              <p className="label">면접 질문</p>
-              <p className="headline mt-1.5 text-lg">
-                &ldquo;{item.interviewQuestion}&rdquo;
-              </p>
-            </div>
 
             {item.keywords.length > 0 && (
               <ul className="mt-5 flex flex-wrap gap-2">

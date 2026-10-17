@@ -83,7 +83,8 @@ export const knowledgeItemSchema = z.object({
 
   /** IT 파트에서는 '실무에서 어디에 쓰이는가'를 담는다. 화면 라벨은 Why it matters로 같다. */
   securitiesPoint: z.string().min(1),
-  interviewQuestion: z.string().min(1),
+  /** 2026-10-17부터 생성하지 않는다. 그 이전 row에만 남아 있다. */
+  interviewQuestion: z.string().optional(),
 
   keywords: z.array(z.string().min(1)),
 
@@ -189,7 +190,6 @@ const aiKnowledgeItemSchema = z.object({
   explanation: z.string(),
   example: z.string().nullable(),
   securitiesPoint: z.string(),
-  interviewQuestion: z.string(),
   keywords: z.array(z.string()),
 });
 
