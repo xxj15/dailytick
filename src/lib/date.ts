@@ -85,19 +85,6 @@ export function formatIssueNumber(date: DateString): string {
   return `NO. ${String(getIssueNumber(date)).padStart(3, "0")}`;
 }
 
-/** 마스트헤드용. 예: 'AUGUST 25, 2026' */
-export function formatMastheadDate(date: DateString): string {
-  const [y, m, d] = date.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-US", {
-    timeZone: "UTC",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  })
-    .format(new Date(Date.UTC(y, m - 1, d)))
-    .toUpperCase();
-}
-
 /** 예: '2026년 8월 25일 화요일' */
 export function formatKoreanDate(date: DateString): string {
   const [y, m, d] = date.split("-").map(Number);

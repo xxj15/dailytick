@@ -1,9 +1,9 @@
 import type { z } from "zod";
-import type { aiDailyBriefingSchema } from "@/lib/openai/schemas";
+import type { aiNewsIssueSchema } from "@/lib/openai/schemas";
 import type { GroundedCandidate } from "@/lib/news/evidence-types";
 
 /** 사실 본문·출처·게시일은 모델이 작성하지 않는다. 서버가 검증된 자료에서 조합한다. */
-export function materializeBriefing(draft: z.infer<typeof aiDailyBriefingSchema>, candidates: GroundedCandidate[]) {
+export function materializeBriefing<D extends { newsItems: z.infer<typeof aiNewsIssueSchema>[] }>(draft: D, candidates: GroundedCandidate[]) {
   const seen = new Set<string>();
   return {
     ...draft,

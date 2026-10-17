@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
-import { BriefingValidationError, generateDailyBriefing, type GenerateBriefingDependencies, type GenerateBriefingParams } from "@/lib/openai/generate-briefing";
+import { BriefingValidationError, generateDailyBriefing, generateTechSection, type GenerateBriefingDependencies, type GenerateBriefingParams } from "@/lib/openai/generate-briefing";
 import { buildGroundingReviewPrompt, reviewViolations } from "@/lib/news/review";
 import { materializeBriefing } from "@/lib/briefing/materialize";
 import { dailyBriefingSchema, stripNulls } from "@/lib/openai/schemas";
@@ -67,4 +67,16 @@ test("근거 없는 후보는 생성 API를 호출하지 않는다", async () =>
     ...dependencies, write: async () => { called = true; throw new Error("호출하면 안 됨"); },
   }), /근거가 확보된 뉴스/);
   assert.equal(called, false);
+});
+
+test("IT 파트도 같은 근거 검증을 거쳐 키워드·한 줄 없이 생성된다", async () => {
+  const techDraft = { knowledgeItems: DRAFT.knowledgeItems, newsItems: DRAFT.newsItems };
+  const result = await generateTechSection(params, { ...dependencies, write: async () => ({ draft: techDraft, inputTokens: 10, outputTokens: 5 }) });
+  assert.equal(result.content.newsItems[0].whatHappened, QUOTE);
+  assert.ok(!("todayKeywords" in result.content));
+
+  await assert.rejects(() => generateTechSection(params, {
+    ...dependencies,
+    write: async () => ({ draft: { ...techDraft, newsItems: [{ ...techDraft.newsItems[0], whyImportant: "성능이 40% 좋아졌다." }] }, inputTokens: 10, outputTokens: 5 }),
+  }), (error: unknown) => error instanceof BriefingValidationError && error.violations.every((item) => item.code === "news.unsupported_number"));
 });

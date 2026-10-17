@@ -1,10 +1,10 @@
 import { SOURCE_MAX_AGE_HOURS } from "@/config/app";
-import type { CurriculumConcept } from "@/data/curriculum";
+import type { Concept } from "@/data/curriculum";
 import { isFreshSource, type DateString } from "@/lib/date";
 import type { GroundedCandidate } from "@/lib/news/evidence-types";
 import type {
   BriefingViolation,
-  DailyBriefingContent,
+  GroundedSection,
   KnowledgeItem,
   NewsIssue,
 } from "@/types/briefing";
@@ -27,7 +27,7 @@ export type Violation = Omit<BriefingViolation, "attempt">;
 
 export type VerifyContext = {
   date: DateString;
-  concepts: CurriculumConcept[];
+  concepts: Concept[];
   candidates?: GroundedCandidate[];
 };
 
@@ -36,7 +36,7 @@ export type VerifyContext = {
  * 위반을 한 번에 모아서 돌려준다. 한 번의 재시도로 전부 고칠 수 있도록.
  */
 export function verifyBriefing(
-  content: DailyBriefingContent,
+  content: GroundedSection,
   { date, concepts, candidates }: VerifyContext,
 ): Violation[] {
   return [
@@ -76,10 +76,10 @@ function evidenceViolations(items: NewsIssue[], candidates: GroundedCandidate[])
  * AI 응답을 그대로 신뢰하지 않는 지점이다.
  * 프롬프트로도 같은 지시를 하지만, 최종 값은 코드가 정한다.
  */
-export function normalizeBriefing(
-  content: DailyBriefingContent,
+export function normalizeBriefing<T extends GroundedSection>(
+  content: T,
   { concepts }: Pick<VerifyContext, "concepts">,
-): DailyBriefingContent {
+): T {
   return {
     ...content,
     knowledgeItems: applyConceptIdentity(content.knowledgeItems, concepts),
@@ -97,7 +97,7 @@ export function normalizeBriefing(
  */
 function knowledgeViolations(
   items: KnowledgeItem[],
-  concepts: CurriculumConcept[],
+  concepts: Concept[],
 ): Violation[] {
   if (items.length !== concepts.length) {
     return [
@@ -152,7 +152,7 @@ function freshnessViolations(items: NewsIssue[], date: DateString): Violation[] 
  */
 function applyConceptIdentity(
   items: KnowledgeItem[],
-  concepts: CurriculumConcept[],
+  concepts: Concept[],
 ): KnowledgeItem[] {
   const bySlug = new Map(items.map((item) => [item.slug, item]));
 

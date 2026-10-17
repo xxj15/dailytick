@@ -1,8 +1,8 @@
-import { CURRICULUM, CURRICULUM_BY_SLUG, type CurriculumConcept } from "@/data/curriculum";
+import { CURRICULUM, type Concept } from "@/data/curriculum";
 import type { ConceptHistoryEntry } from "@/types/briefing";
 
 export type ConceptSelection = {
-  concepts: CurriculumConcept[];
+  concepts: Concept[];
   /** new = 아직 다루지 않은 개념 / review = 커리큘럼을 한 바퀴 돈 뒤의 복습 */
   mode: "new" | "review";
 };
@@ -19,9 +19,13 @@ export type ConceptSelection = {
  * 늘 첫 개념으로 돌아가면 같은 개념만 매일 반복된다.
  *
  * AI가 순서를 임의로 바꾸지 않도록, 선정은 코드에서만 수행한다.
+ * 경제와 IT는 커리큘럼과 학습 이력을 각자 따로 넘긴다.
+ * perDay를 넘기면 짝 개념이 없어도 다음 미학습 개념으로 그 개수까지 채운다.
  */
 export function selectTodayConcepts(
   history: ConceptHistoryEntry[],
+  curriculum: Concept[] = CURRICULUM,
+  perDay = 1,
 ): ConceptSelection {
   // history는 최신순이다. 먼저 만난 index가 곧 마지막으로 다룬 시점.
   const lastSeen = new Map<string, number>();
@@ -32,25 +36,30 @@ export function selectTodayConcepts(
     }
   });
 
-  const next = CURRICULUM.find((concept) => !lastSeen.has(concept.slug));
+  const unseen = curriculum.filter((concept) => !lastSeen.has(concept.slug));
 
-  if (next) {
-    const concepts = [next];
+  if (unseen.length > 0) {
+    const concepts = [unseen[0]];
 
-    if (next.pairWith) {
-      const pair = CURRICULUM_BY_SLUG.get(next.pairWith);
-      if (pair && !lastSeen.has(pair.slug)) concepts.push(pair);
+    if (unseen[0].pairWith) {
+      const pair = unseen.find((concept) => concept.slug === unseen[0].pairWith);
+      if (pair) concepts.push(pair);
+    }
+
+    for (const concept of unseen) {
+      if (concepts.length >= perDay) break;
+      if (!concepts.includes(concept)) concepts.push(concept);
     }
 
     return { concepts, mode: "new" };
   }
 
   // index가 클수록 오래된 브리핑이다. 같은 값이면 커리큘럼 순서를 따른다.
-  const oldest = [...CURRICULUM].sort(
+  const oldest = [...curriculum].sort(
     (a, b) => (lastSeen.get(b.slug) ?? 0) - (lastSeen.get(a.slug) ?? 0),
-  )[0];
+  );
 
-  return { concepts: [oldest], mode: "review" };
+  return { concepts: oldest.slice(0, perDay), mode: "review" };
 }
 
 /** 프롬프트에 넘길 '이미 다룬 개념' 제목. 최근 것부터. */

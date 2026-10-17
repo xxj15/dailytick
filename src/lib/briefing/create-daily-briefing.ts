@@ -1,34 +1,39 @@
 import "server-only";
+import { TECH_CONCEPTS_PER_DAY } from "@/config/app";
+import { TECH_CURRICULUM } from "@/data/tech-curriculum";
 import {
   collectLearnedTitles,
   selectTodayConcepts,
 } from "@/lib/curriculum/select-next-concepts";
 import type { DateString } from "@/lib/date";
-import { collectMarketNews, NewsCollectionError } from "@/lib/openai/collect-news";
+import { collectMarketNews, collectTechNews, NewsCollectionError } from "@/lib/openai/collect-news";
 import { groundMarketNews, GroundNewsError } from "@/lib/openai/ground-news";
 import {
   BriefingValidationError,
   generateDailyBriefing,
+  generateTechSection,
 } from "@/lib/openai/generate-briefing";
 import { getModel } from "@/lib/openai/client";
 import { PROMPT_VERSION } from "@/lib/openai/prompts";
 import {
   getBriefingByDate,
   getConceptHistory,
+  getTechConceptHistory,
   saveBriefing,
 } from "@/lib/supabase/briefings";
 import {
   finishGenerationLog,
   startGenerationLog,
 } from "@/lib/supabase/generation-logs";
-import type { Briefing } from "@/types/briefing";
-import { auditEvidence, type GenerationAudit } from "@/lib/news/generation-audit";
+import type { Briefing, GroundedSection, TechSection } from "@/types/briefing";
+import { auditEvidence, type GenerationAudit, type TechAudit } from "@/lib/news/generation-audit";
 import type { NewsCandidate, BriefingViolation } from "@/types/briefing";
 
 const defaultServices = {
-  getBriefingByDate, getConceptHistory, collectMarketNews,
+  getBriefingByDate, getConceptHistory, getTechConceptHistory, collectMarketNews, collectTechNews,
   groundMarketNews: (candidates: NewsCandidate[], date: DateString, signal?: AbortSignal) => groundMarketNews(candidates, date, undefined, signal),
   generateDailyBriefing: (params: Parameters<typeof generateDailyBriefing>[0]) => generateDailyBriefing(params),
+  generateTechSection: (params: Parameters<typeof generateTechSection>[0]) => generateTechSection(params),
   saveBriefing, getModel, startGenerationLog, finishGenerationLog,
 };
 export type BriefingServices = typeof defaultServices;
@@ -39,10 +44,15 @@ export type CreateBriefingResult = {
   reused: boolean;
 };
 
+type Usage = { inputTokens: number; outputTokens: number; webSearchCalls: number };
+
 /**
  * 하루치 브리핑 생성 전체 흐름. (명세 §45)
  *
  *   과거 브리핑 조회 → 개념 선정 → 뉴스 수집 → 브리핑 생성 → 저장
+ *
+ * 경제 파트와 IT 파트는 같은 흐름을 동시에 탄다. 하나의 실행 기한 안에 둘 다 끝내야 한다.
+ * 경제 파트가 지면의 본체다. IT 파트가 실패하면 IT 없이 발행하고, 경제 파트가 실패하면 발행하지 않는다.
  *
  * Cron route는 이 함수만 호출한다. 스케줄러를 바꿔도 이 로직은 그대로다.
  */
@@ -62,10 +72,22 @@ export async function createDailyBriefing(
   // Vercel 실행 제한 전에 정리할 시간을 남긴다. 뉴스 수집·AI 호출이 같은 기한을 쓴다.
   const timeout = AbortSignal.timeout(260_000);
   const signal = options.signal ? AbortSignal.any([timeout, options.signal]) : timeout;
-  const audit: GenerationAudit = { stage: "history", searchTrace: [], rejectedUrls: [], sourceRejections: [], evidence: [], reviews: [] };
-  const usage = { inputTokens: 0, outputTokens: 0, webSearchCalls: 0 };
+  const audit: GenerationAudit = emptyAudit();
+  const usage: Usage = { inputTokens: 0, outputTokens: 0, webSearchCalls: 0 };
   let attempts = 0;
   let violations: BriefingViolation[] = [];
+
+  // 경제 파트가 실패하면 IT 파트도 멈춘다. 발행하지 않을 지면에 비용을 쓰지 않는다.
+  const techStop = new AbortController();
+  const techRun = createTechSection(date, services, AbortSignal.any([signal, techStop.signal]));
+  const settleTech = async () => {
+    const tech = await techRun;
+    usage.inputTokens += tech.usage.inputTokens;
+    usage.outputTokens += tech.usage.outputTokens;
+    usage.webSearchCalls += tech.usage.webSearchCalls;
+    audit.tech = tech.audit;
+    return tech.section;
+  };
 
   try {
     const history = await services.getConceptHistory();
@@ -78,7 +100,7 @@ export async function createDailyBriefing(
     const news = await services.collectMarketNews(date, signal);
     usage.inputTokens += news.inputTokens;
     usage.outputTokens += news.outputTokens;
-    usage.webSearchCalls = news.webSearchCalls;
+    usage.webSearchCalls += news.webSearchCalls;
     audit.searchTrace = news.searchTrace;
     audit.rejectedUrls = news.rejectedUrls;
     audit.stage = "sources";
@@ -104,23 +126,15 @@ export async function createDailyBriefing(
     violations = generated.violations;
     audit.reviews = generated.reviews;
 
-    // 복습일이면 화면에도 남긴다. AI 응답이 아니라 코드가 판단한 값이다.
-    const content =
-      mode === "review"
-        ? {
-            ...generated.content,
-            knowledgeItems: generated.content.knowledgeItems.map((item) => ({
-              ...item,
-              review: true,
-            })),
-          }
-        : generated.content;
+    const content = markReview(generated.content, mode);
+    const tech = await settleTech();
 
     signal.throwIfAborted();
     audit.stage = "save";
     const briefing = await services.saveBriefing({
       date,
       content,
+      tech,
       model: services.getModel(),
       promptVersion: PROMPT_VERSION,
     });
@@ -137,19 +151,12 @@ export async function createDailyBriefing(
 
     return { briefing, reused: false };
   } catch (error) {
-    if (error instanceof NewsCollectionError) {
-      Object.assign(usage, error.usage);
-      audit.searchTrace = error.trace;
-      audit.rejectedUrls = error.rejectedUrls;
+    if (!audit.tech) {
+      techStop.abort();
+      await settleTech();
     }
-    if (error instanceof GroundNewsError) audit.sourceRejections = error.rejected;
-    if (error instanceof BriefingValidationError) {
-      violations = error.violations;
-      usage.inputTokens += error.usage.inputTokens;
-      usage.outputTokens += error.usage.outputTokens;
-      audit.reviews = error.reviews;
-      attempts = violations[violations.length - 1]?.attempt ?? 0;
-    }
+    violations = recordFailure(error, audit, usage, violations);
+    if (error instanceof BriefingValidationError) attempts = violations[violations.length - 1]?.attempt ?? 0;
 
     // 생성에 실패해도 기존 브리핑은 절대 지우지 않는다.
     await services.finishGenerationLog(logId, {
@@ -162,4 +169,90 @@ export async function createDailyBriefing(
     });
     throw error;
   }
+}
+
+/**
+ * IT 파트. 경제 파트와 같은 단계를 밟되 실패를 던지지 않는다.
+ * 무엇이 왜 실패했는지는 audit에 담아 경제 파트의 생성 로그에 함께 남긴다.
+ */
+async function createTechSection(
+  date: DateString,
+  services: BriefingServices,
+  signal: AbortSignal,
+): Promise<{ section: TechSection | null; audit: TechAudit; usage: Usage }> {
+  const audit: TechAudit = { ...emptyAudit(), attempts: 0, violations: [] };
+  const usage: Usage = { inputTokens: 0, outputTokens: 0, webSearchCalls: 0 };
+
+  try {
+    const history = await services.getTechConceptHistory();
+    const { concepts, mode } = selectTodayConcepts(history, TECH_CURRICULUM, TECH_CONCEPTS_PER_DAY);
+    const learnedTitles = collectLearnedTitles(history);
+
+    audit.stage = "search";
+    const news = await services.collectTechNews(date, signal);
+    usage.inputTokens += news.inputTokens;
+    usage.outputTokens += news.outputTokens;
+    usage.webSearchCalls += news.webSearchCalls;
+    audit.searchTrace = news.searchTrace;
+    audit.rejectedUrls = news.rejectedUrls;
+    audit.stage = "sources";
+    const grounded = await services.groundMarketNews(news.candidates, date, signal);
+    usage.inputTokens += grounded.inputTokens;
+    usage.outputTokens += grounded.outputTokens;
+    audit.sourceRejections = grounded.rejected;
+    audit.evidence = auditEvidence(grounded.candidates);
+    if (!grounded.candidates.length) throw new Error("실제 본문으로 확인한 최신 IT 뉴스가 없습니다.");
+
+    audit.stage = "generation";
+    const generated = await services.generateTechSection({
+      date, concepts, mode, candidates: grounded.candidates, learnedTitles, signal,
+    });
+    usage.inputTokens += generated.inputTokens;
+    usage.outputTokens += generated.outputTokens;
+    audit.attempts = generated.attempts;
+    audit.violations = generated.violations;
+    audit.reviews = generated.reviews;
+
+    audit.stage = "complete";
+    return { section: markReview(generated.content, mode), audit, usage };
+  } catch (error) {
+    audit.violations = recordFailure(error, audit, usage, audit.violations);
+    if (error instanceof BriefingValidationError) audit.attempts = audit.violations[audit.violations.length - 1]?.attempt ?? 0;
+    audit.errorMessage = error instanceof Error ? error.message : String(error);
+    return { section: null, audit, usage };
+  }
+}
+
+function emptyAudit(): GenerationAudit {
+  return { stage: "history", searchTrace: [], rejectedUrls: [], sourceRejections: [], evidence: [], reviews: [] };
+}
+
+/** 복습일이면 화면에도 남긴다. AI 응답이 아니라 코드가 판단한 값이다. */
+function markReview<T extends GroundedSection>(content: T, mode: "new" | "review"): T {
+  if (mode !== "review") return content;
+  return { ...content, knowledgeItems: content.knowledgeItems.map((item) => ({ ...item, review: true })) };
+}
+
+/** 실패 단계가 들고 나온 사용량·검색 기록·위반 내역을 로그 쪽으로 옮긴다. 갱신된 위반 목록을 돌려준다. */
+function recordFailure(
+  error: unknown,
+  audit: GenerationAudit,
+  usage: Usage,
+  violations: BriefingViolation[],
+): BriefingViolation[] {
+  if (error instanceof NewsCollectionError) {
+    usage.inputTokens += error.usage.inputTokens;
+    usage.outputTokens += error.usage.outputTokens;
+    usage.webSearchCalls += error.usage.webSearchCalls;
+    audit.searchTrace = error.trace;
+    audit.rejectedUrls = error.rejectedUrls;
+  }
+  if (error instanceof GroundNewsError) audit.sourceRejections = error.rejected;
+  if (error instanceof BriefingValidationError) {
+    usage.inputTokens += error.usage.inputTokens;
+    usage.outputTokens += error.usage.outputTokens;
+    audit.reviews = error.reviews;
+    return error.violations;
+  }
+  return violations;
 }

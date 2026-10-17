@@ -18,15 +18,18 @@ export type CurriculumCategory =
   | "market-structure"
   | "global-markets";
 
-export type CurriculumConcept = {
+/** 경제·IT 커리큘럼이 공유하는 모양. 개념 선정·검증 코드는 이 타입만 안다. */
+export type Concept = {
   /** DB에 기록되는 고유 식별자. 한 번 정하면 바꾸지 않는다. */
   slug: string;
   title: string;
   level: number;
-  category: CurriculumCategory;
+  category: string;
   /** 함께 다루면 좋은 개념. 하루 최대 2개까지 묶을 수 있다. */
   pairWith?: string;
 };
+
+export type CurriculumConcept = Concept & { category: CurriculumCategory };
 
 export const CURRICULUM: CurriculumConcept[] = [
   // LEVEL 1 — 시장 기본
@@ -140,7 +143,3 @@ export const CURRICULUM: CurriculumConcept[] = [
   { slug: "alpha-beta", title: "알파와 베타", level: 10, category: "global-markets" },
   { slug: "sharpe-ratio", title: "샤프지수", level: 10, category: "global-markets" },
 ];
-
-export const CURRICULUM_BY_SLUG = new Map(
-  CURRICULUM.map((concept) => [concept.slug, concept]),
-);

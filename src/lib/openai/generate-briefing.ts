@@ -1,5 +1,5 @@
 import "server-only";
-import type { CurriculumConcept } from "@/data/curriculum";
+import type { Concept } from "@/data/curriculum";
 import {
   normalizeBriefing,
   verifyBriefing,
@@ -7,17 +7,22 @@ import {
 } from "@/lib/briefing/verify";
 import type { DateString } from "@/lib/date";
 import { getModel, getOpenAI } from "@/lib/openai/client";
-import { buildBriefingPrompt } from "@/lib/openai/prompts";
+import { buildBriefingPrompt, buildTechSectionPrompt } from "@/lib/openai/prompts";
 import {
   aiDailyBriefingSchema,
+  aiTechSectionSchema,
   dailyBriefingSchema,
   stripNulls,
+  techSectionSchema,
 } from "@/lib/openai/schemas";
 import type {
   BriefingViolation,
   DailyBriefingContent,
+  GroundedSection,
+  TechSection,
 } from "@/types/briefing";
 import { zodTextFormat } from "openai/helpers/zod";
+import type { z } from "zod";
 import { materializeBriefing } from "@/lib/briefing/materialize";
 import type { GroundedCandidate } from "@/lib/news/evidence-types";
 import { reviewViolations, type GroundingReview } from "@/lib/news/review";
@@ -40,7 +45,7 @@ export class BriefingValidationError extends Error {
 
 export type GenerateBriefingParams = {
   date: DateString;
-  concepts: CurriculumConcept[];
+  concepts: Concept[];
   /** 커리큘럼을 한 바퀴 돈 뒤라면 "review". 설명 방식이 달라진다. */
   mode: "new" | "review";
   candidates: GroundedCandidate[];
@@ -48,8 +53,8 @@ export type GenerateBriefingParams = {
   signal?: AbortSignal;
 };
 
-export type GenerateBriefingResult = {
-  content: DailyBriefingContent;
+export type GenerateBriefingResult<C extends GroundedSection = DailyBriefingContent> = {
+  content: C;
   inputTokens: number;
   outputTokens: number;
   attempts: number;
@@ -58,12 +63,14 @@ export type GenerateBriefingResult = {
   reviews: ReviewRecord[];
 };
 
-async function writeDraft(input: string, signal?: AbortSignal) {
-  const response = await getOpenAI().responses.parse({
-    model: getModel(), input,
-    text: { format: zodTextFormat(aiDailyBriefingSchema, "daily_briefing") },
-  }, { timeout: 60_000, maxRetries: 0, signal });
-  return { draft: response.output_parsed, inputTokens: response.usage?.input_tokens ?? 0, outputTokens: response.usage?.output_tokens ?? 0 };
+function draftWriter(schema: z.ZodType, name: string): GenerateBriefingDependencies["write"] {
+  return async (input, signal) => {
+    const response = await getOpenAI().responses.parse({
+      model: getModel(), input,
+      text: { format: zodTextFormat(schema, name) },
+    }, { timeout: 60_000, maxRetries: 0, signal });
+    return { draft: response.output_parsed, inputTokens: response.usage?.input_tokens ?? 0, outputTokens: response.usage?.output_tokens ?? 0 };
+  };
 }
 
 export type GenerateBriefingDependencies = {
@@ -71,20 +78,42 @@ export type GenerateBriefingDependencies = {
   review: typeof reviewBriefing;
 };
 
+/** STEP 2 — 경제 본문(상식·뉴스·키워드·한 줄) 생성. */
+export function generateDailyBriefing(
+  params: GenerateBriefingParams,
+  dependencies: GenerateBriefingDependencies = { write: draftWriter(aiDailyBriefingSchema, "daily_briefing"), review: reviewBriefing },
+): Promise<GenerateBriefingResult> {
+  return generateGroundedSection({ prompt: buildBriefingPrompt(params), aiSchema: aiDailyBriefingSchema, schema: dailyBriefingSchema }, params, dependencies);
+}
+
+/** STEP 2 — IT 파트(IT 상식·IT 뉴스) 생성. 경제 본문과 같은 검증을 거친다. */
+export function generateTechSection(
+  params: GenerateBriefingParams,
+  dependencies: GenerateBriefingDependencies = { write: draftWriter(aiTechSectionSchema, "tech_section"), review: reviewBriefing },
+): Promise<GenerateBriefingResult<TechSection>> {
+  return generateGroundedSection({ prompt: buildTechSectionPrompt(params), aiSchema: aiTechSectionSchema, schema: techSectionSchema }, params, dependencies);
+}
+
+type SectionSpec<D extends Parameters<typeof materializeBriefing>[0], C extends GroundedSection> = {
+  prompt: string;
+  /** structured output 모양 */
+  aiSchema: z.ZodType<D>;
+  /** 저장 전 canonical 검증 */
+  schema: z.ZodType<C>;
+};
+
 /**
- * STEP 2 — Daily Briefing 생성.
- *
  * AI 응답을 그대로 신뢰하지 않는다.
  * 스키마(schemas.ts)로 모양을 보고, 발행 기준(verify.ts)으로 내용을 본다.
  * 어느 쪽이든 걸리면 무엇이 틀렸는지 알려주고 1회 재시도한다. (명세 §46)
  * 두 번째도 실패하면 저장하지 않고 던진다. 잘못된 데이터를 DB에 넣지 않는다.
  */
-export async function generateDailyBriefing(
+async function generateGroundedSection<D extends Parameters<typeof materializeBriefing>[0], C extends GroundedSection>(
+  { prompt: basePrompt, aiSchema, schema }: SectionSpec<D, C>,
   params: GenerateBriefingParams,
-  dependencies: GenerateBriefingDependencies = { write: writeDraft, review: reviewBriefing },
-): Promise<GenerateBriefingResult> {
+  dependencies: GenerateBriefingDependencies,
+): Promise<GenerateBriefingResult<C>> {
   if (!params.candidates.length) throw new Error("근거가 확보된 뉴스가 없어 브리핑을 생성하지 않습니다.");
-  const basePrompt = buildBriefingPrompt(params);
 
   let inputTokens = 0;
   let outputTokens = 0;
@@ -120,7 +149,7 @@ ${lastError}`;
     }
     inputTokens += response.inputTokens;
     outputTokens += response.outputTokens;
-    const draft = aiDailyBriefingSchema.safeParse(response.draft);
+    const draft = aiSchema.safeParse(response.draft);
     if (!draft.success) {
       fail([{ code: "no_output", message: "구조화된 작성 결과를 받지 못했습니다." }]);
       continue;
@@ -133,7 +162,7 @@ ${lastError}`;
       fail([{ code: "news.evidence", message: error instanceof Error ? error.message : String(error) }]);
       continue;
     }
-    const parsed = dailyBriefingSchema.safeParse(stripNulls(materialized));
+    const parsed = schema.safeParse(stripNulls(materialized));
 
     if (!parsed.success) {
       fail(

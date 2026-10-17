@@ -14,6 +14,10 @@ create table if not exists briefings (
   -- 키워드 아래 붙는 한 줄. 키워드 도입 이전 row에는 없으므로 nullable.
   one_liner text,
 
+  -- IT 파트 (개념 + 뉴스). 도입 이전 row와 IT 생성에 실패한 날은 null.
+  tech_knowledge_items jsonb,
+  tech_news_items jsonb,
+
   generated_at timestamptz not null default now(),
 
   model text,
@@ -112,3 +116,13 @@ alter table generation_logs
 -- 2026-10-09 · 뉴스 근거 추적
 alter table generation_logs
   add column if not exists audit jsonb;
+
+-- 2026-10-17 · IT 파트를 추가한다
+--
+-- 경제 파트와 따로 생성하고, IT 쪽이 실패해도 경제 파트는 발행한다.
+-- 그래서 두 열 모두 nullable이다.
+alter table briefings
+  add column if not exists tech_knowledge_items jsonb;
+
+alter table briefings
+  add column if not exists tech_news_items jsonb;

@@ -3,7 +3,7 @@
  * 서비스명은 추후 변경 가능하므로 반드시 이 상수를 통해 참조한다.
  */
 export const APP_NAME = "Daily Tick";
-export const APP_TAGLINE = "DAILY FINANCIAL BRIEFING";
+export const APP_TAGLINE = "Daily Finance & Tech Briefing";
 export const APP_DESCRIPTION =
   "증권사 취준생을 위한 개인화 데일리 금융 학습 서비스";
 
@@ -21,6 +21,12 @@ export const FIRST_ISSUE_DATE = "2026-08-25";
 // 개수·지역 할당보다 근거 확보가 우선이다. 근거가 없으면 발행 자체를 중단한다.
 export const NEWS_PER_DAY = { min: 1, max: 5, default: 3 } as const;
 
+/** IT 상식 하루 개수. 스키마가 허용하는 최대(2)와 같다. */
+export const TECH_CONCEPTS_PER_DAY = 2;
+
+/** IT 파트 하루 뉴스 분량. 경제 파트와 같이 근거가 부족하면 줄여서 낸다. */
+export const TECH_NEWS_PER_DAY = { min: 1, max: 3, default: 3 } as const;
+
 /** 지면 맨 위에 거는 오늘의 키워드 개수. 한눈에 훑는 자리라 짧게 유지한다. */
 export const TODAY_KEYWORDS_PER_DAY = { min: 3, max: 5 } as const;
 
@@ -36,6 +42,9 @@ export const SOURCE_MAX_AGE_HOURS = 72;
 
 /** STEP 1에서 수집할 뉴스 후보 개수. */
 export const NEWS_CANDIDATE_COUNT = { min: 6, max: 10 } as const;
+
+/** IT 파트 STEP 1 후보 개수. 3개를 내려면 근거 단계에서 탈락할 몫까지 모아야 한다. */
+export const TECH_NEWS_CANDIDATE_COUNT = { min: 5, max: 8 } as const;
 
 /**
  * 뉴스 출처 선호 매체. (명세 §17)
@@ -67,6 +76,32 @@ export const PREFERRED_PUBLISHERS = {
   ],
 } as const;
 
+/** IT 파트 출처 선호 매체. 경제 파트와 같은 우선순위 규칙이다. */
+export const PREFERRED_TECH_PUBLISHERS = {
+  kr: [
+    "전자신문",
+    "ZDNet Korea",
+    "디지털데일리",
+    "블로터",
+    "아이뉴스24",
+    "연합뉴스",
+    "한국경제",
+  ],
+  global: ["Reuters", "Bloomberg", "The Verge", "TechCrunch", "Ars Technica"],
+  /** 제품·모델 발표 원문. 기업 공식 뉴스룸·블로그와 정부 발표를 가리킨다. */
+  official: [
+    "과학기술정보통신부",
+    "개인정보보호위원회",
+    "삼성전자 뉴스룸",
+    "SK하이닉스 뉴스룸",
+    "NVIDIA",
+    "OpenAI",
+    "Google",
+    "Microsoft",
+    "Apple",
+  ],
+} as const;
+
 /**
  * MVP는 다중 사용자를 대상으로 하지 않는다.
  * 하나의 고정 프로필을 기준으로 콘텐츠를 생성한다.
@@ -78,4 +113,6 @@ export const USER_PROFILE = {
   timezone: SERVICE_TIMEZONE,
   preferredLength: "concise",
   newsGoal: "경제신문을 읽지 않아도 주요 1면급 경제 이슈를 파악",
+  techGoal: "IT 기본기(CS 지식)를 쌓고 요즘 기술 트렌드를 따라가기",
+  techLevel: "non-major",
 } as const;

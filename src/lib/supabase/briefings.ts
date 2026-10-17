@@ -6,12 +6,13 @@ import type {
   BriefingRow,
   ConceptHistoryEntry,
   DailyBriefingContent,
+  TechSection,
 } from "@/types/briefing";
 import type { DateString } from "@/lib/date";
 
 const TABLE = "briefings";
 const COLUMNS =
-  "id, briefing_date, knowledge_items, news_items, today_keywords, one_liner, generated_at, model, prompt_version";
+  "id, briefing_date, knowledge_items, news_items, today_keywords, one_liner, tech_knowledge_items, tech_news_items, generated_at, model, prompt_version";
 
 function toBriefing(row: BriefingRow): Briefing {
   return {
@@ -22,6 +23,10 @@ function toBriefing(row: BriefingRow): Briefing {
     // 지난 브리핑에는 둘 중 하나가 없을 수 있다. 화면에서 그 줄만 비운다.
     todayKeywords: row.today_keywords ?? [],
     oneLiner: row.one_liner ?? "",
+    tech:
+      row.tech_knowledge_items && row.tech_news_items
+        ? { knowledgeItems: row.tech_knowledge_items, newsItems: row.tech_news_items }
+        : null,
     generatedAt: row.generated_at,
     model: row.model,
     promptVersion: row.prompt_version,
@@ -61,18 +66,29 @@ export async function getLatestBriefing(): Promise<Briefing | null> {
  * 다시 출제된다. 그래서 개념 slug만 담긴 가벼운 컬럼을 전부 읽는다.
  * (Supabase 기본 상한 1000행 = 약 3년치)
  */
-export async function getConceptHistory(): Promise<ConceptHistoryEntry[]> {
+export function getConceptHistory(): Promise<ConceptHistoryEntry[]> {
+  return readConceptHistory("knowledge_items");
+}
+
+/** IT 개념 학습 이력. IT 파트가 없던 날은 빈 줄로 들어온다. */
+export function getTechConceptHistory(): Promise<ConceptHistoryEntry[]> {
+  return readConceptHistory("tech_knowledge_items");
+}
+
+async function readConceptHistory(
+  column: "knowledge_items" | "tech_knowledge_items",
+): Promise<ConceptHistoryEntry[]> {
   const { data, error } = await getSupabase()
     .from(TABLE)
-    .select("briefing_date, knowledge_items")
+    .select(`briefing_date, ${column}`)
     .order("briefing_date", { ascending: false })
-    .returns<Pick<BriefingRow, "briefing_date" | "knowledge_items">[]>();
+    .returns<(Pick<BriefingRow, "briefing_date"> & Partial<Pick<BriefingRow, typeof column>>)[]>();
 
-  if (error) throw new Error(`학습 이력 조회 실패: ${error.message}`);
+  if (error) throw new Error(`학습 이력 조회 실패(${column}): ${error.message}`);
 
   return (data ?? []).map((row) => ({
     briefingDate: row.briefing_date,
-    items: (row.knowledge_items ?? []).map((item) => ({
+    items: (row[column] ?? []).map((item) => ({
       slug: item.slug,
       title: item.title,
     })),
@@ -131,6 +147,8 @@ export async function getAdjacentBriefingDates(date: DateString): Promise<{
 export async function saveBriefing(params: {
   date: DateString;
   content: DailyBriefingContent;
+  /** IT 파트 생성에 실패한 날은 null로 저장하고 경제 파트만 발행한다. */
+  tech: TechSection | null;
   model: string;
   promptVersion: string;
 }): Promise<Briefing> {
@@ -143,6 +161,8 @@ export async function saveBriefing(params: {
         news_items: params.content.newsItems,
         today_keywords: params.content.todayKeywords,
         one_liner: params.content.oneLiner,
+        tech_knowledge_items: params.tech?.knowledgeItems ?? null,
+        tech_news_items: params.tech?.newsItems ?? null,
         generated_at: new Date().toISOString(),
         model: params.model,
         prompt_version: params.promptVersion,

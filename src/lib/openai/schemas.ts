@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NEWS_PER_DAY, TODAY_KEYWORDS_PER_DAY } from "@/config/app";
+import { NEWS_PER_DAY, TECH_NEWS_PER_DAY, TODAY_KEYWORDS_PER_DAY } from "@/config/app";
 
 /**
  * AI 응답 검증 스키마.
@@ -17,6 +17,12 @@ export const newsCategorySchema = z.enum([
   "policy",
   "geopolitics",
   "commodities",
+  // 이하 IT 파트
+  "ai",
+  "semiconductor",
+  "software",
+  "platform",
+  "security",
   "other",
 ]);
 
@@ -71,6 +77,7 @@ export const knowledgeItemSchema = z.object({
   explanation: z.string().min(1),
   example: z.string().optional(),
 
+  /** IT 파트에서는 '실무에서 어디에 쓰이는가'를 담는다. 화면 라벨은 Why it matters로 같다. */
   securitiesPoint: z.string().min(1),
   interviewQuestion: z.string().min(1),
 
@@ -106,6 +113,15 @@ export const dailyBriefingSchema = z
      */
     oneLiner: z.string().min(1),
   });
+
+/** IT 파트. 키워드·한 줄은 경제 파트가 지면 맨 위에서 맡으므로 두지 않는다. */
+export const techSectionSchema = z.object({
+  knowledgeItems: z.array(knowledgeItemSchema).min(1).max(2),
+  newsItems: z
+    .array(newsIssueSchema)
+    .min(TECH_NEWS_PER_DAY.min)
+    .max(TECH_NEWS_PER_DAY.max),
+});
 
 /** STEP 1 — 뉴스 후보 수집 결과 */
 export const newsCandidateSchema = z.object({
@@ -147,7 +163,7 @@ const aiMarketImpactSchema = z.object({
   industry: z.string().nullable(),
 });
 
-const aiNewsIssueSchema = z.object({
+export const aiNewsIssueSchema = z.object({
   rank: z.number(),
   candidateId: z.string(),
   factIds: z.array(z.string()),
@@ -176,6 +192,12 @@ export const aiDailyBriefingSchema = z.object({
   newsItems: z.array(aiNewsIssueSchema),
   todayKeywords: z.array(z.string()),
   oneLiner: z.string(),
+});
+
+/** IT 파트 STEP 2 응답 형식 */
+export const aiTechSectionSchema = z.object({
+  knowledgeItems: z.array(aiKnowledgeItemSchema),
+  newsItems: z.array(aiNewsIssueSchema),
 });
 
 /** STEP 1 응답 형식 */

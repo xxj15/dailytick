@@ -43,6 +43,8 @@ export async function POST(request: NextRequest) {
       briefingDate: briefing.briefingDate,
       knowledgeCount: briefing.knowledgeItems.length,
       newsCount: briefing.newsItems.length,
+      // IT 파트 생성에 실패했으면 null. 실패 사유는 generation_logs.audit.tech에 있다.
+      techNewsCount: briefing.tech?.newsItems.length ?? null,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

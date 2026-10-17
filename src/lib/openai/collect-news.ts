@@ -1,6 +1,6 @@
 import "server-only";
 import { getModel, getOpenAI } from "@/lib/openai/client";
-import { buildNewsCollectionPrompt } from "@/lib/openai/prompts";
+import { buildNewsCollectionPrompt, buildTechNewsCollectionPrompt } from "@/lib/openai/prompts";
 import {
   aiNewsCandidateListSchema,
   newsCandidateListSchema,
@@ -34,13 +34,22 @@ export type CollectNewsResult = {
  *
  * 별도 뉴스 API를 쓰지 않지만, 나중에 교체할 수 있도록 이 함수만 바꾸면 되게 분리해 둔다.
  */
-export async function collectMarketNews(
-  date: DateString,
+export function collectMarketNews(date: DateString, signal?: AbortSignal) {
+  return collectNews(buildNewsCollectionPrompt(date), signal);
+}
+
+/** IT 파트 STEP 1. 검색 대상만 다르고 출처 감사는 경제 파트와 같다. */
+export function collectTechNews(date: DateString, signal?: AbortSignal) {
+  return collectNews(buildTechNewsCollectionPrompt(date), signal);
+}
+
+async function collectNews(
+  input: string,
   signal?: AbortSignal,
 ): Promise<CollectNewsResult> {
   const response = await getOpenAI().responses.parse({
     model: getModel(),
-    input: buildNewsCollectionPrompt(date),
+    input,
     tools: [{ type: "web_search" }],
     tool_choice: "required",
     include: ["web_search_call.action.sources"],

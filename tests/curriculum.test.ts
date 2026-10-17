@@ -1,6 +1,7 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 import { CURRICULUM } from "@/data/curriculum";
+import { TECH_CURRICULUM } from "@/data/tech-curriculum";
 import { selectTodayConcepts } from "@/lib/curriculum/select-next-concepts";
 import type { ConceptHistoryEntry } from "@/types/briefing";
 
@@ -71,4 +72,42 @@ test("복습이 첫 개념으로 되돌아가 매일 반복되지 않는다", ()
 
   assert.equal(mode, "review");
   assert.notEqual(concepts[0].slug, all[0]);
+});
+
+test("IT 커리큘럼은 slug가 겹치지 않고 짝 개념이 실제로 있다", () => {
+  const slugs = TECH_CURRICULUM.map((c) => c.slug);
+
+  assert.equal(new Set(slugs).size, slugs.length);
+  // 학습 이력이 하나의 slug 공간처럼 보이지 않도록 경제 커리큘럼과도 겹치지 않는다
+  assert.ok(slugs.every((slug) => !CURRICULUM.some((c) => c.slug === slug)));
+  for (const concept of TECH_CURRICULUM) {
+    if (concept.pairWith) assert.ok(slugs.includes(concept.pairWith), concept.pairWith);
+  }
+});
+
+test("IT 개념은 IT 커리큘럼과 IT 이력으로 따로, 하루 두 개씩 고른다", () => {
+  const learned = TECH_CURRICULUM.slice(0, 1).map((c) => c.slug);
+  const { concepts, mode } = selectTodayConcepts(history(learned), TECH_CURRICULUM, 2);
+
+  assert.equal(mode, "new");
+  assert.deepEqual(
+    concepts.map((c) => c.slug),
+    TECH_CURRICULUM.slice(1, 3).map((c) => c.slug),
+  );
+});
+
+test("하루 두 개를 고를 때 짝 개념이 있으면 짝이 먼저 들어간다", () => {
+  const memory = TECH_CURRICULUM.findIndex((c) => c.slug === "semiconductor-memory");
+  const learned = TECH_CURRICULUM.slice(0, memory).map((c) => c.slug);
+  const { concepts } = selectTodayConcepts(history(learned), TECH_CURRICULUM, 2);
+
+  assert.deepEqual(concepts.map((c) => c.slug), ["semiconductor-memory", "hbm"]);
+});
+
+test("IT 커리큘럼을 다 돌면 가장 오래된 두 개를 복습한다", () => {
+  const all = TECH_CURRICULUM.map((c) => c.slug);
+  const { concepts, mode } = selectTodayConcepts(history(all.slice(2), all.slice(0, 2)), TECH_CURRICULUM, 2);
+
+  assert.equal(mode, "review");
+  assert.deepEqual(concepts.map((c) => c.slug), all.slice(0, 2));
 });

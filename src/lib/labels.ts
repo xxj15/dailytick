@@ -10,6 +10,11 @@ export const NEWS_CATEGORY_LABEL: Record<NewsCategory, string> = {
   policy: "Policy",
   geopolitics: "Geopolitics",
   commodities: "Commodities",
+  ai: "AI",
+  semiconductor: "Chips",
+  software: "Software",
+  platform: "Platform",
+  security: "Security",
   other: "Market",
 };
 

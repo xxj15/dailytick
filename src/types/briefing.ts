@@ -8,6 +8,7 @@ import type {
   newsIssueSchema,
   newsRegionSchema,
   newsSourceSchema,
+  techSectionSchema,
 } from "@/lib/openai/schemas";
 
 /** 타입의 단일 출처는 Zod 스키마다. 스키마를 고치면 타입이 따라온다. */
@@ -22,8 +23,16 @@ export type NewsCandidate = z.infer<typeof newsCandidateSchema>;
 /** AI가 생성한 브리핑 본문 (DB 저장 전) */
 export type DailyBriefingContent = z.infer<typeof dailyBriefingSchema>;
 
+/** IT 파트 (개념 + 뉴스) */
+export type TechSection = z.infer<typeof techSectionSchema>;
+
+/** 근거 검증·의미 검토를 거치는 단위. 경제 본문과 IT 파트가 같은 모양을 공유한다. */
+export type GroundedSection = Pick<DailyBriefingContent, "knowledgeItems" | "newsItems">;
+
 /** DB에 저장된 브리핑 한 건 */
 export type Briefing = DailyBriefingContent & {
+  /** IT 파트 도입 이전이거나 그날 IT 파트 생성에 실패했으면 null. */
+  tech: TechSection | null;
   id: string;
   briefingDate: string;
   generatedAt: string;
@@ -40,6 +49,9 @@ export type BriefingRow = {
   /** 키워드 도입 이전에 저장된 row는 비어 있다. */
   today_keywords: string[] | null;
   one_liner: string | null;
+  /** IT 파트가 없는 날은 둘 다 null이다. */
+  tech_knowledge_items: KnowledgeItem[] | null;
+  tech_news_items: NewsIssue[] | null;
   generated_at: string;
   model: string | null;
   prompt_version: string | null;
