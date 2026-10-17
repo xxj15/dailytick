@@ -11,6 +11,9 @@ import { TECH_CURRICULUM } from "@/data/tech-curriculum";
 
 /** IT 파트 기본 사용량. 검색 1 + 근거 20(경제와 같은 mock) + 작성 3 */
 const TECH_TOKENS = 24;
+/** Tech·경제 키워드 합성. 경제 파트까지 성공했을 때만 부른다 */
+const HEADLINE = { todayKeywords: ["HBM4 양산", "AI 에이전트", "기준금리", "통화정책"], oneLiner: "AI 메모리 경쟁이 한 단계 더 빨라졌다." };
+const HEADLINE_TOKENS = 4;
 
 function harness() {
   const saved: Parameters<BriefingServices["saveBriefing"]>[0][] = [];
@@ -29,6 +32,7 @@ function harness() {
     groundMarketNews: async () => ({ candidates: [CANDIDATE], rejected: [], inputTokens: 20, outputTokens: 5 }),
     generateDailyBriefing: async () => ({ content, attempts: 1, violations: [], reviews: [], inputTokens: 30, outputTokens: 10 }),
     generateTechSection: async () => ({ content: tech, attempts: 1, violations: [], reviews: [], inputTokens: 3, outputTokens: 1 }),
+    composeHeadline: async () => ({ headline: HEADLINE, inputTokens: HEADLINE_TOKENS, outputTokens: 1 }),
     saveBriefing: async (params) => { saved.push(params); return { ...existing, ...params.content, tech: params.tech, promptVersion: params.promptVersion }; },
   };
   return { services, logs, existing, tech, saved, saves: () => saved.length };
@@ -39,7 +43,7 @@ test("검색·근거·생성 사용량과 근거 metadata를 저장하고 원문
   const result = await createDailyBriefing(DATE, {}, run.services);
   assert.equal(result.reused, false);
   assert.equal(run.saves(), 1);
-  assert.equal(run.logs[0].inputTokens, 60 + TECH_TOKENS);
+  assert.equal(run.logs[0].inputTokens, 60 + TECH_TOKENS + HEADLINE_TOKENS);
   assert.equal(run.logs[0].webSearchCalls, 2);
   assert.equal(run.logs[0].audit?.stage, "complete");
   assert.ok(!("text" in run.logs[0].audit!.evidence[0].documents[0]));
@@ -148,4 +152,36 @@ test("경제 파트가 실패하면 IT 파트가 성공해도 저장하지 않�
   assert.equal(run.saves(), 0);
   assert.equal(run.logs[0].status, "failed");
   assert.ok(run.logs[0].audit?.tech);
+});
+
+test("Tech가 있으면 두 파트를 함께 본 키워드·한 줄로 바꿔 저장한다", async () => {
+  const run = harness();
+  let seen: string[] = [];
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    composeHeadline: async (params) => { seen = params.tech.newsItems.map((item) => item.title); return run.services.composeHeadline(params); },
+  });
+  assert.deepEqual(seen, run.tech.newsItems.map((item) => item.title));
+  assert.deepEqual(run.saved[0].content.todayKeywords, HEADLINE.todayKeywords);
+  assert.equal(run.saved[0].content.oneLiner, HEADLINE.oneLiner);
+});
+
+test("키워드 합성이 실패하면 경제 키워드로 발행하고 사유를 남긴다", async () => {
+  const run = harness();
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    composeHeadline: async () => { throw new Error("합성 실패"); },
+  });
+  assert.deepEqual(run.saved[0].content.todayKeywords, DRAFT.todayKeywords);
+  assert.equal(run.logs[0].status, "success");
+  assert.equal(run.logs[0].audit?.headlineError, "합성 실패");
+});
+
+test("Tech가 없으면 키워드 합성을 부르지 않는다", async () => {
+  const run = harness();
+  let called = false;
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    generateTechSection: async () => { throw new Error("IT 실패"); },
+    composeHeadline: async () => { called = true; throw new Error("호출하면 안 됨"); },
+  });
+  assert.equal(called, false);
+  assert.deepEqual(run.saved[0].content.todayKeywords, DRAFT.todayKeywords);
 });

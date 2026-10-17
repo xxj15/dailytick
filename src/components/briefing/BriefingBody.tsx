@@ -18,7 +18,7 @@ export function BriefingBody({
   /** 로그인한 지면 주인만 완료 표시와 메모를 쓸 수 있다. */
   canEdit: boolean;
 }) {
-  // Tech를 앞에 둔다. IT 파트가 없는 날(도입 이전, 생성 실패)은 그 사실만 알린다
+  // Tech를 앞에 둔다. 뉴스 쪽은 1면 뉴스를 상식보다 먼저 보여준다. IT 파트가 없는 날(도입 이전, 생성 실패)은 그 사실만 알린다
   const parts: BriefingPart[] = [
     {
       key: "tech",
@@ -40,19 +40,19 @@ export function BriefingBody({
     },
     {
       key: "economy",
-      label: "경제",
+      label: "뉴스·경제",
       tabs: [
+        {
+          key: "news",
+          label: "1면 뉴스",
+          count: briefing.newsItems.length,
+          content: <NewsSection items={briefing.newsItems} />,
+        },
         {
           key: "knowledge",
           label: "증권 상식",
           count: briefing.knowledgeItems.length,
           content: <KnowledgeSection items={briefing.knowledgeItems} />,
-        },
-        {
-          key: "news",
-          label: "경제 이슈",
-          count: briefing.newsItems.length,
-          content: <NewsSection items={briefing.newsItems} />,
         },
       ],
     },

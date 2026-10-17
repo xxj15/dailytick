@@ -14,6 +14,7 @@ import {
   generateTechSection,
 } from "@/lib/openai/generate-briefing";
 import { getModel } from "@/lib/openai/client";
+import { composeHeadline } from "@/lib/openai/compose-headline";
 import { PROMPT_VERSION } from "@/lib/openai/prompts";
 import {
   getBriefingByDate,
@@ -34,6 +35,7 @@ const defaultServices = {
   groundMarketNews: (candidates: NewsCandidate[], date: DateString, signal?: AbortSignal) => groundMarketNews(candidates, date, undefined, signal),
   generateDailyBriefing: (params: Parameters<typeof generateDailyBriefing>[0]) => generateDailyBriefing(params),
   generateTechSection: (params: Parameters<typeof generateTechSection>[0]) => generateTechSection(params),
+  composeHeadline,
   saveBriefing, getModel, startGenerationLog, finishGenerationLog,
 };
 export type BriefingServices = typeof defaultServices;
@@ -126,8 +128,21 @@ export async function createDailyBriefing(
     violations = generated.violations;
     audit.reviews = generated.reviews;
 
-    const content = markReview(generated.content, mode);
+    let content = markReview(generated.content, mode);
     const tech = await settleTech();
+
+    // Tech가 앞에 오는 지면이므로 키워드·한 줄도 두 파트를 함께 보고 다시 쓴다.
+    // 실패해도 발행은 막지 않는다. 경제 본문이 쓴 키워드가 그대로 남는다.
+    if (tech) {
+      try {
+        const composed = await services.composeHeadline({ date, economy: content, tech }, signal);
+        usage.inputTokens += composed.inputTokens;
+        usage.outputTokens += composed.outputTokens;
+        content = { ...content, ...composed.headline };
+      } catch (error) {
+        audit.headlineError = error instanceof Error ? error.message : String(error);
+      }
+    }
 
     signal.throwIfAborted();
     audit.stage = "save";

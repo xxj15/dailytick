@@ -12,9 +12,11 @@ export type GenerationAudit = {
   reviews: ReviewRecord[];
   /** IT 파트는 경제 파트와 따로 성패가 갈리므로 위반·실패 사유를 자기 안에 둔다. */
   tech?: TechAudit;
+  /** Tech·경제 키워드 합성이 실패해 경제 키워드를 그대로 쓴 경우 그 사유 */
+  headlineError?: string;
 };
 
-export type TechAudit = Omit<GenerationAudit, "tech"> & {
+export type TechAudit = Omit<GenerationAudit, "tech" | "headlineError"> & {
   attempts: number;
   violations: BriefingViolation[];
   /** 실패했다면 그 사유. 이날 IT 파트 없이 발행했다는 뜻이다. */

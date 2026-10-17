@@ -52,18 +52,20 @@ export const TECH_NEWS_CANDIDATE_COUNT = { min: 5, max: 8 } as const;
  * 화이트리스트가 아니라 '가급적 이 안에서 고르라'는 우선순위다.
  */
 export const PREFERRED_PUBLISHERS = {
-  /** 1순위. 국내·글로벌 이슈 모두 이 매체들의 보도를 먼저 찾는다. */
+  /** 1순위. 국내·글로벌 이슈 모두 이 매체들의 보도를 먼저 찾는다. 종합지와 경제지를 함께 본다. */
   kr: [
+    "연합뉴스",
+    "조선일보",
+    "중앙일보",
+    "동아일보",
+    "한겨레",
+    "경향신문",
+    "KBS",
     "한국경제",
     "매일경제",
-    "서울경제",
-    "조선비즈",
-    "연합뉴스",
-    "이데일리",
-    "머니투데이",
   ],
   /** 국내 매체가 다루지 않았거나 원문 확인이 필요할 때 보조로 쓴다. */
-  global: ["Reuters", "Bloomberg", "Financial Times", "CNBC", "WSJ"],
+  global: ["Reuters", "AP", "Bloomberg", "BBC", "Financial Times", "WSJ"],
   /** 수치·발표 원문 확인용. 언제든 우선 인용할 수 있다. */
   official: [
     "한국은행",
@@ -71,6 +73,8 @@ export const PREFERRED_PUBLISHERS = {
     "금융감독원",
     "기획재정부",
     "통계청",
+    "대한민국 정책브리핑",
+    "국회",
     "Fed",
     "SEC",
   ],
@@ -112,7 +116,7 @@ export const USER_PROFILE = {
   locale: "ko-KR",
   timezone: SERVICE_TIMEZONE,
   preferredLength: "concise",
-  newsGoal: "경제신문을 읽지 않아도 주요 1면급 경제 이슈를 파악",
+  newsGoal: "신문을 따로 읽지 않아도 오늘의 1면급 주요 뉴스를 파악",
   techGoal: "IT 기본기(CS 지식)를 쌓고 요즘 기술 트렌드를 따라가기",
   techLevel: "non-major",
 } as const;

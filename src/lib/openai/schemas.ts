@@ -17,6 +17,10 @@ export const newsCategorySchema = z.enum([
   "policy",
   "geopolitics",
   "commodities",
+  // 1면 뉴스
+  "politics",
+  "society",
+  "world",
   // 이하 IT 파트
   "ai",
   "semiconductor",
@@ -123,6 +127,9 @@ export const techSectionSchema = z.object({
     .max(TECH_NEWS_PER_DAY.max),
 });
 
+/** STEP 3 — Tech·경제를 함께 보고 쓴 지면 맨 위 키워드와 한 줄 */
+export const headlineSchema = dailyBriefingSchema.pick({ todayKeywords: true, oneLiner: true });
+
 /** STEP 1 — 뉴스 후보 수집 결과 */
 export const newsCandidateSchema = z.object({
   title: z.string().min(1),
@@ -198,6 +205,12 @@ export const aiDailyBriefingSchema = z.object({
 export const aiTechSectionSchema = z.object({
   knowledgeItems: z.array(aiKnowledgeItemSchema),
   newsItems: z.array(aiNewsIssueSchema),
+});
+
+/** STEP 3 응답 형식 */
+export const aiHeadlineSchema = z.object({
+  todayKeywords: z.array(z.string()),
+  oneLiner: z.string(),
 });
 
 /** STEP 1 응답 형식 */
