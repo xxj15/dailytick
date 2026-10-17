@@ -1,4 +1,5 @@
 import { createDailyBriefing } from "@/lib/briefing/create-daily-briefing";
+import { summarizeAudit } from "@/lib/news/generation-audit";
 import { getTodayKST, isDateString } from "@/lib/date";
 import { getServerEnv } from "@/lib/env";
 import type { NextRequest } from "next/server";
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
   const force = searchParams.get("force") === "true";
 
   try {
-    const { briefing, reused } = await createDailyBriefing(date, { force });
+    const { briefing, reused, audit } = await createDailyBriefing(date, { force });
 
     return Response.json({
       ok: true,
@@ -45,6 +46,14 @@ export async function POST(request: NextRequest) {
       newsCount: briefing.newsItems.length,
       // IT 파트 생성에 실패했으면 null. 실패 사유는 generation_logs.audit.tech에 있다.
       techNewsCount: briefing.tech?.newsItems.length ?? null,
+      // 뉴스가 기대보다 적을 때 원인을 바로 보기 위한 요약. CRON_SECRET이 있어야만 받는다.
+      ...(audit && {
+        diagnostics: {
+          economy: summarizeAudit(audit),
+          ...(audit.tech && { tech: summarizeAudit(audit.tech) }),
+          ...(audit.headlineError && { headlineError: audit.headlineError }),
+        },
+      }),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

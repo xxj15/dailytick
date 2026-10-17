@@ -23,6 +23,23 @@ export type TechAudit = Omit<GenerationAudit, "tech" | "headlineError"> & {
   errorMessage?: string;
 };
 
+/**
+ * cron 응답에 싣는 요약. 파트별로 단계마다 몇 건이 남았고 무엇이 왜 떨어졌는지만 보여준다.
+ * DB에 들어가 보지 않고도 '왜 뉴스가 적은지'를 바로 알 수 있게 한다.
+ */
+export function summarizeAudit(audit: Omit<GenerationAudit, "tech" | "headlineError"> & { errorMessage?: string; violations?: BriefingViolation[] }) {
+  return {
+    stage: audit.stage,
+    searches: audit.searchTrace.filter((call) => call.action === "search").length,
+    rejectedUrls: audit.rejectedUrls.length,
+    grounded: audit.evidence.length,
+    sourceRejections: audit.sourceRejections.map((item) => `${item.candidateId}: ${item.reason}${item.url ? ` (${item.url})` : ""}`),
+    reviews: audit.reviews.map((record) => record.review.news.filter((news) => !news.supported).map((news) => news.reason)).flat(),
+    ...(audit.violations?.length ? { violations: audit.violations.map((item) => `${item.code}: ${item.message}`.slice(0, 200)) } : {}),
+    ...(audit.errorMessage ? { error: audit.errorMessage } : {}),
+  };
+}
+
 /** 원문 전체 대신 채택한 짧은 근거·URL·수집 시각·hash를 남긴다. */
 export function auditEvidence(candidates: GroundedCandidate[]): GenerationAudit["evidence"] {
   return candidates.map((candidate) => ({

@@ -44,6 +44,8 @@ export type CreateBriefingResult = {
   briefing: Briefing;
   /** 이미 있던 브리핑을 그대로 반환했는가. */
   reused: boolean;
+  /** 새로 생성했을 때만 있다. 생성 로그에 남긴 것과 같은 기록이다. */
+  audit?: GenerationAudit;
 };
 
 type Usage = { inputTokens: number; outputTokens: number; webSearchCalls: number };
@@ -165,7 +167,7 @@ export async function createDailyBriefing(
       audit,
     });
 
-    return { briefing, reused: false };
+    return { briefing, reused: false, audit };
   } catch (error) {
     if (!audit.tech) {
       techStop.abort();
