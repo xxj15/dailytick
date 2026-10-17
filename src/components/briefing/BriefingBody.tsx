@@ -1,5 +1,5 @@
 import { BriefingHeader } from "@/components/briefing/BriefingHeader";
-import { BriefingTabs, type BriefingTab } from "@/components/briefing/BriefingTabs";
+import { BriefingParts, type BriefingPart } from "@/components/briefing/BriefingParts";
 import { KnowledgeSection } from "@/components/briefing/KnowledgeSection";
 import { NewsSection } from "@/components/briefing/NewsSection";
 import { StudyCompleteToggle } from "@/components/briefing/StudyCompleteToggle";
@@ -18,38 +18,45 @@ export function BriefingBody({
   /** 로그인한 지면 주인만 완료 표시와 메모를 쓸 수 있다. */
   canEdit: boolean;
 }) {
-  const tabs: BriefingTab[] = [
+  // Tech를 앞에 둔다. IT 파트가 없는 날(도입 이전, 생성 실패)은 그 사실만 알린다
+  const parts: BriefingPart[] = [
     {
-      key: "knowledge",
-      label: "증권 상식",
-      count: briefing.knowledgeItems.length,
-      content: <KnowledgeSection items={briefing.knowledgeItems} />,
+      key: "tech",
+      label: "Tech",
+      tabs: briefing.tech && [
+        {
+          key: "tech-knowledge",
+          label: "IT 상식",
+          count: briefing.tech.knowledgeItems.length,
+          content: <KnowledgeSection items={briefing.tech.knowledgeItems} />,
+        },
+        {
+          key: "tech-news",
+          label: "IT 이슈",
+          count: briefing.tech.newsItems.length,
+          content: <NewsSection items={briefing.tech.newsItems} />,
+        },
+      ],
     },
     {
-      key: "news",
-      label: "경제 이슈",
-      count: briefing.newsItems.length,
-      content: <NewsSection items={briefing.newsItems} />,
+      key: "economy",
+      label: "경제",
+      tabs: [
+        {
+          key: "knowledge",
+          label: "증권 상식",
+          count: briefing.knowledgeItems.length,
+          content: <KnowledgeSection items={briefing.knowledgeItems} />,
+        },
+        {
+          key: "news",
+          label: "경제 이슈",
+          count: briefing.newsItems.length,
+          content: <NewsSection items={briefing.newsItems} />,
+        },
+      ],
     },
   ];
-
-  // IT 파트가 없는 날(도입 이전, 생성 실패)은 탭 자체를 내지 않는다
-  if (briefing.tech) {
-    tabs.push(
-      {
-        key: "tech-knowledge",
-        label: "IT 상식",
-        count: briefing.tech.knowledgeItems.length,
-        content: <KnowledgeSection items={briefing.tech.knowledgeItems} />,
-      },
-      {
-        key: "tech-news",
-        label: "IT 이슈",
-        count: briefing.tech.newsItems.length,
-        content: <NewsSection items={briefing.tech.newsItems} />,
-      },
-    );
-  }
 
   return (
     <StudyLogProvider
@@ -67,7 +74,7 @@ export function BriefingBody({
       {/* Desktop은 본문 + 메모 2단, Mobile은 메모가 본문 아래로 내려간다 */}
       <div className="mt-10 lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:gap-10">
         <div className="min-w-0">
-          <BriefingTabs tabs={tabs} />
+          <BriefingParts parts={parts} />
         </div>
 
         <StudyNote />
