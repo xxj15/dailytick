@@ -56,3 +56,13 @@ test("Fed 발표 날짜와 EDT 공개 시각을 조합하고 수정일과 구분
   const doc = extractSource({ url, contentType: "text/html", body: `<title>Policy release</title><div id="article"><p class="article__time">March 19, 2025</p><p class="releaseTime">For release at 2:00 p.m. EDT</p><div>${text}</div></div><div id="lastUpdate">October 9, 2026</div>` }, url);
   assert.equal(doc.source.publishedAt, "2025-03-19T18:00:00.000Z");
 });
+
+test("게시 정보 태그가 없으면 주소의 /YYYY/MM/DD/를 게시일로 쓰되, 태그가 있으면 태그를 따른다", () => {
+  const page = (url: string, head = "") => ({ url, contentType: "text/html", body: `<title>React 19</title>${head}<article>${text}</article>` });
+  assert.equal(extractSource(page("https://react.dev/blog/2026/10/15/react-20"), "https://react.dev/blog/2026/10/15/react-20").source.publishedAt, "2026-10-14T15:00:00.000Z");
+  assert.equal(extractSource(page("https://example.com/2026/10/15"), "https://example.com/2026/10/15").source.publishedAt, "2026-10-14T15:00:00.000Z");
+  const tagged = page("https://example.com/2026/10/15/post", `<meta property="article:published_time" content="2026-10-16T09:00:00+09:00">`);
+  assert.equal(extractSource(tagged, tagged.url).source.publishedAt, "2026-10-16T00:00:00.000Z");
+  // 경로 중간의 숫자 묶음을 날짜로 오인하지 않는다
+  assert.equal(extractSource(page("https://example.com/item/2026/10/15abc"), "https://example.com/item/2026/10/15abc").source.publishedAt, undefined);
+});

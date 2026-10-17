@@ -39,6 +39,7 @@ export async function groundMarketNews(
   date: DateString,
   dependencies: GroundNewsDependencies = { fetch: fetchSource, select: selectFacts },
   signal?: AbortSignal,
+  maxAgeHours?: number,
 ) {
   const rejected: EvidenceRejection[] = [];
   const inputs: CandidateDocuments[] = [];
@@ -60,7 +61,7 @@ export async function groundMarketNews(
             cache.set(key, pending);
           }
           const doc = await pending;
-          if (isFreshSource(doc.source.publishedAt, date)) {
+          if (isFreshSource(doc.source.publishedAt, date, maxAgeHours)) {
             documents.push(doc);
             break;
           }
@@ -81,6 +82,6 @@ export async function groundMarketNews(
   } catch (error) {
     throw new GroundNewsError(error instanceof Error ? error.message : String(error), rejected);
   }
-  const grounded = groundCandidates(inputs, result.selection, date);
+  const grounded = groundCandidates(inputs, result.selection, date, maxAgeHours);
   return { ...grounded, rejected: [...rejected, ...grounded.rejected], inputTokens: result.inputTokens, outputTokens: result.outputTokens };
 }

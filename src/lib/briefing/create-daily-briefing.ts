@@ -1,5 +1,5 @@
 import "server-only";
-import { TECH_CONCEPTS_PER_DAY } from "@/config/app";
+import { TECH_CONCEPTS_PER_DAY, TECH_SOURCE_MAX_AGE_HOURS } from "@/config/app";
 import { TECH_CURRICULUM } from "@/data/tech-curriculum";
 import {
   collectLearnedTitles,
@@ -32,7 +32,7 @@ import type { NewsCandidate, BriefingViolation } from "@/types/briefing";
 
 const defaultServices = {
   getBriefingByDate, getConceptHistory, getTechConceptHistory, collectMarketNews, collectTechNews,
-  groundMarketNews: (candidates: NewsCandidate[], date: DateString, signal?: AbortSignal) => groundMarketNews(candidates, date, undefined, signal),
+  groundMarketNews: (candidates: NewsCandidate[], date: DateString, signal?: AbortSignal, maxAgeHours?: number) => groundMarketNews(candidates, date, undefined, signal, maxAgeHours),
   generateDailyBriefing: (params: Parameters<typeof generateDailyBriefing>[0]) => generateDailyBriefing(params),
   generateTechSection: (params: Parameters<typeof generateTechSection>[0]) => generateTechSection(params),
   composeHeadline,
@@ -212,7 +212,7 @@ async function createTechSection(
     audit.searchTrace = news.searchTrace;
     audit.rejectedUrls = news.rejectedUrls;
     audit.stage = "sources";
-    const grounded = await services.groundMarketNews(news.candidates, date, signal);
+    const grounded = await services.groundMarketNews(news.candidates, date, signal, TECH_SOURCE_MAX_AGE_HOURS);
     usage.inputTokens += grounded.inputTokens;
     usage.outputTokens += grounded.outputTokens;
     audit.sourceRejections = grounded.rejected;
@@ -222,6 +222,7 @@ async function createTechSection(
     audit.stage = "generation";
     const generated = await services.generateTechSection({
       date, concepts, mode, candidates: grounded.candidates, learnedTitles, signal,
+      maxSourceAgeHours: TECH_SOURCE_MAX_AGE_HOURS,
     });
     usage.inputTokens += generated.inputTokens;
     usage.outputTokens += generated.outputTokens;

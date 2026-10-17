@@ -50,6 +50,8 @@ export type GenerateBriefingParams = {
   mode: "new" | "review";
   candidates: GroundedCandidate[];
   learnedTitles: string[];
+  /** 발행 하한선. 넘기지 않으면 경제 파트 기준(SOURCE_MAX_AGE_HOURS)이다. */
+  maxSourceAgeHours?: number;
   signal?: AbortSignal;
 };
 

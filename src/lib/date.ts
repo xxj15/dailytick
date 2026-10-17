@@ -137,6 +137,7 @@ function kstMidnightMs(date: DateString): number {
 export function isFreshSource(
   publishedAt: string | undefined,
   date: DateString,
+  maxAgeHours: number = SOURCE_MAX_AGE_HOURS,
 ): boolean {
   if (!publishedAt) return false;
 
@@ -146,7 +147,7 @@ export function isFreshSource(
   const midnight = kstMidnightMs(date);
 
   return (
-    published >= midnight - SOURCE_MAX_AGE_HOURS * HOUR_MS &&
+    published >= midnight - maxAgeHours * HOUR_MS &&
     published < midnight + 24 * HOUR_MS
   );
 }

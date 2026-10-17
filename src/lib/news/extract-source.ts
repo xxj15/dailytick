@@ -60,7 +60,9 @@ export function extractSource(response: SourceResponse, requestedUrl: string, fe
     articles.map((article) => article.datePublished).find((date): date is string => typeof date === "string") ??
     dateScope.find("time[itemprop='datePublished'], time[pubdate]").first().attr("datetime") ??
     dateScope.find(".article__time, .date, .view_date, .reg_date").first().text().trim();
-  let publishedAt = parsePublishedAt(rawDate);
+  // 게시 정보 태그가 없는 블로그·릴리스 노트는 주소의 /YYYY/MM/DD/를 쓴다. 날짜만 있으므로 KST 자정이다.
+  const urlDate = /\/(20\d{2})\/(\d{2})\/(\d{2})(?:\/|$)/.exec(new URL(response.url).pathname);
+  let publishedAt = parsePublishedAt(rawDate) ?? (urlDate ? parsePublishedAt(`${urlDate[1]}-${urlDate[2]}-${urlDate[3]}`) : undefined);
   const hostname = new URL(response.url).hostname;
   // Fed는 본문 날짜와 공개 시각·timezone을 서로 다른 요소에 표시한다.
   if (hostname === "www.federalreserve.gov" || hostname === "federalreserve.gov") {

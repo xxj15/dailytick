@@ -39,3 +39,10 @@ test("월요일 지면은 금요일 장 마감 뒤 보도를 근거로 쓸 수 �
   // 2026-09-21(월) 지면 · 2026-09-18(금) 18시 보도
   assert.equal(isFreshSource("2026-09-18T18:00:00+09:00", "2026-09-21"), true);
 });
+
+test("파트별 발행 하한선을 넘기면 그 기준으로 판정한다", () => {
+  const date = "2026-10-17";
+  assert.equal(isFreshSource("2026-10-12T09:00:00+09:00", date), false);
+  assert.equal(isFreshSource("2026-10-12T09:00:00+09:00", date, 168), true);
+  assert.equal(isFreshSource("2026-10-09T23:59:59+09:00", date, 168), false);
+});

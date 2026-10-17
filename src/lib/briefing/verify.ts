@@ -29,6 +29,8 @@ export type VerifyContext = {
   date: DateString;
   concepts: Concept[];
   candidates?: GroundedCandidate[];
+  /** IT 파트처럼 발행 하한선이 다른 파트만 넘긴다. */
+  maxSourceAgeHours?: number;
 };
 
 /**
@@ -37,11 +39,11 @@ export type VerifyContext = {
  */
 export function verifyBriefing(
   content: GroundedSection,
-  { date, concepts, candidates }: VerifyContext,
+  { date, concepts, candidates, maxSourceAgeHours = SOURCE_MAX_AGE_HOURS }: VerifyContext,
 ): Violation[] {
   return [
     ...knowledgeViolations(content.knowledgeItems, concepts),
-    ...freshnessViolations(content.newsItems, date),
+    ...freshnessViolations(content.newsItems, date, maxSourceAgeHours),
     ...(candidates ? evidenceViolations(content.newsItems, candidates) : []),
   ];
 }
@@ -131,14 +133,14 @@ function knowledgeViolations(
  * 공식 자료가 함께 붙기 때문이다. 다만 하나도 없다면 그 이슈를 오늘 일로
  * 올릴 근거가 없다.
  */
-function freshnessViolations(items: NewsIssue[], date: DateString): Violation[] {
+function freshnessViolations(items: NewsIssue[], date: DateString, maxAgeHours: number): Violation[] {
   return items.flatMap((item, index) =>
-    item.sources.some((source) => isFreshSource(source.publishedAt, date))
+    item.sources.some((source) => isFreshSource(source.publishedAt, date, maxAgeHours))
       ? []
       : [
           {
             code: "news.freshness",
-            message: `- newsItems.${index}.sources: "${item.title}"에 최근 ${SOURCE_MAX_AGE_HOURS}시간 이내에 게시된 출처가 없습니다. publishedAt을 기사 게시 시각으로 정확히 적거나, 오늘 새로 보도된 기사를 인용하세요.`,
+            message: `- newsItems.${index}.sources: "${item.title}"에 최근 ${maxAgeHours}시간 이내에 게시된 출처가 없습니다. publishedAt을 기사 게시 시각으로 정확히 적거나, 오늘 새로 보도된 기사를 인용하세요.`,
           },
         ],
   );

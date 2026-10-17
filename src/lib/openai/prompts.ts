@@ -5,6 +5,7 @@ import {
   PREFERRED_TECH_PUBLISHERS,
   SOURCE_MAX_AGE_HOURS,
   TECH_NEWS_CANDIDATE_COUNT,
+  TECH_SOURCE_MAX_AGE_HOURS,
   TECH_NEWS_PER_DAY,
   USER_PROFILE,
 } from "@/config/app";
@@ -17,7 +18,7 @@ import type { GroundedCandidate } from "@/lib/news/evidence-types";
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고,
  * 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v15";
+export const PROMPT_VERSION = "v16";
 
 /**
  * 모든 단계에 공통으로 적용되는 편집 원칙.
@@ -878,9 +879,15 @@ ${TECH_NEWS_CRITERIA}
 
 ## 최신성 규칙
 
-1. ${date} Asia/Seoul 기준 최근 24시간 이내 보도를 가장 우선한다.
-2. 후보가 부족하면 48시간, 주말이면 72시간까지 넓힐 수 있다.
+1. ${date} Asia/Seoul 기준 최근 72시간 이내 발표·보도를 가장 우선한다.
+2. 개발 소식(릴리스, 공식 블로그)은 최근 ${TECH_SOURCE_MAX_AGE_HOURS / 24}일까지 넓힐 수 있다. 그보다 오래된 자료는 서버가 버린다.
 3. 과거 발표를 다시 소개하는 기사는 새로운 변화가 있을 때만 후보로 삼는다.
+
+## 출처 접근
+
+- 서버가 기사 본문을 직접 읽어 게시일을 확인한다. 봇 접근을 막는 사이트(예: openai.com, axios.com)는
+  본문을 읽을 수 없어 탈락하므로, 같은 소식을 다룬 다른 매체나 공식 블로그 기사를 함께 찾아 sources에 넣는다.
+- 목록·카테고리·태그 페이지가 아니라 개별 기사·릴리스 노트 URL이어야 한다.
 
 ## 지역 구성
 

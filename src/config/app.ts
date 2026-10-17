@@ -40,6 +40,12 @@ export const TODAY_KEYWORDS_PER_DAY = { min: 3, max: 5 } as const;
  */
 export const SOURCE_MAX_AGE_HOURS = 72;
 
+/**
+ * IT 파트의 발행 하한선. 개발 소식(릴리스 노트·공식 블로그)은 주 단위로 나오고
+ * 하루 이틀 늦게 보도되므로 경제 파트보다 넓게 잡는다.
+ */
+export const TECH_SOURCE_MAX_AGE_HOURS = 168;
+
 /** STEP 1에서 수집할 뉴스 후보 개수. */
 export const NEWS_CANDIDATE_COUNT = { min: 6, max: 10 } as const;
 
