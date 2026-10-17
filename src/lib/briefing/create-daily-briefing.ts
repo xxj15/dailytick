@@ -141,6 +141,7 @@ export async function createDailyBriefing(
         content = { ...content, ...composed.headline };
       } catch (error) {
         audit.headlineError = error instanceof Error ? error.message : String(error);
+        console.error(`[briefing] 키워드 합성 실패(${date})`, audit.headlineError);
       }
     }
 
@@ -234,6 +235,8 @@ async function createTechSection(
     audit.violations = recordFailure(error, audit, usage, audit.violations);
     if (error instanceof BriefingValidationError) audit.attempts = audit.violations[audit.violations.length - 1]?.attempt ?? 0;
     audit.errorMessage = error instanceof Error ? error.message : String(error);
+    // 경제 파트는 발행되므로 응답만으로는 실패가 드러나지 않는다. 서버 로그에도 남긴다.
+    console.error(`[briefing] IT 파트 생성 실패(${date}, ${audit.stage})`, audit.errorMessage, audit.violations);
     return { section: null, audit, usage };
   }
 }
