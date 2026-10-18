@@ -192,16 +192,22 @@ ${lastError}`;
       continue;
     }
 
-    const violations = verifyBriefing(parsed.data, params);
+    let content = parsed.data;
+    const violations = verifyBriefing(content, params);
 
     if (violations.length > 0) {
       fail(violations);
-      continue;
+      // 마지막 시도에서 특정 뉴스만 걸렸다면(숫자·출처·중복 등) 그 뉴스만 빼고 검토로 넘긴다.
+      const trimmed = attempt === 2 && violations.every((violation) => violation.rank !== undefined)
+        ? dropNewsByRank(content, new Set(violations.map((violation) => violation.rank as number)), schema)
+        : null;
+      if (!trimmed || verifyBriefing(trimmed, params).length > 0) continue;
+      content = trimmed;
     }
 
     let reviewed;
     try {
-      reviewed = await dependencies.review(parsed.data, params.candidates, params.date, params.signal, params.recentNews);
+      reviewed = await dependencies.review(content, params.candidates, params.date, params.signal, params.recentNews);
     } catch (error) {
       fail([{ code: "news.review_unavailable", message: error instanceof Error ? error.message : String(error) }]);
       throw new BriefingValidationError(history, lastError, { inputTokens, outputTokens }, reviews);
@@ -209,13 +215,14 @@ ${lastError}`;
     inputTokens += reviewed.inputTokens;
     outputTokens += reviewed.outputTokens;
     reviews.push({ attempt, review: reviewed.review });
-    let content = parsed.data;
     const unsupported = reviewViolations(content, reviewed.review);
     if (unsupported.length) {
       fail(unsupported);
       // 마지막 시도에서 특정 뉴스만 걸렸다면 그 뉴스만 빼고 발행한다.
       // 한 건 때문에 근거가 확인된 나머지 지면까지 버리지 않는다. 키워드·한 줄·전체 검토가 걸리면 빼지 않는다.
-      const trimmed = attempt === 2 ? dropUnsupportedNews(content, reviewed.review, unsupported, schema) : null;
+      const trimmed = attempt === 2 && unsupported.every((violation) => violation.code === "news.unsupported")
+        ? dropNewsByRank(content, new Set(reviewed.review.news.filter((item) => !item.supported).map((item) => item.rank)), schema)
+        : null;
       if (!trimmed) continue;
       content = trimmed;
     }
@@ -234,17 +241,11 @@ ${lastError}`;
 }
 
 /**
- * 검토에서 걸린 뉴스만 뺀 지면. 뺄 수 없으면 null.
- * 뉴스별 지적(news.unsupported)만 있을 때 쓰고, 남은 뉴스가 스키마 최소 개수를 채워야 한다.
+ * 걸린 뉴스만 뺀 지면. 뺄 수 없으면 null.
+ * 남은 뉴스가 스키마 최소 개수를 채워야 하고, 뺀 뒤에도 다시 검증을 거친다.
  */
-function dropUnsupportedNews<C extends GroundedSection>(
-  content: C,
-  review: GroundingReview,
-  violations: Violation[],
-  schema: z.ZodType<C>,
-): C | null {
-  if (violations.some((violation) => violation.code !== "news.unsupported")) return null;
-  const rejected = new Set(review.news.filter((item) => !item.supported).map((item) => item.rank));
-  const kept = schema.safeParse({ ...content, newsItems: content.newsItems.filter((item) => !rejected.has(item.rank)) });
+function dropNewsByRank<C extends GroundedSection>(content: C, ranks: Set<number>, schema: z.ZodType<C>): C | null {
+  if (ranks.size === 0) return null;
+  const kept = schema.safeParse({ ...content, newsItems: content.newsItems.filter((item) => !ranks.has(item.rank)) });
   return kept.success ? kept.data : null;
 }

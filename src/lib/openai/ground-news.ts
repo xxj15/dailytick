@@ -11,6 +11,8 @@ import { getModel, getOpenAI } from "@/lib/openai/client";
 import type { NewsCandidate } from "@/types/briefing";
 
 type SelectionResult = { selection: FactSelection; inputTokens: number; outputTokens: number };
+/** 근거 문장 선택 한 번에 넘기는 후보 수. 후보마다 본문 최대 12,000자가 함께 간다. */
+const SELECT_BATCH = 4;
 export class GroundNewsError extends Error {
   constructor(message: string, readonly rejected: EvidenceRejection[]) { super(message); }
 }
@@ -79,12 +81,21 @@ export async function groundMarketNews(
   }
   if (!inputs.length) return { candidates: [], rejected, inputTokens: 0, outputTokens: 0 };
   signal?.throwIfAborted();
-  let result;
+  // 긴 본문을 한 번에 너무 많이 넘기면 앞쪽 몇 건만 고르고 나머지를 빠뜨린다. 4건씩 나눠 동시에 고른다.
+  const batches: CandidateDocuments[][] = [];
+  for (let offset = 0; offset < inputs.length; offset += SELECT_BATCH) batches.push(inputs.slice(offset, offset + SELECT_BATCH));
+  let results: SelectionResult[];
   try {
-    result = await dependencies.select(inputs, date, signal);
+    results = await Promise.all(batches.map((batch) => dependencies.select(batch, date, signal)));
   } catch (error) {
     throw new GroundNewsError(error instanceof Error ? error.message : String(error), rejected);
   }
-  const grounded = groundCandidates(inputs, result.selection, date, maxAgeHours, allowUndated);
-  return { ...grounded, rejected: [...rejected, ...grounded.rejected], inputTokens: result.inputTokens, outputTokens: result.outputTokens };
+  const selection: FactSelection = { candidates: results.flatMap((result) => result.selection.candidates) };
+  const grounded = groundCandidates(inputs, selection, date, maxAgeHours, allowUndated);
+  return {
+    ...grounded,
+    rejected: [...rejected, ...grounded.rejected],
+    inputTokens: results.reduce((sum, result) => sum + result.inputTokens, 0),
+    outputTokens: results.reduce((sum, result) => sum + result.outputTokens, 0),
+  };
 }

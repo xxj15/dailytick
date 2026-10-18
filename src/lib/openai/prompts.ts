@@ -19,7 +19,7 @@ import type { RecentNewsEntry } from "@/types/briefing";
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고,
  * 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v26";
+export const PROMPT_VERSION = "v27";
 
 /**
  * 모든 단계에 공통으로 적용되는 편집 원칙.
@@ -231,7 +231,9 @@ ${NEWS_CRITERIA}
    검색하지 못한 섹션은 searched=false로 솔직하게 적는다.
 3. 고른 사건마다 그 사건 이름으로 다시 검색해 개별 기사를 찾는다. sources에는 그 검색 결과에 실제로 나온 기사 URL만 넣는다.
 4. 전날 이전에 일어난 사건은 지금 시점까지의 최신 기사로 후속 상황을 확인하고, 가장 최신 기사를 sources 맨 앞에 둔다.
-5. 아직 일어나지 않은 일(예정된 회의·발표)은 "예정"으로만 쓴다. 결과를 미리 단정하지 않는다.${
+5. 아직 일어나지 않은 일(예정된 회의·발표)은 "예정"으로만 쓴다. 결과를 미리 단정하지 않는다.
+6. 이 지면의 기준일은 ${date}이다. 게시 시각이 ${date} 23:59(KST)를 넘는 기사는 서버가 버리므로 sources에 넣지 않는다.
+7. 섹션·목록·홈 화면 URL(예: /index.php, /main.do, /schedule)은 본문이 없어 버려진다. 개별 기사 URL만 넣는다.${
   options.focusSections?.length
     ? `
 

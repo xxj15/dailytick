@@ -116,4 +116,6 @@ export type BriefingViolation = {
   /** 집계용 분류. 예: "news.freshness", "knowledge.slug", "schema.newsItems" */
   code: string;
   message: string;
+  /** 특정 뉴스 하나에 대한 위반이면 그 뉴스의 rank. 마지막 시도에서 그 뉴스만 빼고 발행할 수 있는지 판단한다. */
+  rank?: number;
 };

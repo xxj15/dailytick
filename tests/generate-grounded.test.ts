@@ -117,3 +117,16 @@ test("실제 기사 제목에 있는 숫자(버전 등)는 근거로 인정하�
   await assert.rejects(() => generateDailyBriefing({ ...params, candidates: [titled] }, { ...dependencies, write: write("Next.js 17 출시") }),
     (error: unknown) => error instanceof BriefingValidationError && error.violations.some((item) => item.code === "news.unsupported_number"));
 });
+
+test("마지막 시도에서 숫자 검증에 걸린 뉴스만 빼고, 나머지는 검토를 거쳐 발행한다", async () => {
+  const second = { ...CANDIDATE, id: "c2", title: "두 번째", facts: [{ ...CANDIDATE.facts[0], id: "c2-f1" }] };
+  const twoNews = { ...DRAFT, newsItems: [DRAFT.newsItems[0], { ...DRAFT.newsItems[0], rank: 2, candidateId: "c2", factIds: ["c2-f1"], title: "두 번째 뉴스", whyImportant: "근거에 없는 77%가 있다." }] };
+  let reviewedTitles: string[] = [];
+  const result = await generateDailyBriefing({ ...params, candidates: [CANDIDATE, second] }, {
+    write: async () => ({ draft: twoNews, inputTokens: 1, outputTokens: 1 }),
+    review: async (content) => { reviewedTitles = content.newsItems.map((item) => item.title); return { review: { news: content.newsItems.map((item) => ({ rank: item.rank, supported: true, reason: "일치" })), framing: passed.framing }, inputTokens: 1, outputTokens: 1 }; },
+  });
+  assert.equal(result.attempts, 2);
+  assert.deepEqual(reviewedTitles, ["기준금리 동결"]);
+  assert.deepEqual(result.content.newsItems.map((item) => item.title), ["기준금리 동결"]);
+});

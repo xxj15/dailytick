@@ -158,7 +158,10 @@ export async function createDailyBriefing(
     const searchedAfter = coverage.filter((entry) => entry.searched).length;
     audit.coverage = {
       sections: coverage,
-      verdict: grounded.candidates.length >= 3 ? "ok" : searchedAfter >= 4 ? "thin_day" : "narrow_search",
+      verdict: grounded.candidates.length >= 3 ? "ok"
+        : searchedAfter < 4 ? "narrow_search"
+        : candidates.length >= 6 ? "sources_failed"
+        : "thin_day",
       recollected,
       candidates: candidates.length,
       grounded: grounded.candidates.length,

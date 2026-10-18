@@ -20,8 +20,11 @@ export type GenerationAudit = {
 
 export type CoverageAudit = {
   sections: { section: string; searched: boolean; note: string }[];
-  /** ok = 충분 / thin_day = 다 훑었는데 중요한 사건이 적은 날 / narrow_search = 검색 범위가 좁았던 날 */
-  verdict: "ok" | "thin_day" | "narrow_search";
+  /**
+   * ok = 충분 / thin_day = 다 훑었는데 중요한 사건이 적은 날 / narrow_search = 검색 범위가 좁았던 날
+   * sources_failed = 후보는 충분했는데 본문·게시일 확인에서 대부분 떨어진 날 (출처 품질 문제)
+   */
+  verdict: "ok" | "thin_day" | "narrow_search" | "sources_failed";
   recollected: boolean;
   candidates: number;
   grounded: number;

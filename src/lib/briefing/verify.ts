@@ -61,20 +61,20 @@ function evidenceViolations(items: NewsIssue[], candidates: GroundedCandidate[])
       const original = candidate.facts.find((entry) => entry.id === fact.id);
       return !original || original.quote !== fact.quote || original.sourceId !== fact.sourceId;
     }) || item.whatHappened !== evidence.facts.map((fact) => fact.quote).join(" ")) {
-      return [{ code: "news.evidence", message: `뉴스 ${item.rank}: 검증된 사실과 본문이 일치하지 않습니다.` }];
+      return [{ code: "news.evidence", rank: item.rank, message: `뉴스 ${item.rank}: 검증된 사실과 본문이 일치하지 않습니다.` }];
     }
     const expected = candidate.documents.filter((doc) => evidence.facts.some((fact) => fact.sourceId === doc.id));
     if (item.sources.length !== expected.length || item.sources.some((source, index) => {
       const actual = expected[index]?.source;
       return !actual || source.url !== actual.url || source.publishedAt !== actual.publishedAt || source.title !== actual.title || source.publisher !== actual.publisher;
-    })) return [{ code: "news.source", message: `뉴스 ${item.rank}: 실제 수집한 출처 정보와 일치하지 않습니다.` }];
+    })) return [{ code: "news.source", rank: item.rank, message: `뉴스 ${item.rank}: 실제 수집한 출처 정보와 일치하지 않습니다.` }];
     // 해설에 새로운 숫자를 끼워 넣는 흔한 오류는 AI 검토 전에 차단한다.
     const numbers = (value: string) => value.match(/\d+(?:[,.]\d+)*/g) ?? [];
     // 실제로 수집한 기사 제목의 숫자(제품 버전, 연도 등)도 근거로 본다. 제목은 원문 페이지에서 읽은 값이다.
     const allowed = new Set([...evidence.facts.map((fact) => fact.quote), ...item.sources.map((source) => source.title)].flatMap(numbers));
     const written = [item.title, item.whyImportant, item.impact, ...Object.values(item.marketImpact), item.interpretation].filter((text): text is string => !!text).join(" ");
     const added = numbers(written).filter((number) => !allowed.has(number));
-    return added.length ? [{ code: "news.unsupported_number", message: `뉴스 ${item.rank}: 선택한 근거에 없는 숫자 ${[...new Set(added)].join(", ")}를 삭제하세요.` }] : [];
+    return added.length ? [{ code: "news.unsupported_number", rank: item.rank, message: `뉴스 ${item.rank}: 선택한 근거에 없는 숫자 ${[...new Set(added)].join(", ")}를 삭제하세요.` }] : [];
   });
 }
 
@@ -94,7 +94,7 @@ function duplicateViolations(items: NewsIssue[], recentNews: RecentNewsEntry[]):
     if (item.followUp) return [];
     const repeated = item.sources.map((source) => seen.get(sourceMatchKey(source.url) ?? "")).find(Boolean);
     return repeated
-      ? [{ code: "news.duplicate", message: `뉴스 ${item.rank}: 최근에 실은 "${repeated}"와 같은 기사를 출처로 씁니다. 같은 사건이면 followUp에 그 제목을 적고 새로 바뀐 점만 쓰거나, 다른 이슈로 바꾸세요.` }]
+      ? [{ code: "news.duplicate", rank: item.rank, message: `뉴스 ${item.rank}: 최근에 실은 "${repeated}"와 같은 기사를 출처로 씁니다. 같은 사건이면 followUp에 그 제목을 적고 새로 바뀐 점만 쓰거나, 다른 이슈로 바꾸세요.` }]
       : [];
   });
 }
@@ -167,6 +167,7 @@ function freshnessViolations(items: NewsIssue[], date: DateString, maxAgeHours: 
       : [
           {
             code: "news.freshness",
+            rank: item.rank,
             message: `- newsItems.${index}.sources: "${item.title}"에 최근 ${maxAgeHours}시간 이내에 게시된 출처가 없습니다. publishedAt을 기사 게시 시각으로 정확히 적거나, 오늘 새로 보도된 기사를 인용하세요.`,
           },
         ],

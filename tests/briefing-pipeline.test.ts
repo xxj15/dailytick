@@ -76,7 +76,7 @@ test("아티클을 고르면 원문 근거를 확인한 뒤 원문 링크와 함
   const article = TECH_ARTICLES[0];
   await createDailyBriefing(DATE, {}, { ...run.services,
     curateKnowledge: async (params) => ({ picks: params.kind === "tech"
-      ? [{ id: `a-${article.slug}`, title: "다듬은 제목", reason: "실무 설계" }]
+      ? [{ id: article.slug, title: "다듬은 제목", reason: "실무 설계" }]
       : [{ id: params.candidates[0].id, title: params.candidates[0].title, reason: "" }], inputTokens: 0, outputTokens: 0 }),
   });
   const item = run.saved[0].tech?.knowledgeItems[0];

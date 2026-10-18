@@ -67,7 +67,6 @@ export const PREFERRED_PUBLISHERS = {
   /** 1순위. 국내·글로벌 이슈 모두 이 매체들의 보도를 먼저 찾는다. 경제지 중심이다. */
   kr: [
     "연합뉴스",
-    "한국경제",
     "매일경제",
     "서울경제",
     "머니투데이",
@@ -122,6 +121,10 @@ export const UNREADABLE_SOURCES = [
   "openai.com",
   "theverge.com",
   "imf.org",
+  // 로컬에서는 열리지만 배포 서버(Vercel)에서는 403을 돌려준다 (2026-10-18 점검)
+  "hankyung.com",
+  // 유료 기사 표시
+  "lemonde.fr",
 ] as const;
 
 /**

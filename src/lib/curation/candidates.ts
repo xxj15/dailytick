@@ -63,7 +63,7 @@ export function techCandidates(history: ConceptHistoryEntry[]): KnowledgeCandida
     concept: { ...concept, format: concept.format ?? ("concept" as const) },
   }));
   const articles = TECH_ARTICLES.filter((article) => !seen.slugs.has(article.slug) && !seen.urls.has(article.url)).map((article) => ({
-    id: `a-${article.slug}`,
+    id: article.slug,
     format: "article" as const,
     category: article.category,
     level: article.level,
