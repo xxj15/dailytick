@@ -1,5 +1,5 @@
 import { createDailyBriefing } from "@/lib/briefing/create-daily-briefing";
-import { summarizeAudit } from "@/lib/news/generation-audit";
+import { summarizeAudit, type GenerationAudit } from "@/lib/news/generation-audit";
 import { getTodayKST, isDateString } from "@/lib/date";
 import { getServerEnv } from "@/lib/env";
 import type { NextRequest } from "next/server";
@@ -60,7 +60,18 @@ export async function POST(request: NextRequest) {
     console.error(`[cron] 브리핑 생성 실패(${date})`, error);
 
     // 생성에 실패해도 기존 브리핑은 그대로 남아 있다.
-    return Response.json({ ok: false, date, error: message }, { status: 500 });
+    const audit = error instanceof Error ? (error as Error & { audit?: GenerationAudit }).audit : undefined;
+    return Response.json({
+      ok: false,
+      date,
+      error: message,
+      ...(audit && {
+        diagnostics: {
+          economy: { ...summarizeAudit(audit), rejectedUrlSamples: audit.rejectedUrls.slice(0, 10) },
+          ...(audit.tech && { tech: summarizeAudit(audit.tech) }),
+        },
+      }),
+    }, { status: 500 });
   }
 }
 

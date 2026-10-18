@@ -1,7 +1,7 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 import type { ResponseFunctionWebSearch } from "openai/resources/responses/responses";
-import { auditSearchResults, sourceUrlKey } from "@/lib/news/search-provenance";
+import { auditSearchResults, sourceMatchKey, sourceUrlKey } from "@/lib/news/search-provenance";
 import type { NewsCandidate } from "@/types/briefing";
 
 const candidate: NewsCandidate = {
@@ -39,4 +39,13 @@ test("query를 유지하고 안전하지 않은 URL을 거른다", () => {
   assert.notEqual(sourceUrlKey("https://example.com/a?id=1"), sourceUrlKey("https://example.com/a?id=2"));
   assert.equal(sourceUrlKey("http://example.com/a"), null);
   assert.equal(sourceUrlKey("https://user:pass@example.com/a"), null);
+});
+
+test("모바일 주소·끝 슬래시·추적 query 차이는 같은 기사로 보고, 검색이 돌려준 원래 주소로 바꿔 둔다", () => {
+  const searched: ResponseFunctionWebSearch = { ...call, action: { type: "search", queries: ["1면"], sources: [{ type: "url", url: "https://www.news.example.com/article/123?utm_source=search" }] } };
+  const result = auditSearchResults([{ ...candidate, sources: [{ ...candidate.sources[0], url: "https://m.news.example.com/article/123/" }] }], [searched]);
+  assert.equal(result.candidates[0].sources[0].url, "https://www.news.example.com/article/123?utm_source=search");
+  // 기사를 가리키는 query가 다르면 다른 기사다
+  assert.notEqual(sourceMatchKey("https://news.example.com/view?idxno=1"), sourceMatchKey("https://news.example.com/view?idxno=2"));
+  assert.throws(() => auditSearchResults([{ ...candidate, sources: [{ ...candidate.sources[0], url: "https://news.example.com/article/124" }] }], [searched]), /확인한 출처/);
 });

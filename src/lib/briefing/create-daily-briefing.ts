@@ -185,6 +185,8 @@ export async function createDailyBriefing(
       audit,
       errorMessage: error instanceof Error ? error.message : String(error),
     });
+    // cron 응답이 실패 원인을 보여줄 수 있도록 기록을 함께 들려 보낸다.
+    if (error instanceof Error) Object.assign(error, { audit });
     throw error;
   }
 }

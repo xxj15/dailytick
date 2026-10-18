@@ -18,7 +18,7 @@ import type { GroundedCandidate } from "@/lib/news/evidence-types";
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고,
  * 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v18";
+export const PROMPT_VERSION = "v19";
 
 /**
  * 모든 단계에 공통으로 적용되는 편집 원칙.
@@ -127,7 +127,8 @@ const READER_PROFILE = `독자 프로필:
 /** 어떤 뉴스가 Daily Briefing에 적합한 핵심 뉴스인지 정의한다. */
 const NEWS_CRITERIA = `찾는 방법:
 
-1. 오늘자 주요 일간지 1면을 확인한다.
+1. 오늘자 주요 일간지 1면을 확인한다. 일요일·공휴일처럼 조간이 나오지 않는 날은
+   가장 최근에 발행된 1면과 오늘 방송·연합뉴스 주요 뉴스를 기준으로 한다.
    조선일보 / 중앙일보 / 동아일보 / 한겨레 / 경향신문 / 한국일보 / 매일경제 / 한국경제
    "OO일보 1면", "오늘의 1면", "조간 1면" 등으로 검색하고, 각 신문 1면 톱과 주요 기사 제목을 모은다.
 2. 여러 신문이 공통으로 1면에 올린 사건을 가장 먼저 고른다.
