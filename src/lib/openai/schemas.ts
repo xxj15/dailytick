@@ -174,6 +174,8 @@ const aiMarketImpactSchema = z.object({
 export const aiNewsIssueSchema = z.object({
   rank: z.number(),
   candidateId: z.string(),
+  /** 검색 단계가 매긴 지역이 틀렸을 때 작성 단계에서 바로잡는다. 검토 지적을 재시도로 고칠 수 있어야 한다. */
+  region: newsRegionSchema,
   factIds: z.array(z.string()),
   title: z.string(),
   whyImportant: z.string(),

@@ -80,3 +80,26 @@ test("IT 파트도 같은 근거 검증을 거쳐 키워드·한 줄 없이 생�
     write: async () => ({ draft: { ...techDraft, newsItems: [{ ...techDraft.newsItems[0], whyImportant: "성능이 40% 좋아졌다." }] }, inputTokens: 10, outputTokens: 5 }),
   }), (error: unknown) => error instanceof BriefingValidationError && error.violations.every((item) => item.code === "news.unsupported_number"));
 });
+
+test("마지막 시도에서 특정 뉴스만 검토에 걸리면 그 뉴스만 빼고 발행한다", async () => {
+  const second = { ...CANDIDATE, id: "c2", title: "두 번째", facts: [{ ...CANDIDATE.facts[0], id: "c2-f1" }] };
+  const twoNews = { ...DRAFT, newsItems: [DRAFT.newsItems[0], { ...DRAFT.newsItems[0], rank: 2, candidateId: "c2", factIds: ["c2-f1"], title: "두 번째 뉴스" }] };
+  const result = await generateDailyBriefing({ ...params, candidates: [CANDIDATE, second] }, {
+    write: async () => ({ draft: twoNews, inputTokens: 1, outputTokens: 1 }),
+    review: async () => ({ review: { news: [{ rank: 1, supported: true, reason: "일치" }, { rank: 2, supported: false, reason: "지역 오류" }], framing: passed.framing }, inputTokens: 1, outputTokens: 1 }),
+  });
+  assert.equal(result.attempts, 2);
+  assert.deepEqual(result.content.newsItems.map((item) => item.title), ["기준금리 동결"]);
+  assert.ok(result.violations.some((item) => item.code === "news.unsupported"));
+});
+
+test("키워드·한 줄 검토가 걸리거나 남는 뉴스가 없으면 빼서 발행하지 않는다", async () => {
+  await assert.rejects(() => generateDailyBriefing(params, {
+    ...dependencies,
+    review: async () => ({ review: { news: [{ rank: 1, supported: false, reason: "근거 없음" }], framing: passed.framing }, inputTokens: 1, outputTokens: 1 }),
+  }), BriefingValidationError);
+  await assert.rejects(() => generateDailyBriefing(params, {
+    ...dependencies,
+    review: async () => ({ review: { ...passed, framing: { supported: false, reason: "한 줄 과장" } }, inputTokens: 1, outputTokens: 1 }),
+  }), BriefingValidationError);
+});

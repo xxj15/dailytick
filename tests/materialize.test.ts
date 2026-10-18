@@ -4,12 +4,13 @@ import { materializeBriefing } from "@/lib/briefing/materialize";
 import { dailyBriefingSchema, stripNulls } from "@/lib/openai/schemas";
 import { CANDIDATE, DRAFT, QUOTE } from "./fixtures/news";
 
-test("모델이 사실·출처를 끼워 넣어도 실제 자료에서 조합한 값을 사용한다", () => {
-  const item = { ...DRAFT.newsItems[0], whatHappened: "표결 7대0", sources: [{ url: "https://invented.example.com" }], region: "GLOBAL" };
+test("모델이 사실·출처를 끼워 넣어도 실제 자료에서 조합한 값을 사용하고, 지역만 작성 단계 판단을 따른다", () => {
+  const item = { ...DRAFT.newsItems[0], whatHappened: "표결 7대0", sources: [{ url: "https://invented.example.com" }], region: "GLOBAL" as const };
   const result = materializeBriefing({ ...DRAFT, newsItems: [item] }, [CANDIDATE]);
   assert.equal(result.newsItems[0].whatHappened, QUOTE);
   assert.deepEqual(result.newsItems[0].sources, CANDIDATE.sources);
-  assert.equal(result.newsItems[0].region, "KR");
+  // 검색 단계가 KR로 잘못 매겨도 작성 단계가 사건 중심 지역으로 바로잡는다
+  assert.equal(result.newsItems[0].region, "GLOBAL");
   assert.equal(result.newsItems[0].evidence.documents[0].contentHash, "a".repeat(64));
 });
 

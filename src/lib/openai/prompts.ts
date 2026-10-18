@@ -18,7 +18,7 @@ import type { GroundedCandidate } from "@/lib/news/evidence-types";
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고,
  * 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v21";
+export const PROMPT_VERSION = "v22";
 
 /**
  * 모든 단계에 공통으로 적용되는 편집 원칙.
@@ -558,7 +558,9 @@ rank는 그 순서대로 1부터 매긴다.
 
 - whatHappened와 sources는 출력하지 않는다. 서버가 선택된 근거 문장과 실제 출처로 조합한다.
 - 각 뉴스에 candidateId와 그 후보에 속하는 factIds 1~3개를 출력한다.
-- region·category·publishedAt도 출력하지 않는다. 서버가 후보에서 사용한다.
+- category·publishedAt은 출력하지 않는다. 서버가 후보에서 사용한다.
+- region은 직접 출력한다. 후보의 region은 참고만 하고, 사건의 중심이 어디인지로 다시 판단한다.
+  한국 매체가 보도했어도 중국·미국 기업이나 해외 시장 이야기면 GLOBAL이다.
 - title도 선택한 근거 범위 안에서만 작성한다. 기사 게시일을 사건 발생일로 바꾸지 않는다.
 
 ### whyImportant
@@ -1069,7 +1071,8 @@ rank는 그 순서대로 1부터 매긴다.
 ## 각 뉴스 작성 항목
 
 ### 사실 선택
-- whatHappened, sources, region, category, publishedAt은 출력하지 않는다. 서버가 근거에서 조합한다.
+- whatHappened, sources, category, publishedAt은 출력하지 않는다. 서버가 근거에서 조합한다.
+- region은 사건의 중심 지역으로 직접 출력한다. 한국 매체가 보도한 해외 기업 소식은 GLOBAL이다.
 - 각 뉴스에 candidateId와 그 후보의 factIds 1~3개를 출력한다.
 
 ### title
