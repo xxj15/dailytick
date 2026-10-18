@@ -19,7 +19,7 @@ import type { RecentNewsEntry } from "@/types/briefing";
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고,
  * 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v30";
+export const PROMPT_VERSION = "v31";
 
 /**
  * 모든 단계에 공통으로 적용되는 편집 원칙.
@@ -255,6 +255,8 @@ ${recent}
 ${SOURCE_PREFERENCE}
 
 - 후보마다 서로 다른 매체의 개별 기사 2~3개를 넣는다. 섹션·목록 페이지, 지면보기·PDF, 영상만 있는 페이지는 넣지 않는다.
+- 국내 사건은 한국어 기사를 반드시 넣고 sources 맨 앞에 둔다. 영문 매체(Korea Times·Korea Herald 등)는 한국어 기사가 없을 때만 쓴다.
+  독자에게 보이는 '무슨 일이 있었나'는 기사 원문 문장 그대로라서, 영문 기사만 있으면 영어로 보인다.
 - URL을 추측하거나 만들지 않는다.
 
 ## 각 후보

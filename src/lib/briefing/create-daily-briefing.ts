@@ -69,6 +69,8 @@ type Usage = { inputTokens: number; outputTokens: number; webSearchCalls: number
 const DEADLINE_MS = 260_000;
 /** 주요 이슈를 한 번 더 수집하려면 이만큼은 남아 있어야 한다. (수집 90초 + 근거·작성·검토) */
 const RECOLLECT_MIN_LEFT_MS = 170_000;
+/** 첫 수집이 시간 초과로 끝났을 때 한 번 더 시도하는 하한. 재수집보다 낮다. 첫 수집이 아무것도 못 남겼기 때문이다. */
+const RETRY_AFTER_TIMEOUT_MIN_LEFT_MS = 150_000;
 
 /**
  * 하루치 브리핑 생성 전체 흐름.
@@ -128,7 +130,7 @@ export async function createDailyBriefing(
     // 웹 검색을 여러 번 하는 단계라 가끔 기한을 넘긴다. 시간이 남으면 한 번만 다시 시도한다.
     const news = await services.collectMarketNews(date, signal, { recentNews }).catch(async (error: unknown) => {
       const timedOut = error instanceof Error && /timed out|timeout/i.test(error.message);
-      if (!timedOut || timeLeft() < RECOLLECT_MIN_LEFT_MS) throw error;
+      if (!timedOut || timeLeft() < RETRY_AFTER_TIMEOUT_MIN_LEFT_MS) throw error;
       return services.collectMarketNews(date, signal, { recentNews });
     });
     addUsage(news);
