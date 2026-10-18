@@ -65,6 +65,15 @@ export type ArchiveEntry = {
   knowledgeTitles: string[];
 };
 
+/** 상식 모아보기 한 줄. 배운 날짜로 돌아갈 수 있게 날짜를 함께 둔다. */
+export type KnowledgeArchiveEntry = {
+  briefingDate: string;
+  slug: string;
+  title: string;
+  category: string;
+  review: boolean;
+};
+
 /** 학습 이력 한 줄. 개념 중복 판정과 복습 순번에만 쓴다. */
 export type ConceptHistoryEntry = {
   briefingDate: string;

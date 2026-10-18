@@ -6,6 +6,7 @@ import type {
   BriefingRow,
   ConceptHistoryEntry,
   DailyBriefingContent,
+  KnowledgeArchiveEntry,
   TechSection,
 } from "@/types/briefing";
 import type { DateString } from "@/lib/date";
@@ -95,21 +96,45 @@ async function readConceptHistory(
   }));
 }
 
-/** Archive 리스트용. 날짜와 개념 제목만 읽는다. 최신순. */
+/** Archive 리스트용. 날짜와 개념 제목만 읽는다. 최신순. 테크 상식이 앞에 온다. */
 export async function getArchiveEntries(limit = 180): Promise<ArchiveEntry[]> {
   const { data, error } = await getSupabase()
     .from(TABLE)
-    .select("briefing_date, knowledge_items")
+    .select("briefing_date, knowledge_items, tech_knowledge_items")
     .order("briefing_date", { ascending: false })
     .limit(limit)
-    .returns<Pick<BriefingRow, "briefing_date" | "knowledge_items">[]>();
+    .returns<Pick<BriefingRow, "briefing_date" | "knowledge_items" | "tech_knowledge_items">[]>();
 
   if (error) throw new Error(`Archive 조회 실패: ${error.message}`);
 
   return (data ?? []).map((row) => ({
     briefingDate: row.briefing_date,
-    knowledgeTitles: (row.knowledge_items ?? []).map((item) => item.title),
+    knowledgeTitles: [...(row.tech_knowledge_items ?? []), ...(row.knowledge_items ?? [])].map((item) => item.title),
   }));
+}
+
+/**
+ * 상식 학습 이력. 지금까지 배운 개념을 하나씩 펼친다. 최신순.
+ * 개념 slug·제목·분류만 읽는다. 본문은 날짜 상세에서 다시 읽는다.
+ */
+export async function getKnowledgeArchive(): Promise<KnowledgeArchiveEntry[]> {
+  const { data, error } = await getSupabase()
+    .from(TABLE)
+    .select("briefing_date, knowledge_items, tech_knowledge_items")
+    .order("briefing_date", { ascending: false })
+    .returns<Pick<BriefingRow, "briefing_date" | "knowledge_items" | "tech_knowledge_items">[]>();
+
+  if (error) throw new Error(`상식 이력 조회 실패: ${error.message}`);
+
+  return (data ?? []).flatMap((row) =>
+    [...(row.tech_knowledge_items ?? []), ...(row.knowledge_items ?? [])].map((item) => ({
+      briefingDate: row.briefing_date,
+      slug: item.slug,
+      title: item.title,
+      category: item.category,
+      review: item.review === true,
+    })),
+  );
 }
 
 /** 지난 호 이동용. 기준 날짜의 앞/뒤 브리핑 날짜. 없으면 null. */

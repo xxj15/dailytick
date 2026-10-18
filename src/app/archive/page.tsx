@@ -64,6 +64,12 @@ export default async function ArchivePage() {
       <main className="page-width flex-1">
         <section className="pt-10 pb-4">
           <h1 className="headline text-2xl sm:text-3xl">지난 브리핑</h1>
+          <nav className="mt-5 flex gap-2 text-sm font-semibold">
+            <span className="rounded-full bg-ink px-3.5 py-1.5 text-paper">날짜별</span>
+            <Link href="/archive/knowledge" className="rounded-full bg-muted px-3.5 py-1.5 text-ink-soft hover:text-ink">
+              상식별
+            </Link>
+          </nav>
         </section>
 
         {groups.length === 0 ? (

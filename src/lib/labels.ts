@@ -1,3 +1,4 @@
+import { economyField } from "@/data/curriculum";
 import type { NewsCategory, NewsRegion } from "@/types/briefing";
 
 /** 지면에 노출되는 라벨. enum 값을 그대로 보여주지 않는다. */
@@ -27,9 +28,12 @@ export const NEWS_REGION_LABEL: Record<NewsRegion, string> = {
   GLOBAL: "해외",
 };
 
-/** 상식 카테고리. 커리큘럼 slug를 지면에 그대로 내보내지 않는다. 모르는 값은 그대로 둔다. */
-export const KNOWLEDGE_CATEGORY_LABEL: Record<string, string> = {
-  // 경제 커리큘럼
+/** 상식의 세부 카테고리 칩. 테크는 CS·프론트엔드·AI, 경제는 경제·증권으로 보여준다. */
+const KNOWLEDGE_FIELD_LABEL: Record<string, string> = { cs: "CS", frontend: "프론트엔드", ai: "AI" };
+
+/** 경제 커리큘럼의 세부 분류. 칩 옆에 작게 붙인다. */
+const ECONOMY_CATEGORY_LABEL: Record<string, string> = {
+  "economy-basics": "경제 기초",
   "market-basics": "시장 기초",
   "corporate-value": "기업 가치",
   "rates-bonds": "금리·채권",
@@ -40,19 +44,16 @@ export const KNOWLEDGE_CATEGORY_LABEL: Record<string, string> = {
   "financial-statements": "재무제표",
   "market-structure": "시장 구조",
   "global-markets": "글로벌 시장",
-  // IT 커리큘럼
-  internet: "인터넷의 원리",
-  browser: "브라우저",
-  javascript: "자바스크립트",
-  css: "CSS",
-  react: "React",
-  performance: "성능",
-  security: "보안",
-  infra: "인프라",
-  data: "데이터",
-  ai: "AI",
-  "dev-life": "개발 문화",
 };
+
+export function knowledgeLabel(category: string): { field: string; detail?: string } {
+  if (KNOWLEDGE_FIELD_LABEL[category]) return { field: KNOWLEDGE_FIELD_LABEL[category] };
+  if (ECONOMY_CATEGORY_LABEL[category]) {
+    return { field: economyField(category) === "economy" ? "경제" : "증권", detail: ECONOMY_CATEGORY_LABEL[category] };
+  }
+  // 커리큘럼을 바꾸기 전에 저장된 테크 상식(browser, javascript 등)은 그대로 보여준다
+  return { field: category };
+}
 
 /** 오늘의 주요 이슈를 나누는 세 분야. 분류(category)에서 정한다. */
 export type NewsField = "tech" | "economy" | "current";
