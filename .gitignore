@@ -47,3 +47,8 @@ AGENTS.md
 
 # personal AI collaboration notes and Velog drafts (kept local only)
 /notes/
+
+# BMAD Method (kept local only)
+/_bmad/
+/_bmad-output/
+/.claude/skills/bmad-*/
