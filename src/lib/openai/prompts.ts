@@ -19,7 +19,7 @@ import type { RecentNewsEntry } from "@/types/briefing";
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고,
  * 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v27";
+export const PROMPT_VERSION = "v28";
 
 /**
  * 모든 단계에 공통으로 적용되는 편집 원칙.
@@ -637,7 +637,7 @@ todayKeywords는 지면 맨 위에 거는 단어 목록이다.
 - 같은 개념을 두 번 쓰지 않는다
 - 오늘 실은 여러 분야의 사건이 고루 드러나게 고른다
 - 숫자를 키워드로 삼지 않는다
-- 마지막 한 자리는 오늘의 증권 상식 개념을 넣어도 된다
+- 키워드는 선택한 뉴스의 facts에 실제로 나온 사건·대상만 쓴다. 뉴스에 없는 동향·개념을 키워드로 만들지 않는다
 - 투자 추천처럼 읽히는 표현을 쓰지 않는다
 
 좋은 예:

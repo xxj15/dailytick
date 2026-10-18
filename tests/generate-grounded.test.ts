@@ -130,3 +130,14 @@ test("마지막 시도에서 숫자 검증에 걸린 뉴스만 빼고, 나머지
   assert.deepEqual(reviewedTitles, ["기준금리 동결"]);
   assert.deepEqual(result.content.newsItems.map((item) => item.title), ["기준금리 동결"]);
 });
+
+test("두 번 모두 키워드·한 줄(framing)만 걸리면 그 부분만 고칠 세 번째 기회를 준다", async () => {
+  let reviews = 0;
+  let lastPrompt = "";
+  const result = await generateDailyBriefing(params, {
+    write: async (input) => { lastPrompt = input; return { draft: DRAFT, inputTokens: 1, outputTokens: 1 }; },
+    review: async () => ({ review: ++reviews < 3 ? { ...passed, framing: { supported: false, reason: "키워드가 뉴스에 없음" } } : passed, inputTokens: 1, outputTokens: 1 }),
+  });
+  assert.equal(result.attempts, 3);
+  assert.match(lastPrompt, /이 부분만 고치고/);
+});

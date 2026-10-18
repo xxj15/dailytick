@@ -141,7 +141,10 @@ async function generateGroundedSection<D, C extends GroundedSection>(
   const history: BriefingViolation[] = [];
   const reviews: ReviewRecord[] = [];
 
-  for (let attempt = 1; attempt <= 2; attempt++) {
+  // 기본은 2번이다. 마지막 시도에서 키워드·한 줄·상식 설명(framing)만 걸렸다면 그 부분만 고칠 기회를 한 번 더 준다.
+  let maxAttempts = 2;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const final = attempt >= 2;
     const fail = (found: Violation[]) => {
       history.push(...found.map((violation) => ({ attempt, ...violation })));
       lastError = found.map((violation) => violation.message).join("\n");
@@ -198,7 +201,7 @@ ${lastError}`;
     if (violations.length > 0) {
       fail(violations);
       // 마지막 시도에서 특정 뉴스만 걸렸다면(숫자·출처·중복 등) 그 뉴스만 빼고 검토로 넘긴다.
-      const trimmed = attempt === 2 && violations.every((violation) => violation.rank !== undefined)
+      const trimmed = final && violations.every((violation) => violation.rank !== undefined)
         ? dropNewsByRank(content, new Set(violations.map((violation) => violation.rank as number)), schema)
         : null;
       if (!trimmed || verifyBriefing(trimmed, params).length > 0) continue;
@@ -218,9 +221,14 @@ ${lastError}`;
     const unsupported = reviewViolations(content, reviewed.review);
     if (unsupported.length) {
       fail(unsupported);
+      if (attempt === 2 && unsupported.every((violation) => violation.code === "briefing.unsupported")) {
+        maxAttempts = 3;
+        lastError = `뉴스 본문은 통과했다. 아래 지적은 todayKeywords·oneLiner·knowledgeItems에 대한 것이다. 이 부분만 고치고 나머지는 그대로 둔다.\n${lastError}`;
+        continue;
+      }
       // 마지막 시도에서 특정 뉴스만 걸렸다면 그 뉴스만 빼고 발행한다.
       // 한 건 때문에 근거가 확인된 나머지 지면까지 버리지 않는다. 키워드·한 줄·전체 검토가 걸리면 빼지 않는다.
-      const trimmed = attempt === 2 && unsupported.every((violation) => violation.code === "news.unsupported")
+      const trimmed = final && unsupported.every((violation) => violation.code === "news.unsupported")
         ? dropNewsByRank(content, new Set(reviewed.review.news.filter((item) => !item.supported).map((item) => item.rank)), schema)
         : null;
       if (!trimmed) continue;
