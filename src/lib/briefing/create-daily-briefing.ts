@@ -133,11 +133,12 @@ export async function createDailyBriefing(
     let grounded = await services.groundMarketNews(candidates, date, signal);
     addUsage(grounded);
 
-    // 근거가 확보된 이슈가 적은데 섹션을 덜 훑었다면, 시간이 될 때 빠진 섹션을 한 번 더 수집한다.
+    // 근거가 확보된 이슈가 적은데 섹션을 덜 훑었거나 검색 결과로 확인된 후보 자체가 적었다면,
+    // 시간이 될 때 한 번 더 수집한다. (후보가 적은 건 모델이 검색에 없던 URL을 내서 걸러진 경우가 많다)
     const coverage = news.coverage ?? [];
     const searched = coverage.filter((entry) => entry.searched).length;
     let recollected = false;
-    if (grounded.candidates.length < 3 && searched < 4 && timeLeft() > RECOLLECT_MIN_LEFT_MS) {
+    if (grounded.candidates.length < 3 && (searched < 4 || candidates.length < 6) && timeLeft() > RECOLLECT_MIN_LEFT_MS) {
       const focusSections = ["politics", "world", "society", "economy", "tech"].filter(
         (section) => !coverage.some((entry) => entry.section === section && entry.searched),
       );

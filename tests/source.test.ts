@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
-import { extractSource, parsePublishedAt } from "@/lib/news/extract-source";
+import { extractSource, normalizeEvidenceText, parsePublishedAt } from "@/lib/news/extract-source";
 import { isPublicIPv4, validateSourceUrl } from "@/lib/news/fetch-source";
 
 const text = "위원회는 이번 회의에서 기준금리 동결을 결정했다. 물가와 경기 상황을 점검하며 향후 정책 방향을 논의했다. ".repeat(5);
@@ -84,4 +84,9 @@ test("릴리스 노트의 <time datetime>을 게시일로 읽고, <main>만 있�
   assert.equal(extractSource(page, page.url).source.publishedAt, "2026-10-16T00:00:00.000Z");
   const mainOnly = { url: "https://example.com/post", contentType: "text/html", body: `<title>글</title><main><p>${text}</p></main>` };
   assert.ok(extractSource(mainOnly, mainOnly.url).text.length >= 200);
+});
+
+test("근거 비교는 따옴표·줄임표 표기 차이를 맞추되 글자는 바꾸지 않는다", () => {
+  assert.equal(normalizeEvidenceText("그는 “AI 수요가 공급을 넘어선다”고 말했다…"), '그는 "AI 수요가 공급을 넘어선다"고 말했다...');
+  assert.equal(normalizeEvidenceText("‘인상’ 가능성"), "'인상' 가능성");
 });

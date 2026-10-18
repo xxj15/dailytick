@@ -3,8 +3,20 @@ import { load } from "cheerio";
 import type { SourceDocument } from "@/lib/news/evidence-types";
 import type { SourceResponse } from "@/lib/news/fetch-source";
 
+/**
+ * 원문 본문과 근거 문장(quote)을 같은 규칙으로 맞춘다. 둘 다 이 함수를 거친 뒤 포함 여부를 비교한다.
+ * 모델이 둥근 따옴표를 곧은 따옴표로 바꾸거나 줄임표를 풀어 쓰는 정도의 표기 차이로 근거가 탈락하지 않게 한다.
+ * 글자·숫자·단어는 바꾸지 않는다.
+ */
 export function normalizeEvidenceText(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
+  return value
+    .normalize("NFC")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/[\u2018\u2019\u201A\u201B\u2032]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F\u2033]/g, '"')
+    .replace(/\u2026/g, "...")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** timezone 없는 날짜는 서버 timezone으로 해석하지 않는다. 날짜만 있으면 보수적으로 KST 자정. */
