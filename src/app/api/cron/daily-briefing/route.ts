@@ -17,6 +17,7 @@ export const dynamic = "force-dynamic";
  * 쿼리 파라미터:
  *   date=YYYY-MM-DD  생성할 날짜. 기본값은 KST 기준 오늘.
  *   force=true       이미 있어도 다시 생성한다. 개발용이며 production cron은 쓰지 않는다.
+ *   dryRun=true      저장하지 않고 생성 결과를 그대로 돌려준다. 발행 전 검증용이다. DB에는 아무것도 쓰지 않는다.
  */
 export async function POST(request: NextRequest) {
   const unauthorized = checkAuth(request);
@@ -34,9 +35,10 @@ export async function POST(request: NextRequest) {
 
   const date = dateParam ?? getTodayKST();
   const force = searchParams.get("force") === "true";
+  const dryRun = searchParams.get("dryRun") === "true";
 
   try {
-    const { briefing, reused, audit } = await createDailyBriefing(date, { force });
+    const { briefing, reused, audit } = await createDailyBriefing(date, { force, dryRun });
 
     return Response.json({
       ok: true,
@@ -51,9 +53,10 @@ export async function POST(request: NextRequest) {
         diagnostics: {
           economy: summarizeAudit(audit),
           ...(audit.tech && { tech: summarizeAudit(audit.tech) }),
-          ...(audit.headlineError && { headlineError: audit.headlineError }),
         },
       }),
+      // 미리보기는 저장하지 않으므로 지면 전체를 응답으로 돌려준다.
+      ...(dryRun && { dryRun: true, briefing }),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

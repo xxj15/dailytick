@@ -1,13 +1,22 @@
 import "server-only";
-import { ECONOMY_CONCEPTS_PER_DAY, TECH_CONCEPTS_PER_DAY, TECH_SOURCE_MAX_AGE_HOURS } from "@/config/app";
-import { CURRICULUM } from "@/data/curriculum";
+import { createHash } from "node:crypto";
+import { TECH_DISCOVERY_MAX_AGE_DAYS } from "@/config/app";
+import { CURRICULUM, type Concept } from "@/data/curriculum";
 import { TECH_CURRICULUM } from "@/data/tech-curriculum";
+import {
+  economyCandidates,
+  fallbackConcept,
+  recentKnowledge,
+  techCandidates,
+  type KnowledgeCandidate,
+} from "@/lib/curation/candidates";
 import {
   collectLearnedTitles,
   selectTodayConcepts,
 } from "@/lib/curriculum/select-next-concepts";
 import type { DateString } from "@/lib/date";
-import { collectMarketNews, collectTechNews, NewsCollectionError } from "@/lib/openai/collect-news";
+import { collectMarketNews, discoverTechTopics, NewsCollectionError, type TechTopic } from "@/lib/openai/collect-news";
+import { curateKnowledge, type CuratorPick } from "@/lib/openai/curate";
 import { groundMarketNews, GroundNewsError } from "@/lib/openai/ground-news";
 import {
   BriefingValidationError,
@@ -15,11 +24,11 @@ import {
   generateTechSection,
 } from "@/lib/openai/generate-briefing";
 import { getModel } from "@/lib/openai/client";
-import { composeHeadline } from "@/lib/openai/compose-headline";
 import { PROMPT_VERSION } from "@/lib/openai/prompts";
 import {
   getBriefingByDate,
   getConceptHistory,
+  getRecentNews,
   getTechConceptHistory,
   saveBriefing,
 } from "@/lib/supabase/briefings";
@@ -27,16 +36,18 @@ import {
   finishGenerationLog,
   startGenerationLog,
 } from "@/lib/supabase/generation-logs";
-import type { Briefing, GroundedSection, TechSection } from "@/types/briefing";
-import { auditEvidence, type GenerationAudit, type TechAudit } from "@/lib/news/generation-audit";
-import type { NewsCandidate, BriefingViolation } from "@/types/briefing";
+import type { Briefing, ConceptHistoryEntry, GroundedSection, NewsCandidate, RecentNewsEntry, TechSection } from "@/types/briefing";
+import type { GroundedCandidate } from "@/lib/news/evidence-types";
+import { auditEvidence, type CurationAudit, type GenerationAudit, type TechAudit } from "@/lib/news/generation-audit";
+import type { BriefingViolation } from "@/types/briefing";
 
 const defaultServices = {
-  getBriefingByDate, getConceptHistory, getTechConceptHistory, collectMarketNews, collectTechNews,
-  groundMarketNews: (candidates: NewsCandidate[], date: DateString, signal?: AbortSignal, maxAgeHours?: number) => groundMarketNews(candidates, date, undefined, signal, maxAgeHours),
+  getBriefingByDate, getConceptHistory, getTechConceptHistory, getRecentNews,
+  collectMarketNews, discoverTechTopics, curateKnowledge,
+  groundMarketNews: (candidates: NewsCandidate[], date: DateString, signal?: AbortSignal, maxAgeHours?: number, allowUndated?: boolean) =>
+    groundMarketNews(candidates, date, undefined, signal, maxAgeHours, allowUndated),
   generateDailyBriefing: (params: Parameters<typeof generateDailyBriefing>[0]) => generateDailyBriefing(params),
   generateTechSection: (params: Parameters<typeof generateTechSection>[0]) => generateTechSection(params),
-  composeHeadline,
   saveBriefing, getModel, startGenerationLog, finishGenerationLog,
 };
 export type BriefingServices = typeof defaultServices;
@@ -47,116 +58,154 @@ export type CreateBriefingResult = {
   reused: boolean;
   /** 새로 생성했을 때만 있다. 생성 로그에 남긴 것과 같은 기록이다. */
   audit?: GenerationAudit;
+  /** 저장하지 않은 미리보기 생성인가. */
+  dryRun?: boolean;
 };
 
 type Usage = { inputTokens: number; outputTokens: number; webSearchCalls: number };
 
+/** 실행 기한. Vercel 실행 제한(300초) 전에 정리할 시간을 남긴다. */
+const DEADLINE_MS = 260_000;
+/** 주요 이슈를 한 번 더 수집하려면 이만큼은 남아 있어야 한다. (수집 90초 + 근거·작성·검토) */
+const RECOLLECT_MIN_LEFT_MS = 170_000;
+
 /**
- * 하루치 브리핑 생성 전체 흐름. (명세 §45)
+ * 하루치 브리핑 생성 전체 흐름.
  *
- *   과거 브리핑 조회 → 개념 선정 → 뉴스 수집 → 브리핑 생성 → 저장
+ *   경제·주요 이슈: 최근 뉴스 조회 → 다섯 섹션 수집 → 본문 근거 확인(검색이 좁았으면 1회 재수집) → 경제 상식 큐레이션 → 작성·검토
+ *   테크 상식:     학습 이력 → 그날 기술 글 발굴 → 큐레이션 → (아티클·트렌드면) 원문 근거 확인 → 작성·검토
  *
- * 경제 파트와 IT 파트는 같은 흐름을 동시에 탄다. 하나의 실행 기한 안에 둘 다 끝내야 한다.
- * 경제 파트가 지면의 본체다. IT 파트가 실패하면 IT 없이 발행하고, 경제 파트가 실패하면 발행하지 않는다.
+ * 두 흐름은 동시에 돈다. 경제·주요 이슈가 지면의 본체라 실패하면 발행하지 않는다.
+ * 테크 상식은 검증된 후보가 없으면 그날만 빼고 발행한다.
  *
- * Cron route는 이 함수만 호출한다. 스케줄러를 바꿔도 이 로직은 그대로다.
+ * dryRun이면 같은 흐름을 돌리되 DB에 아무것도 쓰지 않고 결과만 돌려준다. 발행 전 검증용이다.
  */
 export async function createDailyBriefing(
   date: DateString,
-  options: { force?: boolean; signal?: AbortSignal } = {},
+  options: { force?: boolean; signal?: AbortSignal; dryRun?: boolean } = {},
   overrides: Partial<BriefingServices> = {},
 ): Promise<CreateBriefingResult> {
   const services = { ...defaultServices, ...overrides };
+  const dryRun = options.dryRun === true;
   // 같은 날짜로 두 번 실행돼도 브리핑은 하나다.
-  if (!options.force) {
+  if (!options.force && !dryRun) {
     const existing = await services.getBriefingByDate(date);
     if (existing) return { briefing: existing, reused: true };
   }
 
-  const logId = await services.startGenerationLog(date);
-  // Vercel 실행 제한 전에 정리할 시간을 남긴다. 뉴스 수집·AI 호출이 같은 기한을 쓴다.
-  const timeout = AbortSignal.timeout(260_000);
+  const logId = dryRun ? null : await services.startGenerationLog(date);
+  const startedAt = Date.now();
+  const timeLeft = () => DEADLINE_MS - (Date.now() - startedAt);
+  const timeout = AbortSignal.timeout(DEADLINE_MS);
   const signal = options.signal ? AbortSignal.any([timeout, options.signal]) : timeout;
   const audit: GenerationAudit = emptyAudit();
   const usage: Usage = { inputTokens: 0, outputTokens: 0, webSearchCalls: 0 };
+  const addUsage = (part: Partial<Usage>) => {
+    usage.inputTokens += part.inputTokens ?? 0;
+    usage.outputTokens += part.outputTokens ?? 0;
+    usage.webSearchCalls += part.webSearchCalls ?? 0;
+  };
   let attempts = 0;
   let violations: BriefingViolation[] = [];
 
-  // 경제 파트가 실패하면 IT 파트도 멈춘다. 발행하지 않을 지면에 비용을 쓰지 않는다.
+  // 경제·주요 이슈가 실패하면 테크 상식도 멈춘다. 발행하지 않을 지면에 비용을 쓰지 않는다.
   const techStop = new AbortController();
   const techRun = createTechSection(date, services, AbortSignal.any([signal, techStop.signal]));
   const settleTech = async () => {
     const tech = await techRun;
-    usage.inputTokens += tech.usage.inputTokens;
-    usage.outputTokens += tech.usage.outputTokens;
-    usage.webSearchCalls += tech.usage.webSearchCalls;
+    addUsage(tech.usage);
     audit.tech = tech.audit;
     return tech.section;
   };
 
   try {
     const history = await services.getConceptHistory();
-
-    // 커리큘럼을 모두 돌았으면 가장 오래된 개념부터 복습한다. 개념 없이 발행하지 않는다.
-    const { concepts, mode } = selectTodayConcepts(history, CURRICULUM, ECONOMY_CONCEPTS_PER_DAY, false);
-    const learnedTitles = collectLearnedTitles(history);
+    // 최근 뉴스를 못 읽어도 발행은 한다. 반복 방지는 검토 단계가 한 번 더 본다.
+    const recentNews: RecentNewsEntry[] = await services.getRecentNews(date).catch(() => []);
 
     audit.stage = "search";
-    const news = await services.collectMarketNews(date, signal);
-    usage.inputTokens += news.inputTokens;
-    usage.outputTokens += news.outputTokens;
-    usage.webSearchCalls += news.webSearchCalls;
+    const news = await services.collectMarketNews(date, signal, { recentNews });
+    addUsage(news);
     audit.searchTrace = news.searchTrace;
     audit.rejectedUrls = news.rejectedUrls;
     audit.stage = "sources";
-    const grounded = await services.groundMarketNews(news.candidates, date, signal);
-    usage.inputTokens += grounded.inputTokens;
-    usage.outputTokens += grounded.outputTokens;
+    let candidates = news.candidates;
+    let grounded = await services.groundMarketNews(candidates, date, signal);
+    addUsage(grounded);
+
+    // 근거가 확보된 이슈가 적은데 섹션을 덜 훑었다면, 시간이 될 때 빠진 섹션을 한 번 더 수집한다.
+    const coverage = news.coverage ?? [];
+    const searched = coverage.filter((entry) => entry.searched).length;
+    let recollected = false;
+    if (grounded.candidates.length < 3 && searched < 4 && timeLeft() > RECOLLECT_MIN_LEFT_MS) {
+      const focusSections = ["politics", "world", "society", "economy", "tech"].filter(
+        (section) => !coverage.some((entry) => entry.section === section && entry.searched),
+      );
+      const more = await services.collectMarketNews(date, signal, { recentNews, focusSections });
+      addUsage(more);
+      audit.searchTrace = [...audit.searchTrace, ...more.searchTrace];
+      audit.rejectedUrls = [...audit.rejectedUrls, ...more.rejectedUrls];
+      candidates = [...candidates, ...more.candidates.filter((entry) => !candidates.some((prev) => prev.title === entry.title))];
+      grounded = await services.groundMarketNews(candidates, date, signal);
+      addUsage(grounded);
+      recollected = true;
+      for (const entry of more.coverage ?? []) {
+        const index = coverage.findIndex((prev) => prev.section === entry.section);
+        if (index === -1) coverage.push(entry);
+        else if (entry.searched) coverage[index] = entry;
+      }
+    }
+    const searchedAfter = coverage.filter((entry) => entry.searched).length;
+    audit.coverage = {
+      sections: coverage,
+      verdict: grounded.candidates.length >= 3 ? "ok" : searchedAfter >= 4 ? "thin_day" : "narrow_search",
+      recollected,
+      candidates: candidates.length,
+      grounded: grounded.candidates.length,
+    };
     audit.sourceRejections = grounded.rejected;
     audit.evidence = auditEvidence(grounded.candidates);
     if (!grounded.candidates.length) throw new Error("실제 본문으로 확인한 최신 뉴스가 없습니다.");
 
+    // 경제 상식: 뉴스와 별개로 고르되, 오늘 이슈와 자연스럽게 이어지면 가산점을 준다.
+    const economy = await chooseKnowledge("economy", {
+      history,
+      candidates: economyCandidates(history),
+      curriculum: CURRICULUM,
+      newsTitles: grounded.candidates.map((candidate) => candidate.title),
+      date, services, signal,
+    });
+    addUsage(economy.usage);
+    audit.curation = economy.audit;
+    if (!economy.choice) throw new Error(`경제 상식을 고르지 못했습니다: ${economy.audit.error ?? "검증된 후보 없음"}`);
+
     audit.stage = "generation";
     const generated = await services.generateDailyBriefing({
       date,
-      concepts,
-      mode,
+      concepts: [economy.choice.concept],
+      mode: economy.choice.mode,
       candidates: grounded.candidates,
-      learnedTitles,
+      learnedTitles: collectLearnedTitles(history),
+      recentNews,
       signal,
     });
-    usage.inputTokens += generated.inputTokens;
-    usage.outputTokens += generated.outputTokens;
+    addUsage(generated);
     attempts = generated.attempts;
     violations = generated.violations;
     audit.reviews = generated.reviews;
 
-    let content = markReview(generated.content, mode);
+    const content = markReview(generated.content, economy.choice.mode);
     const tech = await settleTech();
 
-    // Tech가 앞에 오는 지면이므로 키워드·한 줄도 두 파트를 함께 보고 다시 쓴다.
-    // 실패해도 발행은 막지 않는다. 경제 본문이 쓴 키워드가 그대로 남는다.
-    if (tech) {
-      try {
-        const composed = await services.composeHeadline({ date, economy: content, tech }, signal);
-        usage.inputTokens += composed.inputTokens;
-        usage.outputTokens += composed.outputTokens;
-        content = { ...content, ...composed.headline };
-      } catch (error) {
-        audit.headlineError = error instanceof Error ? error.message : String(error);
-        console.error(`[briefing] 키워드 합성 실패(${date})`, audit.headlineError);
-      }
-    }
-
     signal.throwIfAborted();
-    audit.stage = "save";
-    const briefing = await services.saveBriefing({
-      date,
-      content,
-      tech,
-      model: services.getModel(),
-      promptVersion: PROMPT_VERSION,
-    });
+    const model = services.getModel();
+    let briefing: Briefing;
+    if (dryRun) {
+      briefing = { ...content, tech, id: "dry-run", briefingDate: date, generatedAt: new Date().toISOString(), model, promptVersion: PROMPT_VERSION };
+    } else {
+      audit.stage = "save";
+      briefing = await services.saveBriefing({ date, content, tech, model, promptVersion: PROMPT_VERSION });
+    }
 
     audit.stage = "complete";
     await services.finishGenerationLog(logId, {
@@ -168,7 +217,7 @@ export async function createDailyBriefing(
       audit,
     });
 
-    return { briefing, reused: false, audit };
+    return { briefing, reused: false, audit, dryRun };
   } catch (error) {
     if (!audit.tech) {
       techStop.abort();
@@ -192,9 +241,118 @@ export async function createDailyBriefing(
   }
 }
 
+type Choice = { concept: Concept; mode: "new" | "review"; evidence: GroundedCandidate[] };
+
 /**
- * IT 파트. 경제 파트와 같은 단계를 밟되 실패를 던지지 않는다.
- * 무엇이 왜 실패했는지는 audit에 담아 경제 파트의 생성 로그에 함께 남긴다.
+ * 상식 하나를 고른다.
+ *
+ * 큐레이터가 추천한 순서대로 검증을 시도한다. 아티클·검색 후보는 원문 근거 확인을 통과해야만 쓴다.
+ * 추천을 하나도 쓰지 못하면 사람이 검증한 커리큘럼 개념으로 대체하고, 그마저 없으면 고르지 않는다(발행 보류).
+ * 미학습 개념이 하나도 없으면 커리큘럼 복습으로 넘어간다.
+ */
+async function chooseKnowledge(
+  kind: "tech" | "economy",
+  params: {
+    history: ConceptHistoryEntry[];
+    candidates: KnowledgeCandidate[];
+    curriculum: Concept[];
+    newsTitles?: string[];
+    topics?: TechTopic[];
+    date: DateString;
+    services: BriefingServices;
+    signal: AbortSignal;
+  },
+): Promise<{ choice: Choice | null; audit: CurationAudit; usage: Usage }> {
+  const { history, candidates, date, services, signal } = params;
+  const usage: Usage = { inputTokens: 0, outputTokens: 0, webSearchCalls: 0 };
+  const recent = recentKnowledge(history);
+
+  if (!candidates.length) {
+    const { concepts } = selectTodayConcepts(history, params.curriculum, 1, false);
+    return concepts[0]
+      ? { choice: { concept: { ...concepts[0], format: concepts[0].format ?? "concept" }, mode: "review", evidence: [] }, audit: { status: "review", chosen: { id: `k-${concepts[0].slug}`, title: concepts[0].title, format: "concept" } }, usage }
+      : { choice: null, audit: { status: "skipped", error: "커리큘럼이 비어 있습니다." }, usage };
+  }
+
+  const audit: CurationAudit = { status: "curated", rejected: [] };
+  let picks: CuratorPick[] = [];
+  try {
+    const curated = await services.curateKnowledge({
+      kind, date, recent, newsTitles: params.newsTitles,
+      candidates: candidates.map(({ id, format, category, level, title, note }) => ({ id, format, category, level, title, note })),
+    }, signal);
+    usage.inputTokens += curated.inputTokens;
+    usage.outputTokens += curated.outputTokens;
+    picks = curated.picks;
+    audit.picks = picks;
+  } catch (error) {
+    audit.error = `큐레이터 실패: ${error instanceof Error ? error.message : String(error)}`;
+  }
+
+  for (const pick of picks) {
+    const candidate = candidates.find((entry) => entry.id === pick.id);
+    if (!candidate) {
+      audit.rejected?.push(`${pick.id}: 후보 목록에 없는 id`);
+      continue;
+    }
+    if (candidate.concept) {
+      audit.chosen = { id: candidate.id, title: candidate.concept.title, format: candidate.format, reason: pick.reason };
+      return { choice: { concept: candidate.concept, mode: "new", evidence: [] }, audit, usage };
+    }
+
+    // 아티클·검색 후보: 서버가 원문을 읽어 근거 문장을 확인한 뒤에만 쓴다.
+    const source = candidate.article
+      ? { title: candidate.article.title, summary: candidate.article.takeaway, region: "GLOBAL" as const, category: candidate.category === "ai" ? "ai" as const : "software" as const, importance: 8,
+          sources: [{ publisher: candidate.article.publisher, title: candidate.article.title, url: candidate.article.url }] }
+      : params.topics?.[Number(candidate.id.slice(2)) - 1]?.candidate;
+    if (!source) {
+      audit.rejected?.push(`${candidate.id}: 원문 정보 없음`);
+      continue;
+    }
+    try {
+      const grounded = await services.groundMarketNews(
+        [source], date, signal,
+        candidate.article ? undefined : TECH_DISCOVERY_MAX_AGE_DAYS * 24,
+        Boolean(candidate.article),
+      );
+      usage.inputTokens += grounded.inputTokens;
+      usage.outputTokens += grounded.outputTokens;
+      const evidence = grounded.candidates[0];
+      if (!evidence) {
+        audit.rejected?.push(`${candidate.id}: ${grounded.rejected.map((entry) => entry.reason).join(" / ") || "원문 근거 확인 실패"}`);
+        continue;
+      }
+      const url = evidence.documents[0]?.source.url ?? source.sources[0].url;
+      const concept: Concept = {
+        slug: candidate.article?.slug ?? `d-${createHash("sha256").update(url).digest("hex").slice(0, 12)}`,
+        title: pick.title.trim() || candidate.title,
+        level: candidate.level,
+        category: candidate.category,
+        format: candidate.format,
+        references: [{ title: `${evidence.documents[0]?.source.publisher ?? "원문"}: ${evidence.documents[0]?.source.title ?? candidate.title}`, url }],
+      };
+      audit.chosen = { id: candidate.id, title: concept.title, format: candidate.format, reason: pick.reason };
+      return { choice: { concept, mode: "new", evidence: [evidence] }, audit, usage };
+    } catch (error) {
+      audit.rejected?.push(`${candidate.id}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  // 추천을 하나도 쓰지 못했다. 검증된 커리큘럼 개념이 있으면 그것으로 대체한다.
+  const fallback = fallbackConcept(candidates, recent);
+  if (fallback?.concept) {
+    audit.status = "fallback";
+    audit.chosen = { id: fallback.id, title: fallback.concept.title, format: fallback.format };
+    return { choice: { concept: fallback.concept, mode: "new", evidence: [] }, audit, usage };
+  }
+  audit.status = "skipped";
+  audit.error = audit.error ?? "검증을 통과한 후보가 없습니다.";
+  return { choice: null, audit, usage };
+}
+
+/**
+ * 테크 상식. 실패를 던지지 않는다. 고르지 못하거나 작성·검토를 통과하지 못하면 그날은 빼고 발행한다.
+ * 무엇이 왜 빠졌는지는 audit에 담아 경제 파트의 생성 로그에 함께 남긴다.
  */
 async function createTechSection(
   date: DateString,
@@ -206,28 +364,53 @@ async function createTechSection(
 
   try {
     const history = await services.getTechConceptHistory();
-    const { concepts, mode } = selectTodayConcepts(history, TECH_CURRICULUM, TECH_CONCEPTS_PER_DAY, false);
-    const learnedTitles = collectLearnedTitles(history);
+    const base = techCandidates(history);
 
+    // 그날 검색으로 찾은 최근 기술 글. 실패해도 커리큘럼·아티클 후보만으로 고른다.
     audit.stage = "search";
-    const news = await services.collectTechNews(date, signal);
-    usage.inputTokens += news.inputTokens;
-    usage.outputTokens += news.outputTokens;
-    usage.webSearchCalls += news.webSearchCalls;
-    audit.searchTrace = news.searchTrace;
-    audit.rejectedUrls = news.rejectedUrls;
+    let topics: TechTopic[] = [];
+    let discoveryError: string | undefined;
+    try {
+      const discovered = await services.discoverTechTopics(date, signal, {
+        recentTitles: recentKnowledge(history, 14).map((entry) => entry.title),
+      });
+      usage.inputTokens += discovered.inputTokens;
+      usage.outputTokens += discovered.outputTokens;
+      usage.webSearchCalls += discovered.webSearchCalls;
+      audit.searchTrace = discovered.searchTrace;
+      audit.rejectedUrls = discovered.rejectedUrls;
+      topics = discovered.topics;
+    } catch (error) {
+      discoveryError = error instanceof Error ? error.message : String(error);
+    }
+    const candidates: KnowledgeCandidate[] = [
+      ...base,
+      ...topics.map((topic, index) => ({
+        id: `d-${index + 1}`,
+        format: topic.format,
+        category: topic.field,
+        level: 3,
+        title: topic.title,
+        note: `${topic.candidate.sources[0]?.publisher ?? ""} · ${topic.summary}`.slice(0, 220),
+      })),
+    ];
+
     audit.stage = "sources";
-    const grounded = await services.groundMarketNews(news.candidates, date, signal, TECH_SOURCE_MAX_AGE_HOURS);
-    usage.inputTokens += grounded.inputTokens;
-    usage.outputTokens += grounded.outputTokens;
-    audit.sourceRejections = grounded.rejected;
-    audit.evidence = auditEvidence(grounded.candidates);
-    if (!grounded.candidates.length) throw new Error("실제 본문으로 확인한 최신 IT 뉴스가 없습니다.");
+    const picked = await chooseKnowledge("tech", { history, candidates, curriculum: TECH_CURRICULUM, topics, date, services, signal });
+    usage.inputTokens += picked.usage.inputTokens;
+    usage.outputTokens += picked.usage.outputTokens;
+    audit.curation = { ...picked.audit, discovered: topics.length, ...(discoveryError ? { error: [picked.audit.error, `발굴 실패: ${discoveryError}`].filter(Boolean).join(" / ") } : {}) };
+    if (!picked.choice) throw new Error(`테크 상식 발행 보류: ${picked.audit.error ?? "검증된 후보 없음"}`);
+    audit.evidence = auditEvidence(picked.choice.evidence);
 
     audit.stage = "generation";
     const generated = await services.generateTechSection({
-      date, concepts, mode, candidates: grounded.candidates, learnedTitles, signal,
-      maxSourceAgeHours: TECH_SOURCE_MAX_AGE_HOURS,
+      date,
+      concepts: [picked.choice.concept],
+      mode: picked.choice.mode,
+      candidates: picked.choice.evidence,
+      learnedTitles: collectLearnedTitles(history),
+      signal,
     });
     usage.inputTokens += generated.inputTokens;
     usage.outputTokens += generated.outputTokens;
@@ -236,13 +419,13 @@ async function createTechSection(
     audit.reviews = generated.reviews;
 
     audit.stage = "complete";
-    return { section: markReview(generated.content, mode), audit, usage };
+    return { section: markReview(generated.content, picked.choice.mode), audit, usage };
   } catch (error) {
     audit.violations = recordFailure(error, audit, usage, audit.violations);
     if (error instanceof BriefingValidationError) audit.attempts = audit.violations[audit.violations.length - 1]?.attempt ?? 0;
     audit.errorMessage = error instanceof Error ? error.message : String(error);
     // 경제 파트는 발행되므로 응답만으로는 실패가 드러나지 않는다. 서버 로그에도 남긴다.
-    console.error(`[briefing] IT 파트 생성 실패(${date}, ${audit.stage})`, audit.errorMessage, audit.violations);
+    console.error(`[briefing] 테크 상식 생성 실패(${date}, ${audit.stage})`, audit.errorMessage, audit.violations);
     return { section: null, audit, usage };
   }
 }

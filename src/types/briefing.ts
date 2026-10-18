@@ -5,6 +5,7 @@ import type {
   marketImpactSchema,
   newsCandidateSchema,
   newsCategorySchema,
+  newsCoverageSchema,
   newsIssueSchema,
   newsRegionSchema,
   newsSourceSchema,
@@ -19,6 +20,7 @@ export type MarketImpact = z.infer<typeof marketImpactSchema>;
 export type NewsIssue = z.infer<typeof newsIssueSchema>;
 export type KnowledgeItem = z.infer<typeof knowledgeItemSchema>;
 export type NewsCandidate = z.infer<typeof newsCandidateSchema>;
+export type NewsCoverage = z.infer<typeof newsCoverageSchema>;
 
 /** AI가 생성한 브리핑 본문 (DB 저장 전) */
 export type DailyBriefingContent = z.infer<typeof dailyBriefingSchema>;
@@ -65,6 +67,14 @@ export type ArchiveEntry = {
   knowledgeTitles: string[];
 };
 
+/** 최근 며칠 동안 실은 뉴스. 같은 사건을 반복해 싣지 않도록 수집·작성·검토에 함께 넘긴다. */
+export type RecentNewsEntry = {
+  briefingDate: string;
+  title: string;
+  whatHappened: string;
+  urls: string[];
+};
+
 /** 상식 모아보기 한 줄. 배운 날짜로 돌아갈 수 있게 날짜를 함께 둔다. */
 export type KnowledgeArchiveEntry = {
   briefingDate: string;
@@ -77,7 +87,8 @@ export type KnowledgeArchiveEntry = {
 /** 학습 이력 한 줄. 개념 중복 판정과 복습 순번에만 쓴다. */
 export type ConceptHistoryEntry = {
   briefingDate: string;
-  items: { slug: string; title: string }[];
+  /** category·format·level은 최근 며칠의 분야·형식·난이도를 보고 고르는 데 쓴다. 이전 row에는 format이 없다. */
+  items: { slug: string; title: string; category?: string; format?: string; level?: number; url?: string }[];
 };
 
 /** 하루치 학습 기록 (완료 여부 + 메모) */

@@ -10,7 +10,7 @@ import { getModel, getOpenAI } from "@/lib/openai/client";
 import { buildBriefingPrompt, buildTechSectionPrompt } from "@/lib/openai/prompts";
 import {
   aiDailyBriefingSchema,
-  aiTechSectionSchema,
+  aiTechKnowledgeSchema,
   dailyBriefingSchema,
   stripNulls,
   techSectionSchema,
@@ -19,6 +19,7 @@ import type {
   BriefingViolation,
   DailyBriefingContent,
   GroundedSection,
+  RecentNewsEntry,
   TechSection,
 } from "@/types/briefing";
 import { zodTextFormat } from "openai/helpers/zod";
@@ -52,6 +53,8 @@ export type GenerateBriefingParams = {
   learnedTitles: string[];
   /** 발행 하한선. 넘기지 않으면 경제 파트 기준(SOURCE_MAX_AGE_HOURS)이다. */
   maxSourceAgeHours?: number;
+  /** 최근 며칠 동안 실은 뉴스. 작성·검증·검토가 같은 사건 반복을 막는 데 쓴다. */
+  recentNews?: RecentNewsEntry[];
   signal?: AbortSignal;
 };
 
@@ -80,28 +83,41 @@ export type GenerateBriefingDependencies = {
   review: typeof reviewBriefing;
 };
 
-/** STEP 2 — 경제 본문(상식·뉴스·키워드·한 줄) 생성. */
+/** STEP 2 — 경제 본문(경제 상식·주요 이슈·키워드·한 줄) 생성. */
 export function generateDailyBriefing(
   params: GenerateBriefingParams,
   dependencies: GenerateBriefingDependencies = { write: draftWriter(aiDailyBriefingSchema, "daily_briefing"), review: reviewBriefing },
 ): Promise<GenerateBriefingResult> {
-  return generateGroundedSection({ prompt: buildBriefingPrompt(params), aiSchema: aiDailyBriefingSchema, schema: dailyBriefingSchema }, params, dependencies);
+  return generateGroundedSection({
+    prompt: buildBriefingPrompt(params), aiSchema: aiDailyBriefingSchema, schema: dailyBriefingSchema,
+    materialize: (draft, candidates) => materializeBriefing(draft, candidates), requireCandidates: true,
+  }, params, dependencies);
 }
 
-/** STEP 2 — IT 파트(IT 상식·IT 뉴스) 생성. 경제 본문과 같은 검증을 거친다. */
+/**
+ * STEP 2 — 테크 상식 생성. 뉴스는 쓰지 않는다.
+ * 아티클·트렌드면 candidates에 서버가 읽은 원문이 들어 있고, 검토 단계가 요약을 그 원문과 대조한다.
+ */
 export function generateTechSection(
   params: GenerateBriefingParams,
-  dependencies: GenerateBriefingDependencies = { write: draftWriter(aiTechSectionSchema, "tech_section"), review: reviewBriefing },
+  dependencies: GenerateBriefingDependencies = { write: draftWriter(aiTechKnowledgeSchema, "tech_knowledge"), review: reviewBriefing },
 ): Promise<GenerateBriefingResult<TechSection>> {
-  return generateGroundedSection({ prompt: buildTechSectionPrompt(params), aiSchema: aiTechSectionSchema, schema: techSectionSchema }, params, dependencies);
+  return generateGroundedSection({
+    prompt: buildTechSectionPrompt(params), aiSchema: aiTechKnowledgeSchema, schema: techSectionSchema,
+    materialize: (draft) => ({ knowledgeItems: draft.knowledgeItems, newsItems: [] }), requireCandidates: false,
+  }, params, dependencies);
 }
 
-type SectionSpec<D extends Parameters<typeof materializeBriefing>[0], C extends GroundedSection> = {
+type SectionSpec<D, C extends GroundedSection> = {
   prompt: string;
   /** structured output 모양 */
   aiSchema: z.ZodType<D>;
   /** 저장 전 canonical 검증 */
   schema: z.ZodType<C>;
+  /** AI 초안을 저장 모양으로 바꾼다. 뉴스의 사실·출처는 여기서 서버가 조합한다. */
+  materialize: (draft: D, candidates: GroundedCandidate[]) => unknown;
+  /** 근거가 확보된 뉴스 후보가 있어야만 쓰는 섹션인가. */
+  requireCandidates: boolean;
 };
 
 /**
@@ -110,12 +126,12 @@ type SectionSpec<D extends Parameters<typeof materializeBriefing>[0], C extends 
  * 어느 쪽이든 걸리면 무엇이 틀렸는지 알려주고 1회 재시도한다. (명세 §46)
  * 두 번째도 실패하면 저장하지 않고 던진다. 잘못된 데이터를 DB에 넣지 않는다.
  */
-async function generateGroundedSection<D extends Parameters<typeof materializeBriefing>[0], C extends GroundedSection>(
-  { prompt: basePrompt, aiSchema, schema }: SectionSpec<D, C>,
+async function generateGroundedSection<D, C extends GroundedSection>(
+  { prompt: basePrompt, aiSchema, schema, materialize, requireCandidates }: SectionSpec<D, C>,
   params: GenerateBriefingParams,
   dependencies: GenerateBriefingDependencies,
 ): Promise<GenerateBriefingResult<C>> {
-  if (!params.candidates.length) throw new Error("근거가 확보된 뉴스가 없어 브리핑을 생성하지 않습니다.");
+  if (requireCandidates && !params.candidates.length) throw new Error("근거가 확보된 뉴스가 없어 브리핑을 생성하지 않습니다.");
 
   let inputTokens = 0;
   let outputTokens = 0;
@@ -159,7 +175,7 @@ ${lastError}`;
 
     let materialized;
     try {
-      materialized = materializeBriefing(draft.data, params.candidates);
+      materialized = materialize(draft.data, params.candidates);
     } catch (error) {
       fail([{ code: "news.evidence", message: error instanceof Error ? error.message : String(error) }]);
       continue;
@@ -185,7 +201,7 @@ ${lastError}`;
 
     let reviewed;
     try {
-      reviewed = await dependencies.review(parsed.data, params.candidates, params.date, params.signal);
+      reviewed = await dependencies.review(parsed.data, params.candidates, params.date, params.signal, params.recentNews);
     } catch (error) {
       fail([{ code: "news.review_unavailable", message: error instanceof Error ? error.message : String(error) }]);
       throw new BriefingValidationError(history, lastError, { inputTokens, outputTokens }, reviews);

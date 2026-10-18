@@ -18,6 +18,6 @@ export const CANDIDATE: GroundedCandidate = {
 };
 export const DRAFT: z.infer<typeof aiDailyBriefingSchema> = {
   knowledgeItems: [{ ...CONCEPT, definition: "정의", explanation: "설명", example: null, securitiesPoint: "업무 연결", keywords: ["금리"] }],
-  newsItems: [{ rank: 1, candidateId: "c1", region: "KR", factIds: ["c1-f1"], title: "기준금리 동결", whyImportant: "차입 비용을 이해하는 기준이 될 수 있다.", impact: null, marketImpact: { stocks: null, rates: "경기와 물가 흐름에 따라 시장금리 기대가 달라질 수 있다.", fx: null, industry: null }, interpretation: null }],
+  newsItems: [{ rank: 1, candidateId: "c1", followUp: null, region: "KR", factIds: ["c1-f1"], title: "기준금리 동결", whyImportant: "차입 비용을 이해하는 기준이 될 수 있다.", impact: null, marketImpact: { stocks: null, rates: "경기와 물가 흐름에 따라 시장금리 기대가 달라질 수 있다.", fx: null, industry: null }, interpretation: null }],
   todayKeywords: ["기준금리", "통화정책", "금융시장"], oneLiner: "기준금리 동결의 의미를 살펴봅니다.",
 };

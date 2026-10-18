@@ -7,6 +7,7 @@ import type {
   ConceptHistoryEntry,
   DailyBriefingContent,
   KnowledgeArchiveEntry,
+  RecentNewsEntry,
   TechSection,
 } from "@/types/briefing";
 import type { DateString } from "@/lib/date";
@@ -92,6 +93,10 @@ async function readConceptHistory(
     items: (row[column] ?? []).map((item) => ({
       slug: item.slug,
       title: item.title,
+      category: item.category,
+      format: item.format,
+      level: item.level,
+      url: item.references?.[0]?.url,
     })),
   }));
 }
@@ -111,6 +116,29 @@ export async function getArchiveEntries(limit = 180): Promise<ArchiveEntry[]> {
     briefingDate: row.briefing_date,
     knowledgeTitles: [...(row.tech_knowledge_items ?? []), ...(row.knowledge_items ?? [])].map((item) => item.title),
   }));
+}
+
+/** 기준일 이전 days일 동안 실은 뉴스. 기준일 당일 row(재생성 대상)는 넣지 않는다. */
+export async function getRecentNews(date: DateString, days = 3): Promise<RecentNewsEntry[]> {
+  const from = new Date(Date.parse(`${date}T00:00:00Z`) - days * 86_400_000).toISOString().slice(0, 10);
+  const { data, error } = await getSupabase()
+    .from(TABLE)
+    .select("briefing_date, news_items, tech_news_items")
+    .gte("briefing_date", from)
+    .lt("briefing_date", date)
+    .order("briefing_date", { ascending: false })
+    .returns<Pick<BriefingRow, "briefing_date" | "news_items" | "tech_news_items">[]>();
+
+  if (error) throw new Error(`최근 뉴스 조회 실패: ${error.message}`);
+
+  return (data ?? []).flatMap((row) =>
+    [...(row.news_items ?? []), ...(row.tech_news_items ?? [])].map((item) => ({
+      briefingDate: row.briefing_date,
+      title: item.title,
+      whatHappened: item.whatHappened.slice(0, 200),
+      urls: item.sources.map((source) => source.url),
+    })),
+  );
 }
 
 /**

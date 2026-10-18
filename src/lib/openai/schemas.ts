@@ -8,6 +8,9 @@ import { NEWS_PER_DAY, TECH_NEWS_PER_DAY, TODAY_KEYWORDS_PER_DAY } from "@/confi
 
 export const newsRegionSchema = z.enum(["KR", "GLOBAL"]);
 
+/** 주요 이슈 수집에서 훑는 다섯 섹션. 분야를 정해 놓고 찾지 않고 모든 섹션을 확인하게 하는 장치다. */
+export const newsSectionSchema = z.enum(["politics", "world", "society", "economy", "tech"]);
+
 export const newsCategorySchema = z.enum([
   "rates",
   "stocks",
@@ -72,6 +75,9 @@ export const newsIssueSchema = z.object({
 
   sources: z.array(newsSourceSchema).min(1, "출처 없는 뉴스는 발행하지 않는다."),
   evidence: newsEvidenceSchema.optional(),
+
+  /** 최근 며칠 안에 실은 사건의 후속이면 그 사건 제목. 새로 확인된 변화가 있을 때만 다시 싣는다. */
+  followUp: z.string().optional(),
 });
 
 export const knowledgeItemSchema = z.object({
@@ -90,6 +96,9 @@ export const knowledgeItemSchema = z.object({
   interviewQuestion: z.string().optional(),
 
   keywords: z.array(z.string().min(1)),
+
+  /** 콘텐츠 형식(개념·아티클·트렌드·실무). 서버가 선정 결과로 붙인다. 이전 row에는 없다. */
+  format: z.enum(["concept", "article", "trend", "practice"]).optional(),
 
   /** 더 알아보기. 커리큘럼에 사람이 적어 둔 링크를 서버가 붙인다. AI 응답에서 받지 않는다. */
   references: z.array(z.object({ title: z.string().min(1), url: z.url() })).optional(),
@@ -125,17 +134,15 @@ export const dailyBriefingSchema = z
     oneLiner: z.string().min(1),
   });
 
-/** IT 파트. 키워드·한 줄은 경제 파트가 지면 맨 위에서 맡으므로 두지 않는다. */
+/**
+ * IT 파트. 키워드·한 줄은 경제 파트가 지면 맨 위에서 맡으므로 두지 않는다.
+ * 2026-10-19부터 IT 뉴스는 '주요 이슈' 한 데스크에서 함께 고르므로 이 파트는 테크 상식만 담는다.
+ * 이전 row에는 IT 뉴스가 들어 있어 newsItems를 그대로 읽는다.
+ */
 export const techSectionSchema = z.object({
   knowledgeItems: z.array(knowledgeItemSchema).min(1).max(2),
-  newsItems: z
-    .array(newsIssueSchema)
-    .min(TECH_NEWS_PER_DAY.min)
-    .max(TECH_NEWS_PER_DAY.max),
+  newsItems: z.array(newsIssueSchema).max(TECH_NEWS_PER_DAY.max),
 });
-
-/** STEP 3 — Tech·경제를 함께 보고 쓴 지면 맨 위 키워드와 한 줄 */
-export const headlineSchema = dailyBriefingSchema.pick({ todayKeywords: true, oneLiner: true });
 
 /** STEP 1 — 뉴스 후보 수집 결과 */
 export const newsCandidateSchema = z.object({
@@ -143,12 +150,21 @@ export const newsCandidateSchema = z.object({
   summary: z.string().min(1),
   region: newsRegionSchema,
   category: newsCategorySchema,
+  section: newsSectionSchema.optional(),
   importance: z.number().int().min(1).max(10),
   sources: z.array(newsSourceSchema).min(1),
 });
 
+/** 섹션별로 실제로 검색했는가. '중요한 사건이 적은 날'과 '검색이 좁았던 날'을 가르는 근거다. */
+export const newsCoverageSchema = z.array(z.object({
+  section: newsSectionSchema,
+  searched: z.boolean(),
+  note: z.string(),
+}));
+
 export const newsCandidateListSchema = z.object({
   candidates: z.array(newsCandidateSchema),
+  coverage: newsCoverageSchema.optional(),
 });
 
 /* ------------------------------------------------------------------
@@ -180,6 +196,7 @@ const aiMarketImpactSchema = z.object({
 export const aiNewsIssueSchema = z.object({
   rank: z.number(),
   candidateId: z.string(),
+  followUp: z.string().nullable(),
   /** 검색 단계가 매긴 지역이 틀렸을 때 작성 단계에서 바로잡는다. 검토 지적을 재시도로 고칠 수 있어야 한다. */
   region: newsRegionSchema,
   factIds: z.array(z.string()),
@@ -210,26 +227,38 @@ export const aiDailyBriefingSchema = z.object({
   oneLiner: z.string(),
 });
 
-/** IT 파트 STEP 2 응답 형식 */
-export const aiTechSectionSchema = z.object({
+/** 테크 상식 작성 응답. 테크 파트는 뉴스를 쓰지 않는다. */
+export const aiTechKnowledgeSchema = z.object({
   knowledgeItems: z.array(aiKnowledgeItemSchema),
-  newsItems: z.array(aiNewsIssueSchema),
 });
 
-/** STEP 3 응답 형식 */
-export const aiHeadlineSchema = z.object({
-  todayKeywords: z.array(z.string()),
-  oneLiner: z.string(),
+/** 테크 상식 발굴 응답. 뉴스 후보와 같은 출처 감사를 거치도록 sources 모양을 맞춘다. */
+export const aiTechTopicListSchema = z.object({
+  topics: z.array(z.object({
+    title: z.string(),
+    summary: z.string(),
+    field: z.enum(["cs", "frontend", "ai"]),
+    format: z.enum(["article", "trend"]),
+    learning: z.number(),
+    sources: z.array(aiNewsSourceSchema),
+  })),
+});
+
+/** 상식 큐레이터 응답. id는 코드가 후보 목록과 다시 대조한다. */
+export const curatorSchema = z.object({
+  picks: z.array(z.object({ id: z.string(), title: z.string(), reason: z.string() })),
 });
 
 /** STEP 1 응답 형식 */
 export const aiNewsCandidateListSchema = z.object({
+  coverage: newsCoverageSchema,
   candidates: z.array(
     z.object({
       title: z.string(),
       summary: z.string(),
       region: newsRegionSchema,
       category: newsCategorySchema,
+      section: newsSectionSchema,
       importance: z.number(),
       sources: z.array(aiNewsSourceSchema),
     }),

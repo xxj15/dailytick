@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from "react";
 import { NEWS_FIELD_LABEL, type NewsField } from "@/lib/labels";
 
-const FIELD_ORDER: NewsField[] = ["tech", "economy", "current"];
+const FIELD_ORDER: NewsField[] = ["politics", "world", "society", "economy", "tech"];
 
 /**
  * 오늘의 주요 이슈. 분야 칩으로 걸러 본다.

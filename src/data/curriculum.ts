@@ -34,7 +34,11 @@ export type Concept = {
   pairWith?: string;
   /** 더 알아보기. 사람이 고른 공식 문서·아티클이다. AI가 만들지 않는다. */
   references?: { title: string; url: string }[];
+  /** 콘텐츠 형식. 커리큘럼 개념은 concept, 아티클 요약은 article, 최근 기술 변화 해설은 trend다. */
+  format?: KnowledgeFormat;
 };
+
+export type KnowledgeFormat = "concept" | "article" | "trend" | "practice";
 
 export type CurriculumConcept = Concept & { category: CurriculumCategory };
 

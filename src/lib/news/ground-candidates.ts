@@ -14,7 +14,7 @@ export const factSelectionSchema = z.object({
 export type FactSelection = z.infer<typeof factSelectionSchema>;
 export type CandidateDocuments = { id: string; candidate: NewsCandidate; documents: SourceDocument[] };
 
-export function groundCandidates(inputs: CandidateDocuments[], selected: FactSelection, date: DateString, maxAgeHours?: number) {
+export function groundCandidates(inputs: CandidateDocuments[], selected: FactSelection, date: DateString, maxAgeHours?: number, allowUndated = false) {
   const rejected: EvidenceRejection[] = [];
   const candidates: GroundedCandidate[] = [];
   for (const input of inputs) {
@@ -33,7 +33,7 @@ export function groundCandidates(inputs: CandidateDocuments[], selected: FactSel
       continue;
     }
     const documents = input.documents.filter((doc) => facts.some((fact) => fact.sourceId === doc.id));
-    if (!documents.some((doc) => isFreshSource(doc.source.publishedAt, date, maxAgeHours))) {
+    if (!allowUndated && !documents.some((doc) => isFreshSource(doc.source.publishedAt, date, maxAgeHours))) {
       rejected.push({ candidateId: input.id, reason: "실제 게시일이 확인된 최신 근거가 없습니다." });
       continue;
     }

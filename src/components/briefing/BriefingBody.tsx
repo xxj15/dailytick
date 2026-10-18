@@ -6,10 +6,8 @@ import { KnowledgeSection } from "@/components/briefing/KnowledgeSection";
 import { StudyCompleteToggle } from "@/components/briefing/StudyCompleteToggle";
 import { StudyLogProvider } from "@/components/briefing/StudyLogProvider";
 import { StudyNote } from "@/components/briefing/StudyNote";
-import { newsField, type NewsField } from "@/lib/labels";
+import { newsField } from "@/lib/labels";
 import type { Briefing, StudyLog } from "@/types/briefing";
-
-const FIELD_ORDER: NewsField[] = ["tech", "economy", "current"];
 
 /**
  * 브리핑 본문. 메인(`/`)과 Archive 상세(`/archive/[date]`)가 같은 화면을 공유한다.
@@ -27,10 +25,9 @@ export function BriefingBody({
   /** 로그인한 지면 주인만 완료 표시와 메모를 쓸 수 있다. */
   canEdit: boolean;
 }) {
-  // 경제·시사 데스크와 IT 데스크가 따로 만든 뉴스를 한 목록으로 합친다. 분야 순서 → 각 데스크 순위 순이다.
-  const news = [...(briefing.tech?.newsItems ?? []), ...briefing.newsItems]
-    .map((issue, index) => ({ issue, index, field: newsField(issue.category) }))
-    .sort((a, b) => FIELD_ORDER.indexOf(a.field) - FIELD_ORDER.indexOf(b.field) || a.index - b.index);
+  // 주요 이슈는 한 데스크가 중요도 순으로 고른다. 2026-10-19 이전 지면은 IT 데스크 뉴스가 따로 있어 앞에 붙인다.
+  const news = [...briefing.newsItems, ...(briefing.tech?.newsItems ?? [])]
+    .map((issue) => ({ issue, field: newsField(issue.category) }));
 
   const tabs: BriefingTab[] = [
     ...(briefing.tech

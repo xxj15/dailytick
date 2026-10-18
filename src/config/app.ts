@@ -19,8 +19,8 @@ export const FIRST_ISSUE_DATE = "2026-08-25";
 
 /** 하루 뉴스 분량. */
 // 개수·지역 할당보다 근거 확보가 우선이다. 근거가 없으면 발행 자체를 중단한다.
-// 경제·시사 데스크 몫. IT 데스크 몫과 합쳐 '오늘의 주요 이슈' 5~6개가 된다.
-export const NEWS_PER_DAY = { min: 1, max: 4, default: 3 } as const;
+// 오늘의 주요 이슈. 한 데스크가 분야와 상관없이 중요도 순으로 고른다. 중요한 사건이 적은 날은 적게 낸다.
+export const NEWS_PER_DAY = { min: 1, max: 6, default: 5 } as const;
 
 /** 하루 상식 개수. 테크·경제 각각 하나씩 깊게 읽는다. 짝 개념도 붙이지 않는다. */
 export const TECH_CONCEPTS_PER_DAY = 1;
@@ -49,10 +49,14 @@ export const SOURCE_MAX_AGE_HOURS = 72;
 export const TECH_SOURCE_MAX_AGE_HOURS = 72;
 
 /** STEP 1에서 수집할 뉴스 후보 개수. */
-export const NEWS_CANDIDATE_COUNT = { min: 6, max: 10 } as const;
+export const NEWS_CANDIDATE_COUNT = { min: 10, max: 15 } as const;
 
-/** IT 파트 STEP 1 후보 개수. 3개를 내려면 근거 단계에서 탈락할 몫까지 모아야 한다. */
-export const TECH_NEWS_CANDIDATE_COUNT = { min: 6, max: 10 } as const;
+/** 본문을 직접 읽어 근거를 확인할 후보 수 상한. 중요도 순으로 자른다. 수집 시간과 비용의 균형점이다. */
+export const NEWS_GROUND_LIMIT = 12;
+
+/** 테크 상식 발굴: 그날 검색으로 찾는 최근 기술 글 후보 수와 허용 기간. 커리큘럼·아티클 후보와 함께 큐레이터가 본다. */
+export const TECH_DISCOVERY_COUNT = { min: 4, max: 8 } as const;
+export const TECH_DISCOVERY_MAX_AGE_DAYS = 14;
 
 /**
  * 뉴스 출처 선호 매체. (명세 §17)

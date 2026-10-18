@@ -2,11 +2,13 @@ import { SOURCE_MAX_AGE_HOURS } from "@/config/app";
 import type { Concept } from "@/data/curriculum";
 import { isFreshSource, type DateString } from "@/lib/date";
 import type { GroundedCandidate } from "@/lib/news/evidence-types";
+import { sourceMatchKey } from "@/lib/news/search-provenance";
 import type {
   BriefingViolation,
   GroundedSection,
   KnowledgeItem,
   NewsIssue,
+  RecentNewsEntry,
 } from "@/types/briefing";
 
 /**
@@ -31,6 +33,8 @@ export type VerifyContext = {
   candidates?: GroundedCandidate[];
   /** IT 파트처럼 발행 하한선이 다른 파트만 넘긴다. */
   maxSourceAgeHours?: number;
+  /** 최근 며칠 동안 실은 뉴스. 같은 기사를 출처로 다시 쓰면 후속 표시가 있어야 한다. */
+  recentNews?: RecentNewsEntry[];
 };
 
 /**
@@ -39,11 +43,12 @@ export type VerifyContext = {
  */
 export function verifyBriefing(
   content: GroundedSection,
-  { date, concepts, candidates, maxSourceAgeHours = SOURCE_MAX_AGE_HOURS }: VerifyContext,
+  { date, concepts, candidates, maxSourceAgeHours = SOURCE_MAX_AGE_HOURS, recentNews = [] }: VerifyContext,
 ): Violation[] {
   return [
     ...knowledgeViolations(content.knowledgeItems, concepts),
     ...freshnessViolations(content.newsItems, date, maxSourceAgeHours),
+    ...duplicateViolations(content.newsItems, recentNews),
     ...(candidates ? evidenceViolations(content.newsItems, candidates) : []),
   ];
 }
@@ -70,6 +75,27 @@ function evidenceViolations(items: NewsIssue[], candidates: GroundedCandidate[])
     const written = [item.title, item.whyImportant, item.impact, ...Object.values(item.marketImpact), item.interpretation].filter((text): text is string => !!text).join(" ");
     const added = numbers(written).filter((number) => !allowed.has(number));
     return added.length ? [{ code: "news.unsupported_number", message: `뉴스 ${item.rank}: 선택한 근거에 없는 숫자 ${[...new Set(added)].join(", ")}를 삭제하세요.` }] : [];
+  });
+}
+
+/**
+ * 최근에 실은 기사와 같은 출처를 다시 쓰면서 후속 표시가 없으면 걸러낸다.
+ * 같은 사건인지에 대한 최종 판단은 작성·검토 단계의 AI가 한다. 여기서는 가장 확실한 경우만 기계적으로 막는다.
+ */
+function duplicateViolations(items: NewsIssue[], recentNews: RecentNewsEntry[]): Violation[] {
+  const seen = new Map<string, string>();
+  for (const entry of recentNews) {
+    for (const url of entry.urls) {
+      const key = sourceMatchKey(url);
+      if (key) seen.set(key, entry.title);
+    }
+  }
+  return items.flatMap((item) => {
+    if (item.followUp) return [];
+    const repeated = item.sources.map((source) => seen.get(sourceMatchKey(source.url) ?? "")).find(Boolean);
+    return repeated
+      ? [{ code: "news.duplicate", message: `뉴스 ${item.rank}: 최근에 실은 "${repeated}"와 같은 기사를 출처로 씁니다. 같은 사건이면 followUp에 그 제목을 적고 새로 바뀐 점만 쓰거나, 다른 이슈로 바꾸세요.` }]
+      : [];
   });
 }
 
@@ -166,18 +192,16 @@ function applyConceptIdentity(
     level: concept.level,
     category: concept.category,
     ...(concept.references?.length ? { references: concept.references } : {}),
+    ...(concept.format ? { format: concept.format } : {}),
   }));
 }
 
 /**
- * 국내(KR) 이슈를 앞, 글로벌(GLOBAL) 이슈를 뒤로 정렬하고 rank를 1부터 다시 매긴다.
- * 같은 지역 안에서는 AI가 매긴 시장 영향도 순서를 그대로 둔다.
+ * AI가 매긴 중요도 순서(rank)대로 정렬하고 1부터 다시 매긴다.
+ * 지역이나 분야로 다시 줄 세우지 않는다. 그날 가장 중요한 사건이 맨 앞이다.
  */
 function orderNewsIssues(items: NewsIssue[]): NewsIssue[] {
-  const byRank = [...items].sort((a, b) => a.rank - b.rank);
-
-  return [
-    ...byRank.filter((item) => item.region === "KR"),
-    ...byRank.filter((item) => item.region !== "KR"),
-  ].map((item, index) => ({ ...item, rank: index + 1 }));
+  return [...items]
+    .sort((a, b) => a.rank - b.rank)
+    .map((item, index) => ({ ...item, rank: index + 1 }));
 }

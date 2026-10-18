@@ -158,7 +158,7 @@ test("위반을 한 번에 모아서 돌려준다", () => {
   );
 });
 
-test("국내 뉴스를 앞에 두고 rank를 다시 매긴다", () => {
+test("지역과 상관없이 중요도 순서대로 두고 rank를 1부터 다시 매긴다", () => {
   const normalized = normalizeBriefing(
     briefing({
       newsItems: [
@@ -173,9 +173,9 @@ test("국내 뉴스를 앞에 두고 rank를 다시 매긴다", () => {
   assert.deepEqual(
     normalized.newsItems.map((n) => [n.rank, n.title]),
     [
-      [1, "국내 2위"],
-      [2, "국내 3위"],
-      [3, "글로벌"],
+      [1, "글로벌"],
+      [2, "국내 2위"],
+      [3, "국내 3위"],
     ],
   );
 });
@@ -203,4 +203,12 @@ test("더 알아보기 링크는 AI 응답이 아니라 커리큘럼 값으로 �
   const item = { ...knowledge(), references: [{ title: "지어낸 링크", url: "https://invented.example.com" }] };
   const normalized = normalizeBriefing(briefing({ knowledgeItems: [item] }), { concepts: [withRefs] });
   assert.deepEqual(normalized.knowledgeItems[0].references, withRefs.references);
+});
+
+test("최근에 실은 기사를 출처로 다시 쓰면 후속 표시가 있어야 한다", () => {
+  const recentNews = [{ briefingDate: "2026-09-16", title: "어제 실은 뉴스", whatHappened: "…", urls: ["https://example.com/a"] }];
+  const repeated = verifyBriefing(briefing({ newsItems: [news()] }), { date: DATE, concepts: [CONCEPT], recentNews });
+  assert.ok(repeated.some((v) => v.code === "news.duplicate"));
+  const followUp = verifyBriefing(briefing({ newsItems: [news({ followUp: "어제 실은 뉴스" })] }), { date: DATE, concepts: [CONCEPT], recentNews });
+  assert.ok(!followUp.some((v) => v.code === "news.duplicate"));
 });

@@ -69,16 +69,20 @@ test("근거 없는 후보는 생성 API를 호출하지 않는다", async () =>
   assert.equal(called, false);
 });
 
-test("IT 파트도 같은 근거 검증을 거쳐 키워드·한 줄 없이 생성된다", async () => {
-  const techDraft = { knowledgeItems: DRAFT.knowledgeItems, newsItems: DRAFT.newsItems };
-  const result = await generateTechSection(params, { ...dependencies, write: async () => ({ draft: techDraft, inputTokens: 10, outputTokens: 5 }) });
-  assert.equal(result.content.newsItems[0].whatHappened, QUOTE);
-  assert.ok(!("todayKeywords" in result.content));
+test("테크 상식은 뉴스 없이 상식만 쓰고, 아티클이면 원문을 검토 단계에 함께 넘긴다", async () => {
+  const draft = { knowledgeItems: DRAFT.knowledgeItems };
+  // 개념형: 뉴스 후보가 없어도 생성된다
+  const concept = await generateTechSection({ ...params, candidates: [] }, { ...dependencies, write: async () => ({ draft, inputTokens: 1, outputTokens: 1 }) });
+  assert.equal(concept.content.newsItems.length, 0);
+  assert.ok(!("todayKeywords" in concept.content));
 
+  // 아티클형: 원문(후보)이 검토 단계로 넘어가고, 검토가 요약을 거절하면 발행하지 않는다
+  let reviewed: unknown[] = [];
   await assert.rejects(() => generateTechSection(params, {
-    ...dependencies,
-    write: async () => ({ draft: { ...techDraft, newsItems: [{ ...techDraft.newsItems[0], whyImportant: "성능이 40% 좋아졌다." }] }, inputTokens: 10, outputTokens: 5 }),
-  }), (error: unknown) => error instanceof BriefingValidationError && error.violations.every((item) => item.code === "news.unsupported_number"));
+    write: async () => ({ draft, inputTokens: 1, outputTokens: 1 }),
+    review: async (_content, candidates) => { reviewed = candidates; return { review: { news: [], framing: { supported: false, reason: "원문에 없는 수치" } }, inputTokens: 1, outputTokens: 1 }; },
+  }), BriefingValidationError);
+  assert.equal(reviewed.length, 1);
 });
 
 test("마지막 시도에서 특정 뉴스만 검토에 걸리면 그 뉴스만 빼고 발행한다", async () => {

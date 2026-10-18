@@ -12,11 +12,33 @@ export type GenerationAudit = {
   reviews: ReviewRecord[];
   /** IT 파트는 경제 파트와 따로 성패가 갈리므로 위반·실패 사유를 자기 안에 둔다. */
   tech?: TechAudit;
-  /** Tech·경제 키워드 합성이 실패해 경제 키워드를 그대로 쓴 경우 그 사유 */
-  headlineError?: string;
+  /** 주요 이슈 수집이 다섯 섹션을 실제로 훑었는가. 건수가 적을 때 원인을 가른다. */
+  coverage?: CoverageAudit;
+  /** 상식을 어떻게 골랐는가. 큐레이터 추천·채택·탈락·대체 사유를 남긴다. */
+  curation?: CurationAudit;
 };
 
-export type TechAudit = Omit<GenerationAudit, "tech" | "headlineError"> & {
+export type CoverageAudit = {
+  sections: { section: string; searched: boolean; note: string }[];
+  /** ok = 충분 / thin_day = 다 훑었는데 중요한 사건이 적은 날 / narrow_search = 검색 범위가 좁았던 날 */
+  verdict: "ok" | "thin_day" | "narrow_search";
+  recollected: boolean;
+  candidates: number;
+  grounded: number;
+};
+
+export type CurationAudit = {
+  /** curated = 큐레이터 추천 채택 / fallback = 검증된 커리큘럼 개념으로 대체 / review = 커리큘럼 복습 / skipped = 발행 보류 */
+  status: "curated" | "fallback" | "review" | "skipped";
+  picks?: { id: string; title: string; reason: string }[];
+  chosen?: { id: string; title: string; format: string; reason?: string };
+  /** 추천됐지만 쓰지 못한 후보와 그 이유 */
+  rejected?: string[];
+  discovered?: number;
+  error?: string;
+};
+
+export type TechAudit = Omit<GenerationAudit, "tech" | "coverage"> & {
   attempts: number;
   violations: BriefingViolation[];
   /** 실패했다면 그 사유. 이날 IT 파트 없이 발행했다는 뜻이다. */
@@ -27,8 +49,10 @@ export type TechAudit = Omit<GenerationAudit, "tech" | "headlineError"> & {
  * cron 응답에 싣는 요약. 파트별로 단계마다 몇 건이 남았고 무엇이 왜 떨어졌는지만 보여준다.
  * DB에 들어가 보지 않고도 '왜 뉴스가 적은지'를 바로 알 수 있게 한다.
  */
-export function summarizeAudit(audit: Omit<GenerationAudit, "tech" | "headlineError"> & { errorMessage?: string; violations?: BriefingViolation[] }) {
+export function summarizeAudit(audit: Omit<GenerationAudit, "tech"> & { errorMessage?: string; violations?: BriefingViolation[] }) {
   return {
+    ...(audit.coverage ? { coverage: audit.coverage } : {}),
+    ...(audit.curation ? { curation: audit.curation } : {}),
     stage: audit.stage,
     searches: audit.searchTrace.filter((call) => call.action === "search").length,
     rejectedUrls: audit.rejectedUrls.length,

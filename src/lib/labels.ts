@@ -55,20 +55,24 @@ export function knowledgeLabel(category: string): { field: string; detail?: stri
   return { field: category };
 }
 
-/** 오늘의 주요 이슈를 나누는 세 분야. 분류(category)에서 정한다. */
-export type NewsField = "tech" | "economy" | "current";
+/** 오늘의 주요 이슈를 나누는 분야. 분류(category)에서 정한다. 수집 단계의 다섯 섹션과 같다. */
+export type NewsField = "politics" | "world" | "society" | "economy" | "tech";
 
 export const NEWS_FIELD_LABEL: Record<NewsField, string> = {
-  tech: "IT·테크",
+  politics: "정치·정책",
+  world: "국제",
+  society: "사회",
   economy: "경제",
-  current: "시사",
+  tech: "IT·과학",
 };
 
-const TECH_CATEGORIES: NewsCategory[] = ["ai", "semiconductor", "software", "platform", "security"];
-const CURRENT_CATEGORIES: NewsCategory[] = ["politics", "society", "world", "science", "geopolitics"];
+const FIELD_BY_CATEGORY: Partial<Record<NewsCategory, NewsField>> = {
+  ai: "tech", semiconductor: "tech", software: "tech", platform: "tech", security: "tech", science: "tech",
+  politics: "politics", policy: "politics",
+  world: "world", geopolitics: "world",
+  society: "society",
+};
 
 export function newsField(category: NewsCategory): NewsField {
-  if (TECH_CATEGORIES.includes(category)) return "tech";
-  if (CURRENT_CATEGORIES.includes(category)) return "current";
-  return "economy";
+  return FIELD_BY_CATEGORY[category] ?? "economy";
 }

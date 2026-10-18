@@ -1,6 +1,6 @@
 import "server-only";
 import { zodTextFormat } from "openai/helpers/zod";
-import { NEWS_CANDIDATE_COUNT } from "@/config/app";
+import { NEWS_GROUND_LIMIT } from "@/config/app";
 import { isFreshSource, type DateString } from "@/lib/date";
 import type { EvidenceRejection, SourceDocument } from "@/lib/news/evidence-types";
 import { extractSource } from "@/lib/news/extract-source";
@@ -40,11 +40,14 @@ export async function groundMarketNews(
   dependencies: GroundNewsDependencies = { fetch: fetchSource, select: selectFacts },
   signal?: AbortSignal,
   maxAgeHours?: number,
+  /** 오래돼도 읽을 가치가 있는 아티클처럼 게시일이 필수가 아닌 자료. 게시일이 있으면 그대로 기록한다. */
+  allowUndated = false,
 ) {
+  const fresh = (publishedAt: string | undefined) => (allowUndated ? true : isFreshSource(publishedAt, date, maxAgeHours));
   const rejected: EvidenceRejection[] = [];
   const inputs: CandidateDocuments[] = [];
   const cache = new Map<string, Promise<SourceDocument>>();
-  const bounded = [...candidates].sort((a, b) => b.importance - a.importance).slice(0, NEWS_CANDIDATE_COUNT.max);
+  const bounded = [...candidates].sort((a, b) => b.importance - a.importance).slice(0, NEWS_GROUND_LIMIT);
   // 동시에 최대 세 후보를 읽는다. URL당 응답 크기·시간도 fetchSource에서 제한한다.
   for (let offset = 0; offset < bounded.length; offset += 3) {
     signal?.throwIfAborted();
@@ -61,7 +64,7 @@ export async function groundMarketNews(
             cache.set(key, pending);
           }
           const doc = await pending;
-          if (isFreshSource(doc.source.publishedAt, date, maxAgeHours)) {
+          if (fresh(doc.source.publishedAt)) {
             documents.push(doc);
             break;
           }
@@ -82,6 +85,6 @@ export async function groundMarketNews(
   } catch (error) {
     throw new GroundNewsError(error instanceof Error ? error.message : String(error), rejected);
   }
-  const grounded = groundCandidates(inputs, result.selection, date, maxAgeHours);
+  const grounded = groundCandidates(inputs, result.selection, date, maxAgeHours, allowUndated);
   return { ...grounded, rejected: [...rejected, ...grounded.rejected], inputTokens: result.inputTokens, outputTokens: result.outputTokens };
 }
