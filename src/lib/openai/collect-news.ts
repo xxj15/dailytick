@@ -43,6 +43,10 @@ export function collectTechNews(date: DateString, signal?: AbortSignal) {
   return collectNews(buildTechNewsCollectionPrompt(date), signal);
 }
 
+/**
+ * 웹 검색을 여러 번 하는 단계라 다른 AI 호출보다 기한을 길게 준다.
+ * 경제·IT가 동시에 돌기 때문에 전체 실행 기한(260초) 안에서 여유가 있다.
+ */
 async function collectNews(
   input: string,
   signal?: AbortSignal,
@@ -56,7 +60,7 @@ async function collectNews(
     text: {
       format: zodTextFormat(aiNewsCandidateListSchema, "news_candidates"),
     },
-  }, { timeout: 60_000, maxRetries: 0, signal });
+  }, { timeout: 90_000, maxRetries: 0, signal });
 
   const calls = response.output.filter((item) => item.type === "web_search_call");
   const usage = {
