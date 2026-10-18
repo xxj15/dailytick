@@ -139,5 +139,21 @@ test("두 번 모두 키워드·한 줄(framing)만 걸리면 그 부분만 고�
     review: async () => ({ review: ++reviews < 3 ? { ...passed, framing: { supported: false, reason: "키워드가 뉴스에 없음" } } : passed, inputTokens: 1, outputTokens: 1 }),
   });
   assert.equal(result.attempts, 3);
-  assert.match(lastPrompt, /이 부분만 고치고/);
+  assert.match(lastPrompt, /이 부분을 고치고/);
+});
+
+test("두 번째 시도에서 뉴스 한 건과 framing이 함께 걸리면, 그 뉴스는 빼고 framing만 고칠 기회를 준다", async () => {
+  const second = { ...CANDIDATE, id: "c2", title: "두 번째", facts: [{ ...CANDIDATE.facts[0], id: "c2-f1" }] };
+  const twoNews = { ...DRAFT, newsItems: [DRAFT.newsItems[0], { ...DRAFT.newsItems[0], rank: 2, candidateId: "c2", factIds: ["c2-f1"], title: "두 번째 뉴스" }] };
+  let reviews = 0;
+  let lastPrompt = "";
+  const result = await generateDailyBriefing({ ...params, candidates: [CANDIDATE, second] }, {
+    write: async (input) => { lastPrompt = input; return { draft: reviews >= 2 ? { ...DRAFT, newsItems: [DRAFT.newsItems[0]] } : twoNews, inputTokens: 1, outputTokens: 1 }; },
+    review: async (content) => (++reviews < 3
+      ? { review: { news: content.newsItems.map((item) => ({ rank: item.rank, supported: item.rank === 1, reason: item.rank === 1 ? "일치" : "최근 뉴스 반복" })), framing: { supported: false, reason: "예정된 일을 현재처럼 씀" } }, inputTokens: 1, outputTokens: 1 }
+      : { review: { news: content.newsItems.map((item) => ({ rank: item.rank, supported: true, reason: "일치" })), framing: passed.framing }, inputTokens: 1, outputTokens: 1 }),
+  });
+  assert.equal(result.attempts, 3);
+  assert.match(lastPrompt, /이번에는 싣지 않는다/);
+  assert.deepEqual(result.content.newsItems.map((item) => item.title), ["기준금리 동결"]);
 });

@@ -19,7 +19,7 @@ import type { RecentNewsEntry } from "@/types/briefing";
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고,
  * 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v29";
+export const PROMPT_VERSION = "v30";
 
 /**
  * 모든 단계에 공통으로 적용되는 편집 원칙.
@@ -499,6 +499,7 @@ ${recentBlock}
 
 ### whyImportant
 
+- '무슨 일이 있었나'(근거 문장)를 다시 옮겨 적지 않는다. 독자는 바로 위에서 이미 읽었다. 배경과 의미부터 쓴다.
 - facts에 없는 실제 통계·발언·정책 세부사항·시장 반응을 추가하지 않는다.
 - 기업 소식이면 이 결정이 무엇을 바꾸는지, 트렌드면 왜 지금 이런 흐름이 생겼는지,
   시장 등락이면 왜 올랐거나 내렸는지를 쉬운 말로 설명한다.

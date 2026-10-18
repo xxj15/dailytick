@@ -221,9 +221,16 @@ ${lastError}`;
     const unsupported = reviewViolations(content, reviewed.review);
     if (unsupported.length) {
       fail(unsupported);
-      if (attempt === 2 && unsupported.every((violation) => violation.code === "briefing.unsupported")) {
+      // 두 번째 시도에서 키워드·한 줄·상식 설명(framing)이 걸렸다면, 걸린 뉴스는 빼고 framing만 고칠 기회를 한 번 더 준다.
+      const reviewOnly = unsupported.every((violation) => violation.code === "briefing.unsupported" || violation.code === "news.unsupported");
+      if (attempt === 2 && reviewOnly && unsupported.some((violation) => violation.code === "briefing.unsupported")) {
         maxAttempts = 3;
-        lastError = `뉴스 본문은 통과했다. 아래 지적은 todayKeywords·oneLiner·knowledgeItems에 대한 것이다. 이 부분만 고치고 나머지는 그대로 둔다.\n${lastError}`;
+        const dropped = unsupported.filter((violation) => violation.code === "news.unsupported").map((violation) => violation.message);
+        lastError = [
+          dropped.length ? `다음 뉴스는 근거 검토를 통과하지 못했다. 이번에는 싣지 않는다:\n${dropped.join("\n")}` : "뉴스 본문은 통과했다.",
+          `아래 지적은 todayKeywords·oneLiner·knowledgeItems에 대한 것이다. 이 부분을 고치고, 나머지 뉴스는 그대로 둔다.`,
+          ...unsupported.filter((violation) => violation.code === "briefing.unsupported").map((violation) => violation.message),
+        ].join("\n");
         continue;
       }
       // 마지막 시도에서 특정 뉴스만 걸렸다면 그 뉴스만 빼고 발행한다.
