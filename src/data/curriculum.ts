@@ -1,12 +1,17 @@
+import { rotateByCategory } from "@/lib/curriculum/rotate";
+
 /**
- * 금융 개념 Curriculum.
+ * 경제 상식 Curriculum.
  *
- * AI가 매일 마음대로 주제를 고르지 않는다.
- * 학습 순서는 이 배열의 순서를 그대로 따른다. (기초 → 중급)
- * 순서를 바꾸면 학습 흐름이 바뀌므로 신중하게 수정한다.
+ * AI가 매일 마음대로 주제를 고르지 않는다. 출제 순서는 코드가 정한다.
+ * 경제(경제 기초·거시·금리·글로벌)와 증권(시장·기업가치·상품·재무 등) 두 갈래를 번갈아 낸다.
+ * 각 갈래 안에서는 아래 배열 순서(기초 → 중급)를 따른다.
+ *
+ * slug는 학습 이력으로 DB에 남는다. 이미 쓴 slug는 바꾸거나 지우지 않는다.
  */
 
 export type CurriculumCategory =
+  | "economy-basics"
   | "market-basics"
   | "corporate-value"
   | "rates-bonds"
@@ -27,11 +32,41 @@ export type Concept = {
   category: string;
   /** 함께 다루면 좋은 개념. 하루 최대 2개까지 묶을 수 있다. */
   pairWith?: string;
+  /** 더 알아보기. 사람이 고른 공식 문서·아티클이다. AI가 만들지 않는다. */
+  references?: { title: string; url: string }[];
 };
 
 export type CurriculumConcept = Concept & { category: CurriculumCategory };
 
-export const CURRICULUM: CurriculumConcept[] = [
+/** 지면에 표시하는 큰 갈래. 상식 카테고리 칩과 출제 순환의 기준이다. */
+export type EconomyField = "economy" | "securities";
+
+export function economyField(category: string): EconomyField {
+  return ["economy-basics", "macro", "rates-bonds", "global-markets"].includes(category) ? "economy" : "securities";
+}
+
+const ALL: CurriculumConcept[] = [
+  // 경제 기초 — 경제 뉴스를 읽는 데 필요한 기본기 (2026-10-18 추가)
+  { slug: "supply-demand", title: "수요와 공급: 가격은 누가 정할까", level: 1, category: "economy-basics" },
+  { slug: "inflation", title: "인플레이션: 같은 돈으로 살 수 있는 게 줄어드는 이유", level: 1, category: "economy-basics" },
+  { slug: "deflation", title: "디플레이션: 물가가 내리면 왜 위험할까", level: 1, category: "economy-basics" },
+  { slug: "business-cycle", title: "경기순환: 호황과 불황은 왜 반복될까", level: 1, category: "economy-basics" },
+  { slug: "recession", title: "경기침체(리세션)는 어떻게 판단할까", level: 2, category: "economy-basics" },
+  { slug: "employment-data", title: "실업률과 고용지표 읽는 법", level: 2, category: "economy-basics" },
+  { slug: "ppi", title: "생산자물가(PPI)와 소비자물가의 차이", level: 2, category: "economy-basics" },
+  { slug: "expected-inflation", title: "기대인플레이션: 사람들이 예상하는 물가", level: 2, category: "economy-basics" },
+  { slug: "stagflation", title: "스태그플레이션: 경기는 나쁜데 물가는 오를 때", level: 2, category: "economy-basics" },
+  { slug: "money-supply", title: "통화량(M2)과 유동성", level: 3, category: "economy-basics" },
+  { slug: "qe-qt", title: "양적완화와 양적긴축", level: 3, category: "economy-basics" },
+  { slug: "rate-and-fx", title: "금리가 오르면 환율은 어떻게 될까", level: 3, category: "economy-basics" },
+  { slug: "trade-balance", title: "무역수지와 수출 지표", level: 3, category: "economy-basics" },
+  { slug: "tariff", title: "관세는 누가 내고 누가 손해를 볼까", level: 3, category: "economy-basics" },
+  { slug: "household-debt", title: "가계부채와 금리의 관계", level: 3, category: "economy-basics" },
+  { slug: "housing-and-rates", title: "금리와 집값은 어떻게 연결될까", level: 3, category: "economy-basics" },
+  { slug: "fx-reserves", title: "외환보유액은 왜 쌓아 둘까", level: 4, category: "economy-basics" },
+  { slug: "sovereign-rating", title: "국가신용등급이 바뀌면 생기는 일", level: 4, category: "economy-basics" },
+  { slug: "potential-growth", title: "잠재성장률: 나라 경제의 체력", level: 4, category: "economy-basics" },
+
   // LEVEL 1 — 시장 기본
   { slug: "stock-vs-bond", title: "주식과 채권의 차이", level: 1, category: "market-basics" },
   { slug: "market-cap", title: "시가총액", level: 1, category: "market-basics" },
@@ -143,3 +178,5 @@ export const CURRICULUM: CurriculumConcept[] = [
   { slug: "alpha-beta", title: "알파와 베타", level: 10, category: "global-markets" },
   { slug: "sharpe-ratio", title: "샤프지수", level: 10, category: "global-markets" },
 ];
+
+export const CURRICULUM: CurriculumConcept[] = rotateByCategory(ALL, (concept) => economyField(concept.category));

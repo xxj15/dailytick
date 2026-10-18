@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
-import { CURRICULUM } from "@/data/curriculum";
+import { CURRICULUM, economyField } from "@/data/curriculum";
 import { TECH_CURRICULUM } from "@/data/tech-curriculum";
 import { selectTodayConcepts } from "@/lib/curriculum/select-next-concepts";
 import type { ConceptHistoryEntry } from "@/types/briefing";
@@ -98,12 +98,12 @@ test("IT 개념은 IT 커리큘럼과 IT 이력으로 따로, 하루 두 개씩 
   );
 });
 
-test("하루 두 개를 고를 때 짝 개념이 있으면 짝이 먼저 들어간다", () => {
-  const rendering = TECH_CURRICULUM.findIndex((c) => c.slug === "q-where-render");
-  const learned = TECH_CURRICULUM.slice(0, rendering).map((c) => c.slug);
-  const { concepts } = selectTodayConcepts(history(learned), TECH_CURRICULUM, 2);
+test("짝 개념을 끄면 하루 정확히 한 개만 낸다", () => {
+  const eps = CURRICULUM.findIndex((c) => c.slug === "eps");
+  const learned = CURRICULUM.slice(0, eps).map((c) => c.slug);
+  const { concepts } = selectTodayConcepts(history(learned), CURRICULUM, 1, false);
 
-  assert.deepEqual(concepts.map((c) => c.slug), ["q-where-render", "q-hydration"]);
+  assert.deepEqual(concepts.map((c) => c.slug), ["eps"]);
 });
 
 test("IT 커리큘럼을 다 돌면 가장 오래된 두 개를 복습한다", () => {
@@ -114,13 +114,27 @@ test("IT 커리큘럼을 다 돌면 가장 오래된 두 개를 복습한다", (
   assert.deepEqual(concepts.map((c) => c.slug), all.slice(0, 2));
 });
 
-test("IT 상식은 분야를 돌아가며 나가고, 분야 안에서는 쉬운 것부터 나간다", () => {
-  // 앞쪽 2주(하루 두 개)는 같은 분야가 연달아 붙지 않는다
-  for (let i = 1; i < 28; i++) {
+test("테크 상식은 CS·프론트엔드·AI를 돌아가며 나가고, 분야 안에서는 쉬운 것부터 나간다", () => {
+  assert.deepEqual(TECH_CURRICULUM.slice(0, 3).map((c) => c.category), ["cs", "frontend", "ai"]);
+  for (let i = 1; i < 60; i++) {
     assert.notEqual(TECH_CURRICULUM[i].category, TECH_CURRICULUM[i - 1].category, `${i}번째`);
   }
-  // 분야 안의 순서는 작성한 대로다 (자바스크립트: 0.1+0.2 → 싱글 스레드)
-  const js = TECH_CURRICULUM.filter((c) => c.category === "javascript").map((c) => c.slug);
-  assert.ok(js.indexOf("q-zero-point-one") < js.indexOf("q-single-thread"));
+  const frontend = TECH_CURRICULUM.filter((c) => c.category === "frontend").map((c) => c.slug);
+  assert.ok(frontend.indexOf("q-rendering-pipeline") < frontend.indexOf("q-server-components"));
   assert.equal(new Set(TECH_CURRICULUM.map((c) => c.slug)).size, TECH_CURRICULUM.length);
+});
+
+test("모든 테크 상식에 사람이 고른 '더 알아보기' 링크가 있다", () => {
+  for (const concept of TECH_CURRICULUM) {
+    assert.ok(concept.references?.length, concept.slug);
+    for (const reference of concept.references ?? []) assert.match(reference.url, /^https:\/\//);
+  }
+});
+
+test("경제 상식은 경제·증권을 번갈아 내고, 이미 쓰던 slug는 그대로 남아 있다", () => {
+  assert.deepEqual(CURRICULUM.slice(0, 4).map((c) => economyField(c.category)), ["economy", "securities", "economy", "securities"]);
+  for (const slug of ["stock-vs-bond", "per", "base-rate", "cpi", "sharpe-ratio"]) {
+    assert.ok(CURRICULUM.some((c) => c.slug === slug), slug);
+  }
+  assert.equal(new Set(CURRICULUM.map((c) => c.slug)).size, CURRICULUM.length);
 });

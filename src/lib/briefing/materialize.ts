@@ -24,7 +24,7 @@ export function materializeBriefing<D extends { newsItems: z.infer<typeof aiNews
       return {
         rank: item.rank, title: item.title, region: item.region, category: candidate.category,
         whatHappened: facts.map((fact) => fact.quote).join(" "),
-        whyImportant: item.whyImportant, marketImpact: item.marketImpact, interpretation: item.interpretation,
+        whyImportant: item.whyImportant, impact: item.impact, marketImpact: item.marketImpact, interpretation: item.interpretation,
         sources: documents.map((doc) => doc.source),
         evidence: {
           candidateId: candidate.id, facts,

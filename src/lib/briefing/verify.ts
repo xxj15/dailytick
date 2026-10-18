@@ -67,7 +67,7 @@ function evidenceViolations(items: NewsIssue[], candidates: GroundedCandidate[])
     const numbers = (value: string) => value.match(/\d+(?:[,.]\d+)*/g) ?? [];
     // 실제로 수집한 기사 제목의 숫자(제품 버전, 연도 등)도 근거로 본다. 제목은 원문 페이지에서 읽은 값이다.
     const allowed = new Set([...evidence.facts.map((fact) => fact.quote), ...item.sources.map((source) => source.title)].flatMap(numbers));
-    const written = [item.title, item.whyImportant, ...Object.values(item.marketImpact), item.interpretation].filter((text): text is string => !!text).join(" ");
+    const written = [item.title, item.whyImportant, item.impact, ...Object.values(item.marketImpact), item.interpretation].filter((text): text is string => !!text).join(" ");
     const added = numbers(written).filter((number) => !allowed.has(number));
     return added.length ? [{ code: "news.unsupported_number", message: `뉴스 ${item.rank}: 선택한 근거에 없는 숫자 ${[...new Set(added)].join(", ")}를 삭제하세요.` }] : [];
   });
@@ -165,6 +165,7 @@ function applyConceptIdentity(
     title: concept.title,
     level: concept.level,
     category: concept.category,
+    ...(concept.references?.length ? { references: concept.references } : {}),
   }));
 }
 

@@ -13,6 +13,7 @@ export const NEWS_CATEGORY_LABEL: Record<NewsCategory, string> = {
   politics: "정치",
   society: "사회",
   world: "국제",
+  science: "과학",
   ai: "AI",
   semiconductor: "반도체",
   software: "소프트웨어",
@@ -52,3 +53,21 @@ export const KNOWLEDGE_CATEGORY_LABEL: Record<string, string> = {
   ai: "AI",
   "dev-life": "개발 문화",
 };
+
+/** 오늘의 주요 이슈를 나누는 세 분야. 분류(category)에서 정한다. */
+export type NewsField = "tech" | "economy" | "current";
+
+export const NEWS_FIELD_LABEL: Record<NewsField, string> = {
+  tech: "IT·테크",
+  economy: "경제",
+  current: "시사",
+};
+
+const TECH_CATEGORIES: NewsCategory[] = ["ai", "semiconductor", "software", "platform", "security"];
+const CURRENT_CATEGORIES: NewsCategory[] = ["politics", "society", "world", "science", "geopolitics"];
+
+export function newsField(category: NewsCategory): NewsField {
+  if (TECH_CATEGORIES.includes(category)) return "tech";
+  if (CURRENT_CATEGORIES.includes(category)) return "current";
+  return "economy";
+}

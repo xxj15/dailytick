@@ -1,5 +1,6 @@
 import "server-only";
-import { TECH_CONCEPTS_PER_DAY, TECH_SOURCE_MAX_AGE_HOURS } from "@/config/app";
+import { ECONOMY_CONCEPTS_PER_DAY, TECH_CONCEPTS_PER_DAY, TECH_SOURCE_MAX_AGE_HOURS } from "@/config/app";
+import { CURRICULUM } from "@/data/curriculum";
 import { TECH_CURRICULUM } from "@/data/tech-curriculum";
 import {
   collectLearnedTitles,
@@ -97,7 +98,7 @@ export async function createDailyBriefing(
     const history = await services.getConceptHistory();
 
     // 커리큘럼을 모두 돌았으면 가장 오래된 개념부터 복습한다. 개념 없이 발행하지 않는다.
-    const { concepts, mode } = selectTodayConcepts(history);
+    const { concepts, mode } = selectTodayConcepts(history, CURRICULUM, ECONOMY_CONCEPTS_PER_DAY, false);
     const learnedTitles = collectLearnedTitles(history);
 
     audit.stage = "search";
@@ -205,7 +206,7 @@ async function createTechSection(
 
   try {
     const history = await services.getTechConceptHistory();
-    const { concepts, mode } = selectTodayConcepts(history, TECH_CURRICULUM, TECH_CONCEPTS_PER_DAY);
+    const { concepts, mode } = selectTodayConcepts(history, TECH_CURRICULUM, TECH_CONCEPTS_PER_DAY, false);
     const learnedTitles = collectLearnedTitles(history);
 
     audit.stage = "search";

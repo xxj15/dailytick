@@ -197,3 +197,10 @@ test("개념의 식별 정보는 커리큘럼 값으로 되돌린다", () => {
   assert.equal(item.category, "rates-bonds");
   assert.equal(item.definition, "정의");
 });
+
+test("더 알아보기 링크는 AI 응답이 아니라 커리큘럼 값으로 붙인다", () => {
+  const withRefs = { ...CONCEPT, references: [{ title: "공식 문서", url: "https://example.com/doc" }] };
+  const item = { ...knowledge(), references: [{ title: "지어낸 링크", url: "https://invented.example.com" }] };
+  const normalized = normalizeBriefing(briefing({ knowledgeItems: [item] }), { concepts: [withRefs] });
+  assert.deepEqual(normalized.knowledgeItems[0].references, withRefs.references);
+});

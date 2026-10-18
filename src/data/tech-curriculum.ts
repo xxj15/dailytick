@@ -1,135 +1,191 @@
 import type { Concept } from "@/data/curriculum";
+import { rotateByCategory } from "@/lib/curriculum/rotate";
 
 /**
- * IT 개념 Curriculum.
+ * 테크 상식 Curriculum.
  *
- * 경제 커리큘럼과 같은 규칙을 따른다. AI가 주제를 고르지 않고 이 배열 순서대로 나간다.
- * 독자는 현업 프론트엔드 개발자지만, 출퇴근길에 가볍게 읽는 자리다.
- * 교과서 목차 대신 "어, 그거 왜 그렇지?" 싶은 질문으로 제목을 단다.
+ * 경제 커리큘럼과 같은 규칙을 따른다. AI가 주제를 고르지 않고 출제 순서는 코드가 정한다.
+ * CS 기본기 · 프론트엔드 실무 · AI 세 분야를 하루 하나씩 돌아가며 낸다.
+ * 기초(CS·프론트엔드)와 트렌드(AI)가 번갈아 나오도록 하기 위해서다.
  *
- * 아래 목록은 고치기 쉽도록 분야별로 묶어 두었다. 실제 출제 순서는 분야를 하나씩 돌아가며 섞는다.
- * 한 분야만 며칠씩 이어지지 않게 하고, 각 분야 안에서는 쉬운 것부터 나가는 순서를 지킨다.
+ * 제목은 교과서 목차 대신 "어, 그거 왜 그렇지?" 싶은 질문으로 단다.
+ * references(더 알아보기)는 AI가 쓰지 않는다. 사람이 고른 공식 문서·아티클만 서버가 붙인다.
+ * 아래 목록은 고치기 쉽도록 분야별로 묶어 두었고, 분야 안에서는 쉬운 것부터 나간다.
  */
 
-export type TechCurriculumCategory =
-  | "internet"
-  | "browser"
-  | "javascript"
-  | "css"
-  | "react"
-  | "performance"
-  | "security"
-  | "infra"
-  | "data"
-  | "ai"
-  | "dev-life";
+export type TechCurriculumCategory = "cs" | "frontend" | "ai";
 
 export type TechCurriculumConcept = Concept & { category: TechCurriculumCategory };
 
+const MDN = "https://developer.mozilla.org/ko/docs";
+const MDN_EN = "https://developer.mozilla.org/en-US/docs";
+
 const BY_CATEGORY: TechCurriculumConcept[] = [
-  // LEVEL 1 — 매일 보지만 신기한 것들
-  { slug: "q-url-enter", title: "주소창에 URL을 치고 엔터를 누르면 생기는 일", level: 1, category: "internet" },
-  { slug: "q-dns", title: "DNS: 인터넷은 주소를 어떻게 찾아갈까", level: 1, category: "internet" },
-  { slug: "q-https-lock", title: "주소창 자물쇠는 정확히 뭘 지켜줄까", level: 1, category: "internet" },
-  { slug: "q-refresh-old-page", title: "새로고침했는데 왜 옛날 화면이 보일까", level: 1, category: "browser" },
-  { slug: "q-cookie-banner", title: "사이트마다 '쿠키 허용' 창이 뜨는 이유", level: 1, category: "browser" },
-  { slug: "q-emoji", title: "이모지는 어떻게 화면에 그려질까", level: 1, category: "internet" },
-  { slug: "q-hangul-broken", title: "한글이 '뷁'처럼 깨지는 이유", level: 1, category: "internet" },
-  { slug: "q-zero-point-one", title: "0.1 + 0.2가 0.3이 아닌 이유", level: 1, category: "javascript" },
+  // CS — 네트워크·운영체제·자료구조·DB·보안·시스템 설계
+  { slug: "q-url-enter", title: "주소창에 URL을 치고 엔터를 누르면 생기는 일", level: 1, category: "cs",
+    references: [{ title: "MDN: 웹은 어떻게 동작하는가", url: `${MDN}/Learn_web_development/Getting_started/Web_standards/How_the_web_works` }] },
+  { slug: "q-dns", title: "DNS: 인터넷은 주소를 어떻게 찾아갈까", level: 1, category: "cs",
+    references: [{ title: "Cloudflare: DNS란?", url: "https://www.cloudflare.com/ko-kr/learning/dns/what-is-dns/" }] },
+  { slug: "q-refresh-old-page", title: "새로고침했는데 왜 옛날 화면이 보일까", level: 1, category: "cs",
+    references: [{ title: "MDN: HTTP 캐싱", url: `${MDN}/Web/HTTP/Guides/Caching` }] },
+  { slug: "q-https-lock", title: "주소창 자물쇠는 정확히 뭘 지켜줄까", level: 1, category: "cs",
+    references: [{ title: "Cloudflare: TLS란?", url: "https://www.cloudflare.com/ko-kr/learning/ssl/transport-layer-security-tls/" }] },
+  { slug: "q-zero-point-one", title: "0.1 + 0.2가 0.3이 아닌 이유", level: 1, category: "cs",
+    references: [{ title: "Floating Point Math", url: "https://0.30000000000000004.com/" }] },
+  { slug: "q-tcp-udp", title: "카톡 메시지와 영상통화는 왜 다른 방식으로 올까 (TCP와 UDP)", level: 2, category: "cs",
+    references: [{ title: "Cloudflare: TCP/IP란?", url: "https://www.cloudflare.com/ko-kr/learning/ddos/glossary/tcp-ip/" }] },
+  { slug: "q-http-versions", title: "HTTP/1.1, 2, 3는 뭐가 달라졌을까", level: 2, category: "cs",
+    references: [{ title: "MDN: HTTP의 진화", url: `${MDN}/Web/HTTP/Guides/Evolution_of_HTTP` }] },
+  { slug: "q-process-thread", title: "크롬 탭은 왜 따로따로 돌아갈까 (프로세스와 스레드)", level: 2, category: "cs",
+    references: [{ title: "Chrome for Developers: 모던 웹 브라우저 들여다보기", url: "https://developer.chrome.com/blog/inside-browser-part1?hl=ko" }] },
+  { slug: "q-stack-heap", title: "변수는 어디에 저장될까 (스택과 힙)", level: 2, category: "cs",
+    references: [{ title: "MDN: 메모리 관리", url: `${MDN}/Web/JavaScript/Guide/Memory_management` }] },
+  { slug: "q-big-o", title: "데이터가 10배 늘면 코드는 얼마나 느려질까 (Big-O)", level: 2, category: "cs",
+    references: [{ title: "Big-O Cheat Sheet", url: "https://www.bigocheatsheet.com/" }] },
+  { slug: "q-hash-table", title: "사전은 어떻게 단어를 바로 찾을까 (해시 테이블)", level: 2, category: "cs",
+    references: [{ title: "MDN: Map", url: `${MDN}/Web/JavaScript/Reference/Global_Objects/Map` }] },
+  { slug: "q-tree-graph", title: "폴더 구조와 친구 추천의 공통점 (트리와 그래프)", level: 3, category: "cs",
+    references: [{ title: "VisuAlgo: 그래프 탐색 시각화", url: "https://visualgo.net/en/dfsbfs" }] },
+  { slug: "q-concurrency", title: "동시성과 병렬성은 같은 말일까", level: 3, category: "cs",
+    references: [{ title: "Go 블로그: Concurrency is not parallelism", url: "https://go.dev/blog/waza-talk" }] },
+  { slug: "q-deadlock", title: "서로 길을 막은 두 대의 차 (교착상태)", level: 3, category: "cs",
+    references: [{ title: "Wikipedia: Deadlock", url: "https://en.wikipedia.org/wiki/Deadlock_(computer_science)" }] },
+  { slug: "q-db-index", title: "DB는 어떻게 수백만 건에서 한 줄을 바로 찾을까 (인덱스)", level: 3, category: "cs",
+    references: [{ title: "Use The Index, Luke", url: "https://use-the-index-luke.com/" }] },
+  { slug: "q-transaction", title: "송금하다 서버가 꺼지면 돈은 어떻게 될까 (트랜잭션)", level: 3, category: "cs",
+    references: [{ title: "PostgreSQL 문서: Transactions", url: "https://www.postgresql.org/docs/current/tutorial-transactions.html" }] },
+  { slug: "q-sql-nosql", title: "SQL과 NoSQL, 언제 무엇을 쓸까", level: 3, category: "cs",
+    references: [{ title: "MongoDB: NoSQL vs SQL", url: "https://www.mongodb.com/resources/basics/databases/nosql-explained/nosql-vs-sql" }] },
+  { slug: "q-stay-logged-in", title: "로그인은 어떻게 유지될까: 세션과 토큰", level: 3, category: "cs",
+    references: [{ title: "MDN: HTTP 쿠키", url: `${MDN}/Web/HTTP/Guides/Cookies` }] },
+  { slug: "q-google-login", title: "'구글로 로그인'의 원리 (OAuth)", level: 4, category: "cs",
+    references: [{ title: "OAuth 2.0 간단 정리 (oauth.net)", url: "https://oauth.net/2/" }] },
+  { slug: "q-password-storage", title: "비밀번호는 서버에 어떻게 저장될까", level: 4, category: "cs",
+    references: [{ title: "OWASP: Password Storage Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html" }] },
+  { slug: "q-xss", title: "댓글 하나로 사이트를 해킹하는 법 (XSS)", level: 4, category: "cs",
+    references: [{ title: "OWASP: Cross Site Scripting", url: "https://owasp.org/www-community/attacks/xss/" }] },
+  { slug: "q-cdn", title: "전 세계 어디서나 빠른 사이트의 비결 (CDN)", level: 4, category: "cs",
+    references: [{ title: "Cloudflare: CDN이란?", url: "https://www.cloudflare.com/ko-kr/learning/cdn/what-is-a-cdn/" }] },
+  { slug: "q-load-balancer", title: "서버 여러 대에 손님을 나눠 보내는 법 (로드밸런서)", level: 4, category: "cs",
+    references: [{ title: "Cloudflare: 로드 밸런싱이란?", url: "https://www.cloudflare.com/ko-kr/learning/performance/what-is-load-balancing/" }] },
+  { slug: "q-cache-redis", title: "Redis는 왜 그렇게 빠를까 (캐시 전략)", level: 4, category: "cs",
+    references: [{ title: "AWS: 캐싱 모범 사례", url: "https://aws.amazon.com/ko/caching/best-practices/" }] },
+  { slug: "q-rate-limit", title: "API가 '요청이 너무 많습니다'를 돌려주는 원리 (Rate Limit)", level: 4, category: "cs",
+    references: [{ title: "Cloudflare: Rate limiting이란?", url: "https://www.cloudflare.com/ko-kr/learning/bots/what-is-rate-limiting/" }] },
+  { slug: "q-realtime-chat", title: "카톡 메시지는 어떻게 실시간으로 올까 (WebSocket)", level: 5, category: "cs",
+    references: [{ title: "MDN: WebSocket API", url: `${MDN}/Web/API/WebSockets_API` }] },
+  { slug: "q-docker", title: "'내 컴퓨터에선 되는데'를 없애는 도커", level: 5, category: "cs",
+    references: [{ title: "Docker 문서: Docker 개요", url: "https://docs.docker.com/get-started/docker-overview/" }] },
+  { slug: "q-serverless", title: "서버리스는 정말 서버가 없을까", level: 5, category: "cs",
+    references: [{ title: "Cloudflare: 서버리스 컴퓨팅이란?", url: "https://www.cloudflare.com/ko-kr/learning/serverless/what-is-serverless/" }] },
+  { slug: "q-git-time-travel", title: "Git은 어떻게 과거로 돌아갈까", level: 5, category: "cs",
+    references: [{ title: "Pro Git: Git 기초", url: "https://git-scm.com/book/ko/v2/%EC%8B%9C%EC%9E%91%ED%95%98%EA%B8%B0-Git-%EA%B8%B0%EC%B4%88" }] },
+  { slug: "q-system-design-url", title: "단축 URL 서비스는 어떻게 설계할까 (시스템 설계 맛보기)", level: 5, category: "cs",
+    references: [{ title: "System Design Primer", url: "https://github.com/donnemartin/system-design-primer" }] },
 
-  // LEVEL 2 — 브라우저 속사정
-  { slug: "q-tabs-memory", title: "탭을 많이 열면 왜 컴퓨터가 버벅일까", level: 2, category: "browser" },
-  { slug: "q-60fps", title: "화면이 '버벅'인다는 건 정확히 무슨 뜻일까", level: 2, category: "browser" },
-  { slug: "q-font-flash", title: "웹폰트가 늦게 뜨면서 글자가 번쩍이는 이유", level: 2, category: "browser" },
-  { slug: "q-blurry-image", title: "이미지가 흐릿하다가 선명해지는 사이트의 비밀", level: 2, category: "performance" },
-  { slug: "q-offline-web", title: "인터넷이 끊겨도 열리는 웹사이트", level: 2, category: "browser" },
-  { slug: "q-pwa", title: "웹사이트를 앱처럼 홈 화면에 설치하는 법", level: 2, category: "browser" },
-  { slug: "q-mobile-100vh", title: "모바일에서 100vh가 이상하게 동작하는 이유", level: 2, category: "css" },
+  // 프론트엔드 — 브라우저·JS·TS·CSS·React/Vue/Next.js·성능·접근성
+  { slug: "q-rendering-pipeline", title: "브라우저는 HTML을 어떻게 화면으로 그릴까", level: 1, category: "frontend",
+    references: [{ title: "web.dev: 렌더링 성능", url: "https://web.dev/articles/rendering-performance?hl=ko" }] },
+  { slug: "q-single-thread", title: "JS는 한 번에 하나만 하는데 어떻게 동시에 여러 일을 할까", level: 1, category: "frontend",
+    references: [{ title: "MDN: 이벤트 루프", url: `${MDN_EN}/Web/JavaScript/Reference/Execution_model` }] },
+  { slug: "q-settimeout-zero", title: "setTimeout(fn, 0)이 바로 실행되지 않는 이유", level: 1, category: "frontend",
+    references: [{ title: "javascript.info: 이벤트 루프와 매크로·마이크로태스크", url: "https://ko.javascript.info/event-loop" }] },
+  { slug: "q-closure-loop", title: "반복문 안 클릭 핸들러가 전부 마지막 값을 찍는 이유 (클로저)", level: 1, category: "frontend",
+    references: [{ title: "MDN: 클로저", url: `${MDN}/Web/JavaScript/Guide/Closures` }] },
+  { slug: "q-this-lost", title: "this가 갑자기 undefined가 되는 순간", level: 2, category: "frontend",
+    references: [{ title: "MDN: this", url: `${MDN}/Web/JavaScript/Reference/Operators/this` }] },
+  { slug: "q-promise-async", title: "콜백 지옥 탈출기: Promise와 async/await", level: 2, category: "frontend",
+    references: [{ title: "MDN: 프로미스 사용하기", url: `${MDN}/Web/JavaScript/Guide/Using_promises` }] },
+  { slug: "q-why-typescript", title: "타입스크립트를 쓰면 정말 버그가 줄어들까", level: 2, category: "frontend",
+    references: [{ title: "TypeScript 핸드북: The Basics", url: "https://www.typescriptlang.org/docs/handbook/2/basic-types.html" }] },
+  { slug: "q-ts-generics", title: "타입에도 매개변수가 있다 (제네릭)", level: 2, category: "frontend",
+    references: [{ title: "TypeScript 핸드북: Generics", url: "https://www.typescriptlang.org/docs/handbook/2/generics.html" }] },
+  { slug: "q-zindex", title: "z-index를 9999로 줘도 안 올라오는 이유", level: 2, category: "frontend",
+    references: [{ title: "MDN: 쌓임 맥락", url: `${MDN}/Web/CSS/CSS_positioned_layout/Stacking_context` }] },
+  { slug: "q-flex-grid", title: "flex와 grid, 언제 뭘 써야 할까", level: 2, category: "frontend",
+    references: [{ title: "web.dev: Learn CSS — Grid", url: "https://web.dev/learn/css/grid" }] },
+  { slug: "q-reflow", title: "화면이 덜컥이는 이유: 리플로우와 리페인트", level: 3, category: "frontend",
+    references: [{ title: "web.dev: 큰 규모의 복잡한 레이아웃 피하기", url: "https://web.dev/articles/avoid-large-complex-layouts-and-layout-thrashing?hl=ko" }] },
+  { slug: "q-react-rerender", title: "React는 왜 화면을 자꾸 다시 그릴까", level: 3, category: "frontend",
+    references: [{ title: "React 문서: 렌더링 그리고 커밋", url: "https://ko.react.dev/learn/render-and-commit" }] },
+  { slug: "q-effect-twice", title: "useEffect가 두 번 실행되는 이유", level: 3, category: "frontend",
+    references: [{ title: "React 문서: Effect가 필요하지 않을 수도 있습니다", url: "https://ko.react.dev/learn/you-might-not-need-an-effect" }] },
+  { slug: "q-key-prop", title: "리스트에 key를 꼭 넣으라는 이유", level: 3, category: "frontend",
+    references: [{ title: "React 문서: 리스트 렌더링", url: "https://ko.react.dev/learn/rendering-lists" }] },
+  { slug: "q-state-where", title: "상태는 어디에 둬야 할까: 로컬·전역·서버 상태", level: 3, category: "frontend",
+    references: [{ title: "React 문서: State 구조 선택하기", url: "https://ko.react.dev/learn/choosing-the-state-structure" }] },
+  { slug: "q-vue-reactivity", title: "Vue는 값이 바뀐 걸 어떻게 알아챌까 (반응성)", level: 3, category: "frontend",
+    references: [{ title: "Vue 문서: 반응형 심화", url: "https://ko.vuejs.org/guide/extras/reactivity-in-depth" }] },
+  { slug: "q-where-render", title: "화면은 어디서 그려질까: CSR과 SSR", level: 4, category: "frontend",
+    references: [{ title: "web.dev: 웹 렌더링", url: "https://web.dev/articles/rendering-on-the-web?hl=ko" }] },
+  { slug: "q-hydration", title: "그려진 화면에 생명을 불어넣기 (하이드레이션)", level: 4, category: "frontend",
+    references: [{ title: "React 문서: hydrateRoot", url: "https://ko.react.dev/reference/react-dom/client/hydrateRoot" }] },
+  { slug: "q-server-components", title: "서버 컴포넌트는 뭐가 그렇게 다를까", level: 4, category: "frontend",
+    references: [{ title: "React 문서: 서버 컴포넌트", url: "https://ko.react.dev/reference/rsc/server-components" }] },
+  { slug: "q-lighthouse", title: "Lighthouse 점수는 뭘 보고 매기는 걸까 (Core Web Vitals)", level: 4, category: "frontend",
+    references: [{ title: "web.dev: Core Web Vitals", url: "https://web.dev/articles/vitals?hl=ko" }] },
+  { slug: "q-tree-shaking", title: "안 쓰는 코드는 어떻게 털어낼까 (트리 셰이킹)", level: 4, category: "frontend",
+    references: [{ title: "MDN: 트리 셰이킹", url: `${MDN}/Glossary/Tree_shaking` }] },
+  { slug: "q-lazy-loading", title: "필요할 때만 불러오기: 코드 스플리팅과 지연 로딩", level: 4, category: "frontend",
+    references: [{ title: "React 문서: lazy", url: "https://ko.react.dev/reference/react/lazy" }] },
+  { slug: "q-blurry-image", title: "이미지가 흐릿하다가 선명해지는 사이트의 비밀", level: 4, category: "frontend",
+    references: [{ title: "web.dev: 반응형 이미지", url: "https://web.dev/learn/design/responsive-images?hl=ko" }] },
+  { slug: "q-debounce", title: "검색창이 글자마다 요청을 보내지 않는 비결 (디바운스)", level: 4, category: "frontend",
+    references: [{ title: "CSS-Tricks: Debouncing and Throttling", url: "https://css-tricks.com/debouncing-throttling-explained-examples/" }] },
+  { slug: "q-a11y", title: "화면을 못 보는 사람은 웹을 어떻게 쓸까 (접근성)", level: 4, category: "frontend",
+    references: [{ title: "web.dev: Learn Accessibility", url: "https://web.dev/learn/accessibility" }] },
+  { slug: "q-cors-error", title: "CORS 에러는 왜 나를 괴롭힐까", level: 5, category: "frontend",
+    references: [{ title: "MDN: 교차 출처 리소스 공유(CORS)", url: `${MDN}/Web/HTTP/Guides/CORS` }] },
+  { slug: "q-font-flash", title: "웹폰트가 늦게 뜨면서 글자가 번쩍이는 이유", level: 5, category: "frontend",
+    references: [{ title: "web.dev: 웹폰트 최적화", url: "https://web.dev/articles/font-best-practices?hl=ko" }] },
+  { slug: "q-offline-web", title: "인터넷이 끊겨도 열리는 웹사이트 (서비스 워커)", level: 5, category: "frontend",
+    references: [{ title: "MDN: 서비스 워커 API", url: `${MDN}/Web/API/Service_Worker_API` }] },
+  { slug: "q-npm-install", title: "npm install을 누르면 무슨 일이 일어날까", level: 5, category: "frontend",
+    references: [{ title: "npm 문서: package-lock.json", url: "https://docs.npmjs.com/cli/configuring-npm/package-lock-json" }] },
 
-  // LEVEL 3 — 자바스크립트의 수상한 점
-  { slug: "q-single-thread", title: "JS는 한 번에 하나만 하는데 어떻게 동시에 여러 일을 할까", level: 3, category: "javascript" },
-  { slug: "q-settimeout-zero", title: "setTimeout(fn, 0)이 바로 실행되지 않는 이유", level: 3, category: "javascript" },
-  { slug: "q-closure-loop", title: "반복문 안 클릭 핸들러가 전부 마지막 값을 찍는 이유", level: 3, category: "javascript" },
-  { slug: "q-this-lost", title: "this가 갑자기 undefined가 되는 순간", level: 3, category: "javascript" },
-  { slug: "q-npm-install", title: "npm install을 누르면 무슨 일이 일어날까", level: 3, category: "dev-life" },
-  { slug: "q-node-modules", title: "node_modules는 왜 그렇게 무거울까", level: 3, category: "dev-life" },
-  { slug: "q-timezone", title: "날짜·시간 처리가 개발자의 악몽인 이유", level: 3, category: "javascript" },
-  { slug: "q-why-typescript", title: "타입스크립트를 쓰면 정말 버그가 줄어들까", level: 3, category: "javascript" },
-
-  // LEVEL 4 — CSS 미스터리
-  { slug: "q-zindex", title: "z-index를 9999로 줘도 안 올라오는 이유", level: 4, category: "css" },
-  { slug: "q-flex-grid", title: "flex와 grid, 언제 뭘 써야 할까", level: 4, category: "css" },
-  { slug: "q-css-hard", title: "CSS가 유독 어렵게 느껴지는 이유", level: 4, category: "css" },
-  { slug: "q-dark-mode", title: "다크 모드는 어떻게 만들까", level: 4, category: "css" },
-  { slug: "q-animation-smooth", title: "어떤 애니메이션은 부드럽고 어떤 건 끊길까", level: 4, category: "css" },
-
-  // LEVEL 5 — React와 렌더링 전략
-  { slug: "q-react-rerender", title: "React는 왜 화면을 자꾸 다시 그릴까", level: 5, category: "react" },
-  { slug: "q-effect-twice", title: "useEffect가 두 번 실행되는 이유", level: 5, category: "react" },
-  { slug: "q-key-prop", title: "리스트에 key를 꼭 넣으라는 이유", level: 5, category: "react" },
-  { slug: "q-where-render", title: "화면은 어디서 그려질까: CSR과 SSR", level: 5, category: "react", pairWith: "q-hydration" },
-  { slug: "q-hydration", title: "하이드레이션: 그려진 화면에 생명을 불어넣기", level: 5, category: "react" },
-  { slug: "q-static-site", title: "블로그는 왜 미리 만들어 두면 빠를까 (SSG·ISR)", level: 5, category: "react" },
-  { slug: "q-server-components", title: "서버 컴포넌트는 뭐가 그렇게 다를까", level: 5, category: "react" },
-  { slug: "q-state-where", title: "상태는 어디에 둬야 할까: 로컬·전역·서버 상태", level: 5, category: "react" },
-
-  // LEVEL 6 — 빠른 사이트의 비밀
-  { slug: "q-lighthouse", title: "Lighthouse 점수는 뭘 보고 매기는 걸까", level: 6, category: "performance" },
-  { slug: "q-tree-shaking", title: "안 쓰는 코드는 어떻게 털어낼까 (트리 셰이킹)", level: 6, category: "performance" },
-  { slug: "q-lazy-loading", title: "필요할 때만 불러오기: 코드 스플리팅과 지연 로딩", level: 6, category: "performance" },
-  { slug: "q-infinite-scroll", title: "무한 스크롤은 어떻게 만들까", level: 6, category: "performance" },
-  { slug: "q-skeleton", title: "로딩 스피너 vs 스켈레톤, 뭐가 더 빠르게 느껴질까", level: 6, category: "performance" },
-  { slug: "q-debounce", title: "검색창이 글자마다 요청을 보내지 않는 비결", level: 6, category: "performance" },
-
-  // LEVEL 7 — 해킹과 로그인
-  { slug: "q-cors-error", title: "CORS 에러는 왜 나를 괴롭힐까", level: 7, category: "security" },
-  { slug: "q-stay-logged-in", title: "로그인은 어떻게 유지될까: 세션과 토큰", level: 7, category: "security" },
-  { slug: "q-google-login", title: "'구글로 로그인'의 원리 (OAuth)", level: 7, category: "security" },
-  { slug: "q-password-storage", title: "비밀번호는 서버에 어떻게 저장될까", level: 7, category: "security" },
-  { slug: "q-xss", title: "댓글 하나로 사이트를 해킹하는 법 (XSS)", level: 7, category: "security" },
-  { slug: "q-captcha", title: "캡차는 사람과 봇을 어떻게 구분할까", level: 7, category: "security" },
-  { slug: "q-npm-attack", title: "npm 패키지 하나로 회사가 털리는 이유", level: 7, category: "security" },
-
-  // LEVEL 8 — 서비스가 돌아가는 곳
-  { slug: "q-cdn", title: "전 세계 어디서나 빠른 사이트의 비결 (CDN)", level: 8, category: "infra" },
-  { slug: "q-serverless", title: "서버리스는 정말 서버가 없을까", level: 8, category: "infra" },
-  { slug: "q-docker", title: "'내 컴퓨터에선 되는데'를 없애는 도커", level: 8, category: "infra" },
-  { slug: "q-preview-deploy", title: "PR마다 미리보기 사이트가 생기는 원리", level: 8, category: "infra" },
-  { slug: "q-realtime-chat", title: "카톡 메시지는 어떻게 실시간으로 올까", level: 8, category: "data" },
-  { slug: "q-youtube-stream", title: "유튜브는 어떻게 끊김 없이 영상을 보여줄까", level: 8, category: "data" },
-  { slug: "q-map-zoom", title: "지도 앱은 어떻게 부드럽게 확대될까", level: 8, category: "data" },
-  { slug: "q-git-time-travel", title: "Git은 어떻게 과거로 돌아갈까", level: 8, category: "dev-life" },
-
-  // LEVEL 9 — AI랑 같이 일하기
-  { slug: "q-chatgpt-typing", title: "AI 답변은 왜 한 글자씩 타자 치듯 나올까", level: 9, category: "ai" },
-  { slug: "q-tokens", title: "토큰: AI가 글자를 세는 방법", level: 9, category: "ai" },
-  { slug: "q-ai-lies", title: "AI는 왜 가끔 그럴듯한 거짓말을 할까", level: 9, category: "ai" },
-  { slug: "q-prompt-matters", title: "프롬프트 한 줄로 결과가 달라지는 이유", level: 9, category: "ai" },
-  { slug: "q-ai-reads-code", title: "AI 코딩 도구는 내 코드를 어떻게 이해할까", level: 9, category: "ai" },
-  { slug: "q-vector-search", title: "말뜻이 비슷한 글을 찾는 법 (벡터 검색)", level: 9, category: "ai", pairWith: "q-rag" },
-  { slug: "q-rag", title: "AI에게 커닝 페이퍼 쥐여주기 (RAG)", level: 9, category: "ai" },
-  { slug: "q-mcp", title: "MCP: AI에게 손발을 달아주는 표준", level: 9, category: "ai" },
-  { slug: "q-ai-agent", title: "AI 에이전트는 챗봇과 뭐가 다를까", level: 9, category: "ai" },
+  // AI — 원리·개발 활용·생태계
+  { slug: "q-llm-how", title: "LLM은 어떻게 다음 단어를 고를까", level: 1, category: "ai",
+    references: [{ title: "3Blue1Brown: Large Language Models explained briefly", url: "https://www.3blue1brown.com/lessons/mini-llm" }] },
+  { slug: "q-tokens", title: "토큰: AI가 글자를 세는 방법", level: 1, category: "ai",
+    references: [{ title: "Anthropic 문서: 토큰 세기", url: "https://docs.anthropic.com/en/docs/build-with-claude/token-counting" }] },
+  { slug: "q-chatgpt-typing", title: "AI 답변은 왜 한 글자씩 타자 치듯 나올까 (스트리밍)", level: 1, category: "ai",
+    references: [{ title: "MDN: 서버 전송 이벤트 사용하기", url: `${MDN}/Web/API/Server-sent_events/Using_server-sent_events` }] },
+  { slug: "q-ai-lies", title: "AI는 왜 가끔 그럴듯한 거짓말을 할까 (환각)", level: 1, category: "ai",
+    references: [{ title: "Anthropic 문서: 환각 줄이기", url: "https://docs.anthropic.com/en/docs/test-and-evaluate/strengthen-guardrails/reduce-hallucinations" }] },
+  { slug: "q-context-window", title: "AI의 단기 기억은 얼마나 길까 (컨텍스트 윈도)", level: 2, category: "ai",
+    references: [{ title: "Anthropic 문서: Context windows", url: "https://docs.anthropic.com/en/docs/build-with-claude/context-windows" }] },
+  { slug: "q-prompt-matters", title: "프롬프트 한 줄로 결과가 달라지는 이유", level: 2, category: "ai",
+    references: [{ title: "Anthropic 문서: 프롬프트 엔지니어링 개요", url: "https://docs.anthropic.com/en/docs/build-with-claude/prompt-engineering/overview" }] },
+  { slug: "q-temperature", title: "같은 질문에 AI 답이 매번 다른 이유 (temperature)", level: 2, category: "ai",
+    references: [{ title: "Hugging Face: How to generate text", url: "https://huggingface.co/blog/how-to-generate" }] },
+  { slug: "q-structured-output", title: "AI에게 JSON으로만 답하게 하는 법 (구조화된 출력)", level: 2, category: "ai",
+    references: [{ title: "Anthropic 문서: Tool use 개요", url: "https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/overview" }] },
+  { slug: "q-tool-calling", title: "AI가 계산기와 검색을 쓰는 법 (도구 호출)", level: 3, category: "ai",
+    references: [{ title: "Anthropic 문서: Tool use 개요", url: "https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/overview" }] },
+  { slug: "q-vector-search", title: "말뜻이 비슷한 글을 찾는 법 (임베딩과 벡터 검색)", level: 3, category: "ai",
+    references: [{ title: "Pinecone: What are vector embeddings", url: "https://www.pinecone.io/learn/vector-embeddings/" }] },
+  { slug: "q-rag", title: "AI에게 커닝 페이퍼 쥐여주기 (RAG)", level: 3, category: "ai",
+    references: [{ title: "Anthropic: Contextual Retrieval", url: "https://www.anthropic.com/news/contextual-retrieval" }] },
+  { slug: "q-ai-agent", title: "AI 에이전트는 챗봇과 뭐가 다를까", level: 3, category: "ai",
+    references: [{ title: "Anthropic: Building effective agents", url: "https://www.anthropic.com/engineering/building-effective-agents" }] },
+  { slug: "q-mcp", title: "AI에게 손발을 달아주는 표준 (MCP)", level: 3, category: "ai",
+    references: [{ title: "Model Context Protocol 소개", url: "https://modelcontextprotocol.io/introduction" }] },
+  { slug: "q-ai-reads-code", title: "AI 코딩 도구는 내 코드를 어떻게 이해할까", level: 4, category: "ai",
+    references: [{ title: "Anthropic: Claude Code best practices", url: "https://www.anthropic.com/engineering/claude-code-best-practices" }] },
+  { slug: "q-fine-tuning", title: "파인튜닝과 프롬프트, 언제 무엇을 쓸까", level: 4, category: "ai",
+    references: [{ title: "Hugging Face LLM Course", url: "https://huggingface.co/learn/llm-course/chapter1/1" }] },
+  { slug: "q-multimodal", title: "이미지를 보는 AI는 어떻게 동작할까 (멀티모달)", level: 4, category: "ai",
+    references: [{ title: "Anthropic 문서: Vision", url: "https://docs.anthropic.com/en/docs/build-with-claude/vision" }] },
+  { slug: "q-ai-eval", title: "AI 답변이 좋은지 어떻게 평가할까", level: 4, category: "ai",
+    references: [{ title: "Anthropic 문서: 성공 기준 정의하기", url: "https://docs.anthropic.com/en/docs/test-and-evaluate/define-success" }] },
+  { slug: "q-ai-cost", title: "AI 기능의 비용은 어떻게 계산될까 (토큰 과금과 캐싱)", level: 5, category: "ai",
+    references: [{ title: "Anthropic 문서: Prompt caching", url: "https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching" }] },
+  { slug: "q-ai-ux", title: "AI 기능 화면은 어떻게 만들까: 로딩·스트리밍·실패 처리", level: 5, category: "ai",
+    references: [{ title: "Vercel AI SDK 문서", url: "https://ai-sdk.dev/docs/introduction" }] },
+  { slug: "q-on-device-ai", title: "인터넷 없이 도는 AI (온디바이스 AI)", level: 5, category: "ai",
+    references: [{ title: "Chrome for Developers: 내장 AI", url: "https://developer.chrome.com/docs/ai/built-in" }] },
+  { slug: "q-ai-pair", title: "AI와 같이 코딩할 때 꼭 지킬 것", level: 5, category: "ai",
+    references: [{ title: "Anthropic: Claude Code best practices", url: "https://www.anthropic.com/engineering/claude-code-best-practices" }] },
 ];
-
-/**
- * 분야마다 한 개씩 돌아가며 꺼낸다. 분야 순서는 목록에 처음 나온 순서다.
- * 짝 개념(pairWith)은 떨어져 있어도 선정 코드가 같은 날 함께 꺼낸다.
- */
-function rotateByCategory(concepts: TechCurriculumConcept[]): TechCurriculumConcept[] {
-  const queues = new Map<TechCurriculumCategory, TechCurriculumConcept[]>();
-  for (const concept of concepts) {
-    queues.set(concept.category, [...(queues.get(concept.category) ?? []), concept]);
-  }
-
-  const rotated: TechCurriculumConcept[] = [];
-  while (rotated.length < concepts.length) {
-    for (const queue of queues.values()) {
-      const next = queue.shift();
-      if (next) rotated.push(next);
-    }
-  }
-  return rotated;
-}
 
 export const TECH_CURRICULUM = rotateByCategory(BY_CATEGORY);

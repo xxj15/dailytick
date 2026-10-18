@@ -19,13 +19,15 @@ export const FIRST_ISSUE_DATE = "2026-08-25";
 
 /** 하루 뉴스 분량. */
 // 개수·지역 할당보다 근거 확보가 우선이다. 근거가 없으면 발행 자체를 중단한다.
-export const NEWS_PER_DAY = { min: 1, max: 5, default: 3 } as const;
+// 경제·시사 데스크 몫. IT 데스크 몫과 합쳐 '오늘의 주요 이슈' 5~6개가 된다.
+export const NEWS_PER_DAY = { min: 1, max: 4, default: 3 } as const;
 
-/** IT 상식 하루 개수. 스키마가 허용하는 최대(2)와 같다. */
-export const TECH_CONCEPTS_PER_DAY = 2;
+/** 하루 상식 개수. 테크·경제 각각 하나씩 깊게 읽는다. 짝 개념도 붙이지 않는다. */
+export const TECH_CONCEPTS_PER_DAY = 1;
+export const ECONOMY_CONCEPTS_PER_DAY = 1;
 
 /** IT 파트 하루 뉴스 분량. 경제 파트와 같이 근거가 부족하면 줄여서 낸다. */
-export const TECH_NEWS_PER_DAY = { min: 1, max: 3, default: 3 } as const;
+export const TECH_NEWS_PER_DAY = { min: 1, max: 3, default: 2 } as const;
 
 /** 지면 맨 위에 거는 오늘의 키워드 개수. 한눈에 훑는 자리라 짧게 유지한다. */
 export const TODAY_KEYWORDS_PER_DAY = { min: 3, max: 5 } as const;
@@ -41,10 +43,10 @@ export const TODAY_KEYWORDS_PER_DAY = { min: 3, max: 5 } as const;
 export const SOURCE_MAX_AGE_HOURS = 72;
 
 /**
- * IT 파트의 발행 하한선. 개발 소식(릴리스 노트·공식 블로그)은 주 단위로 나오고
- * 하루 이틀 늦게 보도되므로 경제 파트보다 넓게 잡는다.
+ * IT 뉴스의 발행 하한선. 뉴스는 경제·시사와 같이 최대 72시간까지만 허용한다.
+ * 주 단위로 나오는 릴리스 노트·아티클은 뉴스가 아니라 테크 상식의 '더 알아보기'로 다룬다.
  */
-export const TECH_SOURCE_MAX_AGE_HOURS = 168;
+export const TECH_SOURCE_MAX_AGE_HOURS = 72;
 
 /** STEP 1에서 수집할 뉴스 후보 개수. */
 export const NEWS_CANDIDATE_COUNT = { min: 6, max: 10 } as const;

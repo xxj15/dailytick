@@ -17,10 +17,11 @@ export const newsCategorySchema = z.enum([
   "policy",
   "geopolitics",
   "commodities",
-  // 1면 뉴스
+  // 시사
   "politics",
   "society",
   "world",
+  "science",
   // 이하 IT 파트
   "ai",
   "semiconductor",
@@ -62,6 +63,8 @@ export const newsIssueSchema = z.object({
   /** 사실: 실제로 발표되거나 보도된 내용 */
   whatHappened: z.string().min(1),
   whyImportant: z.string().min(1),
+  /** 어떤 영향이 있을까: 산업·경제·사회에 미칠 수 있는 영향. 2026-10-18 이전 row에는 없다. */
+  impact: z.string().optional(),
   marketImpact: marketImpactSchema,
 
   /** 해석: 사실과 반드시 구분한다 */
@@ -87,6 +90,9 @@ export const knowledgeItemSchema = z.object({
   interviewQuestion: z.string().optional(),
 
   keywords: z.array(z.string().min(1)),
+
+  /** 더 알아보기. 커리큘럼에 사람이 적어 둔 링크를 서버가 붙인다. AI 응답에서 받지 않는다. */
+  references: z.array(z.object({ title: z.string().min(1), url: z.url() })).optional(),
 
   /**
    * 커리큘럼을 한 바퀴 돈 뒤의 복습인가.
@@ -179,6 +185,7 @@ export const aiNewsIssueSchema = z.object({
   factIds: z.array(z.string()),
   title: z.string(),
   whyImportant: z.string(),
+  impact: z.string().nullable(),
   marketImpact: aiMarketImpactSchema,
   interpretation: z.string().nullable(),
 });

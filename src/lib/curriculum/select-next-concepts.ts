@@ -21,11 +21,13 @@ export type ConceptSelection = {
  * AI가 순서를 임의로 바꾸지 않도록, 선정은 코드에서만 수행한다.
  * 경제와 IT는 커리큘럼과 학습 이력을 각자 따로 넘긴다.
  * perDay를 넘기면 짝 개념이 없어도 다음 미학습 개념으로 그 개수까지 채운다.
+ * withPairs가 false면 짝 개념을 붙이지 않고 정확히 perDay개만 낸다.
  */
 export function selectTodayConcepts(
   history: ConceptHistoryEntry[],
   curriculum: Concept[] = CURRICULUM,
   perDay = 1,
+  withPairs = true,
 ): ConceptSelection {
   // history는 최신순이다. 먼저 만난 index가 곧 마지막으로 다룬 시점.
   const lastSeen = new Map<string, number>();
@@ -41,7 +43,7 @@ export function selectTodayConcepts(
   if (unseen.length > 0) {
     const concepts = [unseen[0]];
 
-    if (unseen[0].pairWith) {
+    if (withPairs && unseen[0].pairWith) {
       const pair = unseen.find((concept) => concept.slug === unseen[0].pairWith);
       if (pair) concepts.push(pair);
     }
