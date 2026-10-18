@@ -2,7 +2,7 @@ import { lookup } from "node:dns/promises";
 import { request } from "node:https";
 import { isIP } from "node:net";
 
-const MAX_BYTES = 1_500_000;
+const MAX_BYTES = 3_000_000;
 const TIMEOUT_MS = 10_000;
 
 /** 보수적으로 IPv4 공인 주소만 허용한다. IPv6-only 출처는 수집하지 않는다. */

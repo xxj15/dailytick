@@ -58,6 +58,7 @@ export function buildFactSelectionPrompt(inputs: CandidateDocuments[], date: Dat
 검색 후보 제목과 summary는 탐색 힌트이며 사실의 근거가 아니다.
 각 candidateId에 대해 실제 documents.text에 존재하는 연속된 문장을 1~3개 고른다.
 sourceId와 quote만 반환한다. quote는 공백을 제외하고 원문과 동일해야 하며 25~400자다.
+quote는 원문 언어 그대로 복사한다. 영어 기사는 영어 문장을 그대로 고르고, 절대 번역하거나 요약하지 않는다.
 기사의 핵심 사건·수치·대상 기간·실제 발생 시점을 보존한다. 과거 사건, 예측, 타인의 주장, 부정문을 현재 확정 사실로 바꾸지 않는다.
 가능하면 공식 발표 자료를 고른다. 서로 충돌하는 자료가 있거나, 핵심 사건·시점이 불분명하거나,
 본문이 로그인/오류/관련 기사 목록이거나, 검색 후보와 본문이 다른 사건이면 facts를 빈 배열로 반환한다.

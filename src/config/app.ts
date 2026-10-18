@@ -107,6 +107,20 @@ export const PREFERRED_TECH_PUBLISHERS = {
 } as const;
 
 /**
+ * 자동 수집을 막아(HTTP 403) 서버가 본문을 읽을 수 없는 사이트. 근거로 쓸 수 없으므로 검색 단계에서 피하게 한다.
+ * (2026-10-18 생성 로그 기준)
+ */
+export const UNREADABLE_SOURCES = [
+  "apnews.com",
+  "axios.com",
+  "investing.com",
+  "marketscreener.com",
+  "openai.com",
+  "theverge.com",
+  "imf.org",
+] as const;
+
+/**
  * MVP는 다중 사용자를 대상으로 하지 않는다.
  * 하나의 고정 프로필을 기준으로 콘텐츠를 생성한다.
  */

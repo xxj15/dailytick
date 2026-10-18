@@ -7,6 +7,7 @@ import {
   TECH_NEWS_CANDIDATE_COUNT,
   TECH_SOURCE_MAX_AGE_HOURS,
   TECH_NEWS_PER_DAY,
+  UNREADABLE_SOURCES,
   USER_PROFILE,
 } from "@/config/app";
 import type { Concept } from "@/data/curriculum";
@@ -18,7 +19,7 @@ import type { GroundedCandidate } from "@/lib/news/evidence-types";
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고,
  * 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v23";
+export const PROMPT_VERSION = "v24";
 
 /**
  * 모든 단계에 공통으로 적용되는 편집 원칙.
@@ -173,6 +174,10 @@ ${PREFERRED_PUBLISHERS.global.join(" / ")}
 
 해외 매체는 국내 보도가 없거나
 수치·원문을 확인해야 할 때 함께 붙인다.
+
+검색어는 한국어로 쓰고, 후보마다 국내 매체 기사를 최소 1개 넣는다.
+다음 사이트는 서버가 본문을 읽지 못해 반드시 탈락하므로 sources에 넣지 않는다:
+${UNREADABLE_SOURCES.join(", ")}
 
 개인 블로그, 커뮤니티, 유튜브, 요약 사이트는 출처로 사용하지 않는다.`;
 
@@ -918,8 +923,9 @@ ${TECH_NEWS_CRITERIA}
 
 ## 출처 접근
 
-- 서버가 기사 본문을 직접 읽어 게시일을 확인한다. 봇 접근을 막거나 유료로 표시된 사이트
-  (openai.com, axios.com, theverge.com 등)는 탈락하므로, 같은 소식을 다룬 다른 매체나 공식 블로그 기사를 함께 찾아 sources에 넣는다.
+- 서버가 기사 본문을 직접 읽어 게시일을 확인한다. 다음 사이트는 본문을 읽지 못해 탈락하므로 넣지 않는다:
+  ${UNREADABLE_SOURCES.join(", ")}
+  같은 소식을 다룬 다른 매체나 공식 블로그 기사를 찾아 sources에 넣는다.
 - 후보마다 출처를 2개 이상 넣으면 하나가 막혀도 살아남는다.
 - 목록·카테고리·태그 페이지, 제품 소개 페이지, 문서(docs) 페이지가 아니라
   날짜가 붙은 개별 기사·블로그 글·릴리스 노트 URL이어야 한다.
