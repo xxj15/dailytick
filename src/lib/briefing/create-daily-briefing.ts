@@ -124,7 +124,12 @@ export async function createDailyBriefing(
     const recentNews: RecentNewsEntry[] = await services.getRecentNews(date).catch(() => []);
 
     audit.stage = "search";
-    const news = await services.collectMarketNews(date, signal, { recentNews });
+    // 웹 검색을 여러 번 하는 단계라 가끔 기한을 넘긴다. 시간이 남으면 한 번만 다시 시도한다.
+    const news = await services.collectMarketNews(date, signal, { recentNews }).catch(async (error: unknown) => {
+      const timedOut = error instanceof Error && /timed out|timeout/i.test(error.message);
+      if (!timedOut || timeLeft() < RECOLLECT_MIN_LEFT_MS) throw error;
+      return services.collectMarketNews(date, signal, { recentNews });
+    });
     addUsage(news);
     audit.searchTrace = news.searchTrace;
     audit.rejectedUrls = news.rejectedUrls;

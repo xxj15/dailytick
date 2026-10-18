@@ -212,3 +212,15 @@ test("최근에 실은 기사를 출처로 다시 쓰면 후속 표시가 있어
   const followUp = verifyBriefing(briefing({ newsItems: [news({ followUp: "어제 실은 뉴스" })] }), { date: DATE, concepts: [CONCEPT], recentNews });
   assert.ok(!followUp.some((v) => v.code === "news.duplicate"));
 });
+
+test("날짜 표현의 숫자는 근거 검사에서 빼고, 통계 숫자는 그대로 막는다", () => {
+  const candidates = [{ id: "c1", title: "t", region: "KR" as const, category: "rates" as const, importance: 9,
+    sources: [{ publisher: "p", title: "기사", url: "https://example.com/a", publishedAt: FRESH }],
+    facts: [{ id: "c1-f1", sourceId: "s1", quote: "위원회는 이번 회의에서 기준금리를 동결하기로 결정했다고 발표했다." }],
+    documents: [{ id: "s1", requestedUrl: "https://example.com/a", source: { publisher: "p", title: "기사", url: "https://example.com/a", publishedAt: FRESH }, fetchedAt: FRESH, contentHash: "a", text: "" }] }];
+  const base = { whatHappened: candidates[0].facts[0].quote, sources: candidates[0].sources, evidence: { candidateId: "c1", facts: candidates[0].facts, documents: [{ id: "s1", requestedUrl: "https://example.com/a", url: "https://example.com/a", fetchedAt: FRESH, contentHash: "a" }] } };
+  const dated = verifyBriefing(briefing({ newsItems: [news({ ...base, title: "2026년 10월 16일 금리 동결", whyImportant: "3분기 흐름" })] }), { date: DATE, concepts: [CONCEPT], candidates });
+  assert.ok(!dated.some((v) => v.code === "news.unsupported_number"));
+  const stat = verifyBriefing(briefing({ newsItems: [news({ ...base, title: "금리 동결, 물가 3.7%" })] }), { date: DATE, concepts: [CONCEPT], candidates });
+  assert.ok(stat.some((v) => v.code === "news.unsupported_number"));
+});

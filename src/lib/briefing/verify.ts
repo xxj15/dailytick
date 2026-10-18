@@ -72,7 +72,11 @@ function evidenceViolations(items: NewsIssue[], candidates: GroundedCandidate[])
     const numbers = (value: string) => value.match(/\d+(?:[,.]\d+)*/g) ?? [];
     // 실제로 수집한 기사 제목의 숫자(제품 버전, 연도 등)도 근거로 본다. 제목은 원문 페이지에서 읽은 값이다.
     const allowed = new Set([...evidence.facts.map((fact) => fact.quote), ...item.sources.map((source) => source.title)].flatMap(numbers));
-    const written = [item.title, item.whyImportant, item.impact, ...Object.values(item.marketImpact), item.interpretation].filter((text): text is string => !!text).join(" ");
+    // 날짜 표현(2026년, 10월, 16일, 3분기)은 통계가 아니라서 검사에서 뺀다. 그 밖의 숫자는 근거에 있어야 한다.
+    const written = [item.title, item.whyImportant, item.impact, ...Object.values(item.marketImpact), item.interpretation]
+      .filter((text): text is string => !!text)
+      .join(" ")
+      .replace(/\d{1,4}\s*(년|월|일|분기)/g, "");
     const added = numbers(written).filter((number) => !allowed.has(number));
     return added.length ? [{ code: "news.unsupported_number", rank: item.rank, message: `뉴스 ${item.rank}: 선택한 근거에 없는 숫자 ${[...new Set(added)].join(", ")}를 삭제하세요.` }] : [];
   });
