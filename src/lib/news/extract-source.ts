@@ -59,11 +59,13 @@ export function extractSource(response: SourceResponse, requestedUrl: string, fe
   const title = normalizeEvidenceText(meta("og:title") ?? $("h1").first().text() ?? "") || normalizeEvidenceText($("title").text());
   const publisher = normalizeEvidenceText(meta("og:site_name") ?? meta("publisher") ?? new URL(response.url).hostname);
   // 메뉴·관련 기사에 표시된 오늘 날짜를 원문의 게시일로 쓰지 않는다.
-  const dateScope = $("article, #article, .bd-view, .article-view").first();
+  const dateScope = $("article, #article, .bd-view, .article-view, main").first();
   const rawDate = (meta("article:published_time") ?? meta("datePublished") ?? meta("pubdate") ??
     articles.map((article) => article.datePublished).find((date): date is string => typeof date === "string") ??
     dateScope.find("time[itemprop='datePublished'], time[pubdate]").first().attr("datetime") ??
-    dateScope.find(".article__time, .date, .view_date, .reg_date").first().text().trim()) ||
+    (dateScope.find(".article__time, .date, .view_date, .reg_date").first().text().trim() ||
+      // 릴리스 노트·체인지로그는 본문 머리의 <time datetime>만 둔다 (Cursor 등)
+      dateScope.find("time[datetime]").first().attr("datetime"))) ||
     // 본문 바깥 기사 머리(byline)에 발행일을 두는 매체가 있다. 메뉴의 오늘 날짜와 섞이지 않게 byline 안만 본다.
     $(".byline .date").first().text().trim();
   // 게시 정보 태그가 없는 블로그·릴리스 노트는 주소의 /YYYY/MM/DD/를 쓴다. 날짜만 있으므로 KST 자정이다.
@@ -86,7 +88,7 @@ export function extractSource(response: SourceResponse, requestedUrl: string, fe
   const selectors = [
     "[itemprop='articleBody']", "#dic_area", "#newsct_article", "#articletxt", "#article-view-content-div",
     "#articleBody", "#article", ".article_body", ".article-body", ".article_view", ".news_cnt_detail_wrap",
-    ".dbdata", ".bd_view_detail", ".view_cont", ".entry-content", "article",
+    ".dbdata", ".bd_view_detail", ".view_cont", ".entry-content", "article", "main",
   ];
   let text = "";
   for (const selector of selectors) {

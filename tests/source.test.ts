@@ -78,3 +78,10 @@ test("WordPress 계열(.entry-content) 본문을 읽는다", () => {
   const page = { url: "https://techcrunch.com/2026/10/16/post/", contentType: "text/html", body: `<title>기사</title><div class="entry-content wp-block-post-content">${text}</div>` };
   assert.ok(extractSource(page, page.url).text.length >= 200);
 });
+
+test("릴리스 노트의 <time datetime>을 게시일로 읽고, <main>만 있는 페이지의 본문도 읽는다", () => {
+  const page = { url: "https://cursor.com/changelog/post", contentType: "text/html", body: `<title>Changelog</title><main><article><time dateTime="2026-10-16T00:00:00.000Z">Oct 16, 2026</time><p>${text}</p></article></main>` };
+  assert.equal(extractSource(page, page.url).source.publishedAt, "2026-10-16T00:00:00.000Z");
+  const mainOnly = { url: "https://example.com/post", contentType: "text/html", body: `<title>글</title><main><p>${text}</p></main>` };
+  assert.ok(extractSource(mainOnly, mainOnly.url).text.length >= 200);
+});
