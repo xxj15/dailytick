@@ -40,6 +40,8 @@ export function buildGroundingReviewPrompt(content: GroundedSection, candidates:
 일반적인 금융 원리를 조건부로 설명하는 것은 허용한다. 출처 없는 실제 관측·통계·발언·미래 단정은 허용하지 않는다.
 framing은 todayKeywords·oneLiner(있는 경우)·knowledgeItems 전체를 검토한다. 일반 금융·IT 교육과 가상임을 밝힌 예시는 허용하되,
 출처에 없는 실제 최신 수치·사건·정책을 보태거나 선택된 뉴스와 모순되면 supported=false다.
+knowledgeItems의 교육용 설명·예시·코드는 명백히 틀린 내용일 때만 supported=false다.
+"더 정확하게 쓸 수 있다", "예외 상황이 있다" 수준의 개선 의견으로 거절하지 않는다.
 <briefing>${JSON.stringify(content)}</briefing>
 <evidence>${JSON.stringify(candidates.filter((candidate) => used.has(candidate.id)).map((candidate) => ({
   candidateId: candidate.id, facts: candidate.facts,

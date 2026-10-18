@@ -103,3 +103,13 @@ test("키워드·한 줄 검토가 걸리거나 남는 뉴스가 없으면 빼�
     review: async () => ({ review: { ...passed, framing: { supported: false, reason: "한 줄 과장" } }, inputTokens: 1, outputTokens: 1 }),
   }), BriefingValidationError);
 });
+
+test("실제 기사 제목에 있는 숫자(버전 등)는 근거로 인정하고, 어디에도 없는 숫자는 막는다", async () => {
+  const titled = { ...CANDIDATE, documents: [{ ...CANDIDATE.documents[0], source: { ...CANDIDATE.documents[0].source, title: "Next.js 16 출시" } }] };
+  titled.sources = titled.documents.map((doc) => doc.source);
+  const write = (title: string) => async () => ({ draft: { ...DRAFT, newsItems: [{ ...DRAFT.newsItems[0], title }] }, inputTokens: 1, outputTokens: 1 });
+  const ok = await generateDailyBriefing({ ...params, candidates: [titled] }, { ...dependencies, write: write("Next.js 16 출시") });
+  assert.equal(ok.content.newsItems[0].title, "Next.js 16 출시");
+  await assert.rejects(() => generateDailyBriefing({ ...params, candidates: [titled] }, { ...dependencies, write: write("Next.js 17 출시") }),
+    (error: unknown) => error instanceof BriefingValidationError && error.violations.some((item) => item.code === "news.unsupported_number"));
+});
