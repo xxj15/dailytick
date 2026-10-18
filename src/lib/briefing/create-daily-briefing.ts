@@ -4,6 +4,7 @@ import { TECH_DISCOVERY_MAX_AGE_DAYS } from "@/config/app";
 import { CURRICULUM, type Concept } from "@/data/curriculum";
 import { TECH_CURRICULUM } from "@/data/tech-curriculum";
 import {
+  ECONOMY_GROUP,
   economyCandidates,
   fallbackConcept,
   recentKnowledge,
@@ -274,7 +275,10 @@ async function chooseKnowledge(
 ): Promise<{ choice: Choice | null; audit: CurationAudit; usage: Usage }> {
   const { history, candidates, date, services, signal } = params;
   const usage: Usage = { inputTokens: 0, outputTokens: 0, webSearchCalls: 0 };
-  const recent = recentKnowledge(history);
+  // 경제 상식은 후보를 다섯 갈래로 보여주므로 최근 이력도 같은 갈래 이름으로 맞춘다. 그래야 겹침 감점이 작동한다.
+  const recent = recentKnowledge(history).map((entry) =>
+    kind === "economy" ? { ...entry, category: ECONOMY_GROUP[entry.category ?? ""] ?? entry.category } : entry,
+  );
 
   if (!candidates.length) {
     const { concepts } = selectTodayConcepts(history, params.curriculum, 1, false);
