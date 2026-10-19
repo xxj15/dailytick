@@ -57,8 +57,11 @@ export const ECONOMY_CONCEPTS_PER_DAY = 1;
 /** IT 파트 하루 뉴스 분량. 경제 파트와 같이 근거가 부족하면 줄여서 낸다. */
 export const TECH_NEWS_PER_DAY = { min: 1, max: 3, default: 2 } as const;
 
-/** 지면 맨 위에 거는 오늘의 키워드 개수. 한눈에 훑는 자리라 짧게 유지한다. */
-export const TODAY_KEYWORDS_PER_DAY = { min: 3, max: 5 } as const;
+/**
+ * 지면 맨 위에 거는 오늘의 키워드 개수. 한눈에 훑는 자리라 짧게 유지한다.
+ * 보통 3~5개지만 기사가 1~2건인 날(빈 슬롯·검토 제외)은 더 적을 수 있다. 키워드 개수 때문에 그날 지면을 버리지 않도록 하한은 1이다.
+ */
+export const TODAY_KEYWORDS_PER_DAY = { min: 1, max: 5 } as const;
 
 /**
  * 출처 게시 시각의 발행 하한선. 기준일 자정에서 이만큼 거슬러 올라간다.

@@ -14,7 +14,7 @@ import {
   USER_PROFILE,
 } from "@/config/app";
 import type { Concept } from "@/data/curriculum";
-import { formatKoreanDate, type DateString } from "@/lib/date";
+import { formatKoreanDate, freshSourceWindowKST, type DateString } from "@/lib/date";
 import type { GroundedCandidate } from "@/lib/news/evidence-types";
 import { fitsSlot, SLOT_NAME } from "@/lib/news/slots";
 import type { NewsSlot, RecentNewsEntry } from "@/types/briefing";
@@ -24,7 +24,7 @@ import type { NewsSlot, RecentNewsEntry } from "@/types/briefing";
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고,
  * 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v33";
+export const PROMPT_VERSION = "v34";
 
 /**
  * 모든 단계에 공통으로 적용되는 편집 원칙.
@@ -226,13 +226,15 @@ oneLiner는 키워드 바로 아래 붙는 한 줄이다.
  * STEP 1 — 주요 이슈 후보 수집.
  *
  * 세 슬롯(화제·국내·IT) 후보를 따로 찾게 하고, 다섯 섹션을 실제로 훑었는지 coverage로 보고하게 한다.
- * focusSlots가 있으면 앞선 수집에서 근거 있는 후보를 찾지 못한 슬롯만 겨냥해 다시 찾는다.
+ * slot이 있으면 1차 슬롯 수집이다. 슬롯마다 따로 도는 호출 하나가 그 슬롯 후보만 4~5개 찾는다.
+ * focusSlots가 있으면 재수집이다. 앞선 수집에서 근거 있는 후보를 찾지 못한 슬롯만 겨냥해 다시 찾는다.
  * 이때 앞선 후보 제목(previousTitles)과 버려진 URL(rejectedUrls)을 함께 넘겨 같은 후보·같은 실패 URL을 다시 내지 않게 한다.
  * 최근 며칠 동안 실은 사건은 새로 바뀐 점이 있을 때만 후보로 낸다.
+ * 게시 시각 허용 범위는 서버 검사(isFreshSource)와 같은 계산으로 적는다.
  */
 export function buildNewsCollectionPrompt(
   date: DateString,
-  options: { recentNews?: RecentNewsEntry[]; focusSlots?: NewsSlot[]; previousTitles?: string[]; rejectedUrls?: string[] } = {},
+  options: { recentNews?: RecentNewsEntry[]; slot?: NewsSlot; focusSlots?: NewsSlot[]; previousTitles?: string[]; rejectedUrls?: string[] } = {},
 ): string {
   const recent = options.recentNews?.length
     ? options.recentNews.map((entry) => `- [${entry.briefingDate}] ${entry.title}`).join("\n")
@@ -251,13 +253,27 @@ ${options.rejectedUrls.map((url) => `- ${url}`).join("\n")}`
     : "";
   // 재수집이면 비어 있는 슬롯의 후보만 찾는다. 이미 채운 슬롯을 다시 훑느라 재수집 시간 예산을 쓰지 않는다.
   const focus = options.focusSlots?.length ? options.focusSlots : null;
+  // 1차 슬롯 수집이면 맡은 슬롯 하나만 찾는다. 다른 슬롯은 동시에 도는 다른 호출이 맡는다.
+  const ownSlot = focus ? null : options.slot ?? null;
+  const searchSlots = focus ?? (ownSlot ? [ownSlot] : NEWS_SLOTS);
+  // 서버의 신선도 검사(isFreshSource)와 같은 범위. 범위를 모르면 모델이 며칠 지난 기사를 내고 근거 확인에서 떨어진다.
+  const freshRange = freshSourceWindowKST(date);
   const scope = focus
     ? `지금 최신 웹 검색을 수행해 아래 슬롯의 오늘의 주요 이슈 후보만 수집하라: ${focus.map((slot) => SLOT_NAME[slot]).join(", ")}
 이 슬롯마다 후보를 4~5개씩 따로 찾는다. 나머지 슬롯은 앞선 수집에서 이미 채웠으므로 그 후보는 찾지 않는다.`
-    : `지금 최신 웹 검색을 수행해 오늘의 주요 이슈 후보를 ${NEWS_CANDIDATE_COUNT.min}~${NEWS_CANDIDATE_COUNT.max}개 수집하라.
+    : ownSlot
+      ? `지금 최신 웹 검색을 수행해 ${SLOT_NAME[ownSlot]} 슬롯의 오늘의 주요 이슈 후보를 4~5개 수집하라.
+이번 수집은 이 슬롯만 맡는다. ${ownSlot === "top"
+          ? "분야와 상관없이 오늘 가장 크게 다룬 사건을 고른다. 국내 정세·IT 사건이어도 된다(서버가 다른 수집 결과와 합친다)."
+          : "나머지 슬롯은 다른 수집이 따로 찾으므로 그 후보는 찾지 않는다."}`
+      : `지금 최신 웹 검색을 수행해 오늘의 주요 이슈 후보를 ${NEWS_CANDIDATE_COUNT.min}~${NEWS_CANDIDATE_COUNT.max}개 수집하라.
 아래 세 슬롯의 후보를 슬롯마다 4~5개씩 따로 찾는다. 한 사건이 화제이면서 국내나 IT에도 맞으면 후보로는 한 번만 낸다.`;
+  // 1차 화제 수집은 다섯 섹션을 깊게 훑다 호출 기한(90초)을 넘긴다. 주요 매체 헤드라인에서 빠르게 고르게 한다.
+  const topFirstPass = ownSlot === "top";
   const slotSearch: Record<NewsSlot, string> = {
-    top: "top(오늘의 화제): 오늘 주요 일간지·통신사·방송이 함께 크게 다룬 사건을 찾는다. 분야를 가리지 않고 훑는다.",
+    top: topFirstPass
+      ? "top(오늘의 화제): 섹션마다 깊게 검색하지 않는다. 주요 일간지·통신사·방송의 1면·메인 헤드라인에서 오늘 여러 매체가 함께 크게 다룬 사건 4~5개를 빠르게 고른다. 1면·홈 화면은 사건을 찾는 데만 쓰고, sources에는 3번처럼 찾은 개별 기사 URL을 넣는다."
+      : "top(오늘의 화제): 오늘 주요 일간지·통신사·방송이 함께 크게 다룬 사건을 찾는다. 분야를 가리지 않고 훑는다.",
     domestic: "domestic(국내 정세): 국회·정부의 큰 결정, 외교·안보의 큰 변화, 국내 증시·환율·금리의 큰 변화, 대기업·금융권의 큰 움직임을 확인한다.",
     it: "it(IT): AI·반도체·소프트웨어·플랫폼·보안 소식을 국내 IT 매체와 해외 매체에서 확인한다.",
   };
@@ -272,15 +288,26 @@ ${NEWS_CRITERIA}
 
 ## 검색 방법
 
-1. 슬롯마다 따로 검색한다.
-${(focus ?? NEWS_SLOTS).map((slot) => `   - ${slotSearch[slot]}`).join("\n")}
+1. ${ownSlot ? "이 슬롯의 사건을 검색한다." : "슬롯마다 따로 검색한다."}
+${searchSlots.map((slot) => `   - ${slotSearch[slot]}`).join("\n")}
    검색어는 한국어로 쓰고, 국제·IT 뉴스는 영어 검색도 함께 한다.
 2. 다섯 섹션(politics 국내 정치·정책 / world 국제·외교 / society 사회 / economy 경제·산업 / tech IT·과학)마다 검토한 결과를 coverage에 적는다.
-   중요한 사건이 없었다면 searched=true, note에 "중요 사건 없음"이라고 쓴다. 검색하지 못한 섹션은 searched=false로 솔직하게 적는다.
+   중요한 사건이 없었다면 searched=true, note에 "중요 사건 없음"이라고 쓴다. 검색하지 못한 섹션은 searched=false로 솔직하게 적는다.${
+  topFirstPass
+    ? `
+   이번 수집은 섹션을 하나씩 깊게 훑지 않는다. 헤드라인에서 사건을 확인한 섹션만 searched=true로 적는다.`
+    : ownSlot
+      ? `
+   이번 수집이 맡는 섹션은 ${NEWS_SLOT_SECTIONS[ownSlot].join("·")}이다. 맡지 않아 훑지 않은 섹션은 searched=false로 적는다.`
+      : ""
+}
 3. 고른 사건마다 그 사건 이름으로 다시 검색해 개별 기사를 찾는다. sources에는 그 검색 결과에 실제로 나온 기사 URL만 넣는다.
 4. 전날 이전에 일어난 사건은 지금 시점까지의 최신 기사로 후속 상황을 확인하고, 가장 최신 기사를 sources 맨 앞에 둔다.
 5. 아직 일어나지 않은 일(예정된 회의·발표)은 "예정"으로만 쓴다. 결과를 미리 단정하지 않는다.
-6. 이 지면의 기준일은 ${date}이다. 게시 시각이 ${date} 23:59(KST)를 넘는 기사는 서버가 버리므로 sources에 넣지 않는다.
+6. 이 지면의 기준일은 ${date}이다. 서버는 게시 시각이 ${freshRange.from} ~ ${freshRange.to} (KST) 범위 안인 기사만 쓴다.
+   이 범위는 서버가 받는 최대 한도다. 후보는 최근 24시간 보도를 우선하고, 48시간이 지난 사건은 오늘 새로 바뀐 점이 있을 때만 낸다.
+   범위 밖 기사는 서버가 버린다. 본문에서 게시 시각을 확인할 수 없는 기사도 버린다. 그런 기사는 sources에 넣지 않는다.
+   사건이 이 범위보다 먼저 일어났어도 sources에는 범위 안에 게시된 최신 기사를 넣는다.
 7. 섹션·목록·랭킹(많이 본 뉴스)·홈 화면 URL(예: /index.php, /main.do, /schedule, /ranking)은 본문이 없어 버려진다. 개별 기사 URL만 넣는다.${
   focus
     ? `
@@ -322,7 +349,7 @@ ${SOURCE_PREFERENCE}
 
 ## 최종 점검
 
-- ${focus ? `겨냥한 슬롯(${focus.map((slot) => SLOT_NAME[slot]).join(", ")}) 후보를 찾았는가?` : "세 슬롯(화제·국내·IT) 후보를 각각 찾았는가?"} IT 후보의 category가 IT 분류인가? 국내 후보의 region이 KR이고 category가 사회·과학이 아닌가?
+- ${focus ? `겨냥한 슬롯(${focus.map((slot) => SLOT_NAME[slot]).join(", ")}) 후보를 찾았는가?` : ownSlot ? `${SLOT_NAME[ownSlot]} 후보를 4~5개 찾았는가?` : "세 슬롯(화제·국내·IT) 후보를 각각 찾았는가?"} IT 후보의 category가 IT 분류인가? 국내 후보의 region이 KR이고 category가 사회·과학이 아닌가?
 - coverage가 실제로 훑은 섹션과 맞는가?
 - 최근에 실은 사건을 새 변화 없이 다시 내지 않았는가?
 - 실제 URL인가? 수치와 날짜를 만들지 않았는가?`;
@@ -713,7 +740,7 @@ todayKeywords는 지면 맨 위에 거는 단어 목록이다.
 "오늘은 이게 중요했구나"를 알아채는 자리다.
 
 규칙:
-- 3개에서 5개
+- 보통 3~5개. 기사가 1~2건이면 기사마다 1~2개로 줄여도 된다(없는 주제로 채우지 않는다)
 - 각 키워드는 한국어 기준 10자 이내의 명사구
 - 문장이나 서술어를 쓰지 않는다
 - 앞에서 작성한 newsItems에서 실제로 다룬 주제만 쓴다
@@ -766,7 +793,7 @@ ${ONE_LINER_RULES}
 - 오늘 새롭게 바뀐 내용이 없는 오래된 이슈를 반복하지 않았는가?
 
 [키워드와 한 줄]
-- 키워드가 3개에서 5개인가?
+- 키워드가 보통 3~5개인가? 기사가 1~2건이라 줄였다면 없는 주제로 채우지 않았는가?
 - 모두 짧은 명사구인가?
 - 오늘 뉴스에서 실제로 다룬 주제인가?
 - 오늘 실은 슬롯의 사건이 고루 들어 있는가?

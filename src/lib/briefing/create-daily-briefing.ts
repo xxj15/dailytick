@@ -16,7 +16,7 @@ import {
   selectTodayConcepts,
 } from "@/lib/curriculum/select-next-concepts";
 import type { DateString } from "@/lib/date";
-import { collectMarketNews, discoverTechTopics, NewsCollectionError, type TechTopic } from "@/lib/openai/collect-news";
+import { collectMarketNews, discoverTechTopics, NewsCollectionError, type CollectNewsResult, type TechTopic } from "@/lib/openai/collect-news";
 import { curateKnowledge, type CuratorPick } from "@/lib/openai/curate";
 import { boundForGrounding, groundMarketNews, GroundNewsError, unseenCandidates } from "@/lib/openai/ground-news";
 import {
@@ -37,9 +37,10 @@ import {
   finishGenerationLog,
   startGenerationLog,
 } from "@/lib/supabase/generation-logs";
-import type { Briefing, ConceptHistoryEntry, GroundedSection, NewsCandidate, RecentNewsEntry, TechSection } from "@/types/briefing";
+import type { Briefing, ConceptHistoryEntry, GroundedSection, NewsCandidate, NewsCoverage, NewsSlot, RecentNewsEntry, TechSection } from "@/types/briefing";
 import type { GroundedCandidate } from "@/lib/news/evidence-types";
-import { auditEvidence, type CoverageAudit, type CurationAudit, type GenerationAudit, type TechAudit } from "@/lib/news/generation-audit";
+import { auditEvidence, type CoverageAudit, type CurationAudit, type GenerationAudit, type SlotCollectAudit, type TechAudit } from "@/lib/news/generation-audit";
+import { sourceMatchKey } from "@/lib/news/search-provenance";
 import { emptySlots, fitsSlot, matchSlots } from "@/lib/news/slots";
 import type { BriefingViolation } from "@/types/briefing";
 
@@ -79,13 +80,16 @@ const RECOLLECT_MIN_LEFT_MS = RECOLLECT_RESERVE_MS + 60_000;
 const RECOLLECT_GROUND_MIN_MS = 30_000;
 /** 재수집 후보의 id 접두어. 1차 후보(c1, c2…)와 근거 문장 id(c1-f1…)가 겹치지 않게 한다. */
 const RECOLLECT_ID_PREFIX = "r";
-/** 첫 수집이 시간 초과로 끝났을 때 한 번 더 시도하는 하한. 재수집보다 낮다. 첫 수집이 아무것도 못 남겼기 때문이다. */
+/**
+ * 1차 수집의 세 슬롯이 모두 실패했을 때, 시간 초과로 끝난 슬롯을 한 번 더 시도하는 하한.
+ * 재수집보다 낮다. 1차 수집이 아무것도 못 남겼기 때문이다.
+ */
 const RETRY_AFTER_TIMEOUT_MIN_LEFT_MS = 150_000;
 
 /**
  * 하루치 브리핑 생성 전체 흐름.
  *
- *   경제·주요 이슈: 최근 뉴스 조회 → 슬롯별 후보 수집 → 본문 근거 확인(빈 슬롯이 있으면 그 슬롯만 1회 재수집) → 경제 상식 큐레이션 → 작성·검토
+ *   경제·주요 이슈: 최근 뉴스 조회 → 슬롯별 후보 수집(슬롯마다 병렬 호출) → 본문 근거 확인(빈 슬롯이 있으면 그 슬롯만 1회 재수집) → 경제 상식 큐레이션 → 작성·검토
  *   테크 상식:     학습 이력 → 그날 기술 글 발굴 → 큐레이션 → (아티클·트렌드면) 원문 근거 확인 → 작성·검토
  *
  * 두 흐름은 동시에 돈다. 경제·주요 이슈가 지면의 본체라 실패하면 발행하지 않는다.
@@ -137,12 +141,8 @@ export async function createDailyBriefing(
     const recentNews: RecentNewsEntry[] = await services.getRecentNews(date).catch(() => []);
 
     audit.stage = "search";
-    // 웹 검색을 여러 번 하는 단계라 가끔 기한을 넘긴다. 시간이 남으면 한 번만 다시 시도한다.
-    const news = await services.collectMarketNews(date, signal, { recentNews }).catch(async (error: unknown) => {
-      const timedOut = error instanceof Error && /timed out|timeout/i.test(error.message);
-      if (!timedOut || timeLeft() < RETRY_AFTER_TIMEOUT_MIN_LEFT_MS) throw error;
-      return services.collectMarketNews(date, signal, { recentNews });
-    });
+    // 슬롯마다 따로 수집하는 호출 세 개를 동시에 돌려 합친다. 일부가 실패해도 나머지로 진행한다.
+    const news = await collectFirstPass(date, recentNews, services, signal, timeLeft);
     addUsage(news);
     audit.searchTrace = news.searchTrace;
     audit.rejectedUrls = news.rejectedUrls;
@@ -154,7 +154,7 @@ export async function createDailyBriefing(
     // 근거가 확인된 후보로 채울 수 없는 슬롯이 있으면, 시간이 될 때 그 슬롯의 섹션을 겨냥해 한 번 더 수집한다.
     // (후보가 모자란 건 모델이 검색에 없던 URL을 내서 걸러진 경우가 많다)
     // 재수집은 덤이다. 1차에서 확인한 근거는 다시 읽지도 덮어쓰지도 않고, 재수집이 실패하거나 시간 예산을 넘겨도 1차 결과로 발행한다.
-    const coverage = news.coverage ?? [];
+    const coverage = news.coverage;
     const emptyBefore = emptySlots(grounded.candidates);
     let recollected = false;
     let recollectError: string | undefined;
@@ -187,11 +187,7 @@ export async function createDailyBriefing(
         addUsage(more);
         audit.searchTrace = [...audit.searchTrace, ...more.searchTrace];
         audit.rejectedUrls = [...audit.rejectedUrls, ...more.rejectedUrls];
-        for (const entry of more.coverage ?? []) {
-          const index = coverage.findIndex((prev) => prev.section === entry.section);
-          if (index === -1) coverage.push(entry);
-          else if (entry.searched) coverage[index] = entry;
-        }
+        mergeCoverage(coverage, more.coverage);
         // 1차에서 읽었거나 지금 읽을 후보와 겹치는 출처는 빼고 새 후보로 받는다.
         const fresh = unseenCandidates(more.candidates, [...tried, ...unread]);
         // 수집 기록에는 1차 후보와 제목이 같은 후보를 다시 세지 않는다.
@@ -237,6 +233,7 @@ export async function createDailyBriefing(
       recollected,
       recollectedSlots: recollected ? emptyBefore : [],
       ...(recollectError ? { recollectError } : {}),
+      firstPass: news.slots,
       candidates: candidates.length,
       grounded: grounded.candidates.length,
       slots: NEWS_SLOTS.map((slot) => ({
@@ -329,6 +326,137 @@ export async function createDailyBriefing(
     if (error instanceof Error) Object.assign(error, { audit });
     throw error;
   }
+}
+
+/** 1차 수집 결과. 슬롯별 호출을 합친 것이다. 슬롯별 호출 결과(실패한 슬롯과 이유 포함)는 slots에 남는다. */
+type FirstPassResult = CollectNewsResult & { coverage: NewsCoverage; slots: SlotCollectAudit[] };
+type SlotOutcome = { slot: NewsSlot } & ({ ok: true; result: CollectNewsResult } | { ok: false; error: unknown });
+
+/**
+ * 1차 수집. 슬롯(top·domestic·it)마다 그 슬롯 후보만 찾는 호출을 동시에 돌리고 결과를 합친다.
+ * 호출 하나가 세 슬롯을 다 훑느라 길어지면 늦게 도는 재수집에 기댈 수밖에 없다. 처음부터 슬롯마다 후보를 확보한다.
+ *
+ * 호출은 서로를 기다리지 않는다. 하나가 실패하면 나머지로 진행하고, 실패한 슬롯과 이유를 slots에 남긴다.
+ * 셋 다 실패할 때만 수집 실패다. 그중 시간 초과로 끝난 슬롯은 시간이 남으면 한 번만 다시 시도한다.
+ *
+ * 합칠 때는 슬롯 전용 호출(국내·IT)을 먼저, 화제 호출을 나중에 합친다(mergeSlotCandidates).
+ * 앞선 호출의 후보와 제목이 같거나 출처 URL이 하나라도 겹치면 같은 사건으로 보고 새 출처만 앞선 후보에 붙인다.
+ * 사용량·검색 기록·거부 URL은 실패한 호출 것까지 모두 합치고, 섹션 기록(coverage)은 실제로 훑은 쪽을 남긴다.
+ */
+async function collectFirstPass(
+  date: DateString,
+  recentNews: RecentNewsEntry[],
+  services: BriefingServices,
+  signal: AbortSignal,
+  timeLeft: () => number,
+): Promise<FirstPassResult> {
+  const outcomes: SlotOutcome[] = [];
+  const collect = async (slots: readonly NewsSlot[]) => {
+    const settled = await Promise.allSettled(slots.map((slot) => services.collectMarketNews(date, signal, { recentNews, slot })));
+    // 실행 기한·취소는 슬롯 실패가 아니다. 이어서 할 수 있는 일이 없으므로 그대로 멈춘다.
+    signal.throwIfAborted();
+    settled.forEach((outcome, index) => outcomes.push(outcome.status === "fulfilled"
+      ? { slot: slots[index], ok: true, result: outcome.value }
+      : { slot: slots[index], ok: false, error: outcome.reason }));
+  };
+  await collect(NEWS_SLOTS);
+  if (outcomes.every((outcome) => !outcome.ok)) {
+    // 웹 검색을 여러 번 하는 단계라 가끔 기한을 넘긴다. 셋 다 실패했을 때만, 시간 초과로 끝난 슬롯을 한 번 더 시도한다.
+    const timedOut = outcomes.flatMap((outcome) => (!outcome.ok && isTimeout(outcome.error) ? [outcome.slot] : []));
+    if (timedOut.length && timeLeft() >= RETRY_AFTER_TIMEOUT_MIN_LEFT_MS) await collect(timedOut);
+  }
+
+  const merged: FirstPassResult = {
+    candidates: [], coverage: [], searchTrace: [], rejectedUrls: [], slots: [],
+    inputTokens: 0, outputTokens: 0, webSearchCalls: 0,
+  };
+  for (const slot of FIRST_PASS_MERGE_ORDER) {
+    const tries = outcomes.filter((outcome) => outcome.slot === slot);
+    for (const outcome of tries) {
+      const spent = outcome.ok
+        ? { usage: outcome.result, trace: outcome.result.searchTrace, rejectedUrls: outcome.result.rejectedUrls }
+        : outcome.error instanceof NewsCollectionError
+          ? { usage: outcome.error.usage, trace: outcome.error.trace, rejectedUrls: outcome.error.rejectedUrls }
+          : null;
+      if (spent) {
+        merged.inputTokens += spent.usage.inputTokens;
+        merged.outputTokens += spent.usage.outputTokens;
+        merged.webSearchCalls += spent.usage.webSearchCalls;
+        merged.searchTrace.push(...spent.trace);
+        merged.rejectedUrls.push(...spent.rejectedUrls);
+      }
+      if (!outcome.ok) continue;
+      merged.candidates = mergeSlotCandidates(merged.candidates, outcome.result.candidates);
+      mergeCoverage(merged.coverage, outcome.result.coverage);
+    }
+    // 슬롯마다 마지막 시도가 결과다. 다시 시도하는 것은 실패한 슬롯뿐이라 성공은 언제나 마지막이다.
+    const last = tries[tries.length - 1];
+    merged.slots.push(last.ok ? { slot, candidates: last.result.candidates.length } : { slot, candidates: 0, error: errorMessage(last.error) });
+  }
+  // 기록은 지면 순서(top → domestic → it)로 남긴다.
+  merged.slots.sort((a, b) => NEWS_SLOTS.indexOf(a.slot) - NEWS_SLOTS.indexOf(b.slot));
+  merged.rejectedUrls = [...new Set(merged.rejectedUrls)];
+
+  const failures = merged.slots.filter((entry) => entry.error !== undefined);
+  if (failures.length === NEWS_SLOTS.length) {
+    throw new NewsCollectionError(
+      `주요 이슈 후보 수집 실패(세 슬롯 모두): ${failures.map((failure) => `${failure.slot}: ${failure.error}`).join(" / ")}`,
+      { inputTokens: merged.inputTokens, outputTokens: merged.outputTokens, webSearchCalls: merged.webSearchCalls },
+      merged.searchTrace,
+      merged.rejectedUrls,
+    );
+  }
+  return merged;
+}
+
+/**
+ * 1차 슬롯 호출을 합치는 순서. 슬롯 전용 호출(국내·IT)이 먼저다.
+ * 화제 호출이 같은 사건을 국내·IT에 맞지 않는 분류로 냈어도 슬롯에 맞는 쪽이 후보로 남는다.
+ */
+const FIRST_PASS_MERGE_ORDER: readonly NewsSlot[] = ["domestic", "it", "top"];
+
+/**
+ * 한 슬롯 호출의 후보를 앞선 호출에서 합친 후보에 더한다.
+ * 앞선 후보와 제목이 같거나 출처 URL이 하나라도 겹치면 같은 사건이다. 두 번째 후보로 남기지 않고,
+ * 아직 어느 후보에도 없는 출처만 앞선 후보 뒤에 붙인다. 한 사건이 두 후보로 갈라지지도, 새 출처를 버리지도 않는다.
+ * 같은 호출 안의 후보끼리는 비교하지 않는다. 호출 하나의 결과는 지금까지처럼 그대로 받는다.
+ * (재수집은 1차 결과를 다시 읽지 않으려고 unseenCandidates로 겹친 출처를 빼는 규칙을 그대로 쓴다)
+ */
+function mergeSlotCandidates(merged: NewsCandidate[], incoming: NewsCandidate[]): NewsCandidate[] {
+  const keyOf = (url: string) => sourceMatchKey(url) ?? url;
+  const result = [...merged];
+  const earlier = merged.length;
+  for (const candidate of incoming) {
+    const title = candidate.title.trim();
+    const keys = new Set(candidate.sources.map((source) => keyOf(source.url)));
+    const index = result.slice(0, earlier).findIndex((kept) =>
+      kept.title.trim() === title || kept.sources.some((source) => keys.has(keyOf(source.url))));
+    if (index === -1) {
+      result.push(candidate);
+      continue;
+    }
+    const taken = new Set(result.flatMap((kept) => kept.sources.map((source) => keyOf(source.url))));
+    const extra = candidate.sources.filter((source) => !taken.has(keyOf(source.url)));
+    if (extra.length) result[index] = { ...result[index], sources: [...result[index].sources, ...extra] };
+  }
+  return result;
+}
+
+/** 섹션 기록을 합친다. 새 섹션은 더하고, 같은 섹션은 실제로 훑은(searched) 기록으로 바꾼다. */
+function mergeCoverage(into: NewsCoverage, more: NewsCoverage | undefined) {
+  for (const entry of more ?? []) {
+    const index = into.findIndex((prev) => prev.section === entry.section);
+    if (index === -1) into.push(entry);
+    else if (entry.searched) into[index] = entry;
+  }
+}
+
+function isTimeout(error: unknown): boolean {
+  return error instanceof Error && /timed out|timeout/i.test(error.message);
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 type Choice = { concept: Concept; mode: "new" | "review"; evidence: GroundedCandidate[] };

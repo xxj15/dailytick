@@ -161,7 +161,9 @@ export const newsCandidateSchema = z.object({
   region: newsRegionSchema,
   category: newsCategorySchema,
   section: newsSectionSchema.optional(),
-  importance: z.number().int().min(1).max(10),
+  // AI 출력 스키마는 정수·범위를 강제하지 못한다. 8.5·10.5 같은 값 하나로 슬롯 수집 전체를 버리지 않도록
+  // 반올림한 뒤 1~10으로 자른다. (테크 발굴의 discoverTechTopics와 같은 방식)
+  importance: z.number().transform((value) => Math.min(10, Math.max(1, Math.round(value)))),
   sources: z.array(newsSourceSchema).min(1),
 });
 

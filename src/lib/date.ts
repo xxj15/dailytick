@@ -128,6 +128,15 @@ function kstMidnightMs(date: DateString): number {
 }
 
 /**
+ * 기준일 지면이 받는 출처 게시 시각 범위(UTC epoch ms). 기준일 자정 기준 -maxAgeHours 이상, +24시간 미만이다.
+ * 서버 검사(isFreshSource)와 수집 프롬프트의 안내(freshSourceWindowKST)가 이 계산 하나를 같이 쓴다.
+ */
+function freshSourceBounds(date: DateString, maxAgeHours: number) {
+  const midnight = kstMidnightMs(date);
+  return { from: midnight - maxAgeHours * HOUR_MS, until: midnight + 24 * HOUR_MS };
+}
+
+/**
  * 출처 게시 시각이 기준일 지면에 쓸 만큼 최신인가. (명세 §12)
  *
  * 허용 범위는 기준일 자정 기준 -SOURCE_MAX_AGE_HOURS ~ +24시간이다.
@@ -144,12 +153,27 @@ export function isFreshSource(
   const published = Date.parse(publishedAt);
   if (Number.isNaN(published)) return false;
 
-  const midnight = kstMidnightMs(date);
+  const { from, until } = freshSourceBounds(date, maxAgeHours);
+  return published >= from && published < until;
+}
 
-  return (
-    published >= midnight - maxAgeHours * HOUR_MS &&
-    published < midnight + 24 * HOUR_MS
-  );
+/**
+ * isFreshSource가 통과시키는 게시 시각 범위를 KST로 적는다. 수집 프롬프트가 서버와 다른 범위를 말하지 않게 한다.
+ * 예: 기준일 '2026-10-19' → { from: '2026-10-16 00:00', to: '2026-10-19 23:59' }
+ * 위쪽 경계는 포함하지 않으므로(다음 날 00:00 미만) 표기는 그 1분 전이다.
+ */
+export function freshSourceWindowKST(
+  date: DateString,
+  maxAgeHours: number = SOURCE_MAX_AGE_HOURS,
+): { from: string; to: string } {
+  const { from, until } = freshSourceBounds(date, maxAgeHours);
+  return { from: formatKstMinute(from), to: formatKstMinute(until - 60_000) };
+}
+
+/** UTC epoch(ms) → KST 'YYYY-MM-DD HH:mm'. KST는 서머타임이 없어 고정 +9다. */
+function formatKstMinute(epochMs: number): string {
+  const kst = new Date(epochMs + 9 * HOUR_MS);
+  return `${kst.getUTCFullYear()}-${pad(kst.getUTCMonth() + 1)}-${pad(kst.getUTCDate())} ${pad(kst.getUTCHours())}:${pad(kst.getUTCMinutes())}`;
 }
 
 /**

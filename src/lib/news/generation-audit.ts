@@ -37,10 +37,23 @@ export type CoverageAudit = {
    * 실패해도 1차 결과로 발행한다. 성공했거나 재수집하지 않았으면 없다.
    */
   recollectError?: string;
+  /**
+   * 1차 수집의 슬롯별 호출 결과(슬롯 순서). 1차 수집은 슬롯마다 따로 돌고, 일부가 실패해도 나머지 슬롯 후보로 진행한다.
+   * 셋 다 실패하면 수집 실패로 멈추므로 이 기록까지 오지 않는다(이유는 오류 메시지에 남는다).
+   */
+  firstPass: SlotCollectAudit[];
   candidates: number;
   grounded: number;
   /** 슬롯별 결과. 어떤 슬롯이 왜 비었는지 여기서 본다. */
   slots: SlotAudit[];
+};
+
+export type SlotCollectAudit = {
+  slot: NewsSlot;
+  /** 그 호출이 낸 후보 수. 다른 슬롯 호출과 겹쳐 합칠 때 빠진 후보도 센다. 실패했으면 0이다. */
+  candidates: number;
+  /** 실패했다면 그 이유. 시간 초과로 다시 시도했으면 마지막 시도 기준이다. */
+  error?: string;
 };
 
 export type SlotAudit = {
