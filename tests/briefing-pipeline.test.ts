@@ -1,14 +1,18 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 import { createDailyBriefing, type BriefingServices } from "@/lib/briefing/create-daily-briefing";
-import { generateDailyBriefing, type GenerateBriefingDependencies } from "@/lib/openai/generate-briefing";
+import { BriefingValidationError, generateDailyBriefing, generateTechSection, type GenerateBriefingDependencies } from "@/lib/openai/generate-briefing";
+import { buildGroundingReviewPrompt } from "@/lib/news/review";
+import type { GroundedCandidate } from "@/lib/news/evidence-types";
+import { techCandidates } from "@/lib/curation/candidates";
 import { dailyBriefingSchema, newsCandidateSchema, stripNulls } from "@/lib/openai/schemas";
 import { materializeBriefing } from "@/lib/briefing/materialize";
 import { CANDIDATE, DATE, DRAFT, candidate, draftNews } from "./fixtures/news";
-import { NewsCollectionError, type CollectNewsResult } from "@/lib/openai/collect-news";
+import { NewsCollectionError, type CollectNewsResult, type TechTopic } from "@/lib/openai/collect-news";
 import { boundForGrounding, groundMarketNews, GroundNewsError } from "@/lib/openai/ground-news";
-import { buildNewsCollectionPrompt } from "@/lib/openai/prompts";
+import { buildCuratorPrompt, buildNewsCollectionPrompt } from "@/lib/openai/prompts";
 import type { NewsCandidate, NewsSlot } from "@/types/briefing";
+import { CURRICULUM } from "@/data/curriculum";
 import { TECH_ARTICLES } from "@/data/tech-articles";
 import { TECH_CURRICULUM } from "@/data/tech-curriculum";
 
@@ -17,7 +21,10 @@ const ALL_SECTIONS = ["politics", "world", "society", "economy", "tech"].map((se
 function harness() {
   const saved: Parameters<BriefingServices["saveBriefing"]>[0][] = [];
   const logs: Parameters<BriefingServices["finishGenerationLog"]>[1][] = [];
-  const calls = { collect: [] as unknown[], ground: [] as { titles: string[]; allowUndated?: boolean }[], curate: [] as Parameters<BriefingServices["curateKnowledge"]>[0][], generate: [] as unknown[] };
+  const calls = {
+    collect: [] as unknown[], ground: [] as { titles: string[]; allowUndated?: boolean }[], curate: [] as Parameters<BriefingServices["curateKnowledge"]>[0][], generate: [] as unknown[],
+    tech: [] as Parameters<BriefingServices["generateTechSection"]>[0][],
+  };
   const content = dailyBriefingSchema.parse(stripNulls(materializeBriefing(DRAFT, [CANDIDATE])));
   const existing = { ...content, tech: null, id: "existing", briefingDate: DATE, generatedAt: "2026-10-09T08:00:00+09:00", model: "test", promptVersion: "v9" };
   // 세 슬롯을 모두 채울 수 있는 후보: 화제(국내 금리)·국내(정책)·IT(해외 AI)
@@ -47,10 +54,14 @@ function harness() {
       return { candidates: candidates.length > 1 ? grounded3 : [{ ...CANDIDATE, title: candidates[0].title }], rejected: [], inputTokens: 20, outputTokens: 5 };
     },
     generateDailyBriefing: async (params) => { calls.generate.push(params); return { content, attempts: 1, violations: [], reviews: [], inputTokens: 30, outputTokens: 10 }; },
-    generateTechSection: async (params) => ({
-      content: { knowledgeItems: content.knowledgeItems.map((item) => ({ ...item, ...params.concepts[0] })), newsItems: [] },
-      attempts: 1, violations: [], reviews: [], inputTokens: 3, outputTokens: 1,
-    }),
+    // 넘겨받은 개념마다 한 항목씩 쓴다.
+    generateTechSection: async (params) => {
+      calls.tech.push(params);
+      return {
+        content: { knowledgeItems: params.concepts.map((concept) => ({ ...content.knowledgeItems[0], ...concept })), newsItems: [] },
+        attempts: 1, violations: [], reviews: [], inputTokens: 3, outputTokens: 1,
+      };
+    },
     saveBriefing: async (params) => { saved.push(params); return { ...existing, ...params.content, tech: params.tech, promptVersion: params.promptVersion }; },
   };
   return { services, logs, existing, saved, calls, saves: () => saved.length };
@@ -72,7 +83,8 @@ test("주요 이슈·경제 상식·테크 상식을 만들어 저장하고, 섹
   assert.deepEqual(run.logs[0].audit?.coverage?.slots.map((entry) => [entry.slot, entry.grounded]), [["top", 3], ["domestic", 2], ["it", 1]]);
   assert.equal(run.logs[0].audit?.curation?.status, "curated");
   assert.equal(run.logs[0].audit?.tech?.curation?.status, "curated");
-  assert.ok(run.saved[0].tech?.knowledgeItems.length);
+  // 테크 상식은 추천 하나에 모자란 자리를 커리큘럼 개념으로 채워 두 개다
+  assert.equal(run.saved[0].tech?.knowledgeItems.length, 2);
   assert.equal(run.saved[0].tech?.newsItems.length, 0);
   assert.ok(!("text" in run.logs[0].audit!.evidence[0].documents[0]));
 });
@@ -117,7 +129,7 @@ test("추천을 하나도 쓰지 못하면 검증된 커리큘럼 개념으로 �
   assert.equal(run.saved[0].tech?.knowledgeItems[0].format, "concept");
 });
 
-test("검증된 후보가 하나도 없으면 테크 상식은 보류하고 나머지는 발행한다", async () => {
+test("검증된 후보가 하나도 없고 커리큘럼도 다 돌았으면 검증 안 된 글은 싣지 않고 복습 개념으로 채운다", async () => {
   const run = harness();
   const learnedAll = [{ briefingDate: "2026-10-08", items: [...TECH_CURRICULUM, ...TECH_ARTICLES].map((entry) => ({ slug: entry.slug, title: entry.title })) }];
   const topic = { title: "검색 글", summary: "요약", field: "frontend" as const, format: "trend" as const, learning: 8,
@@ -129,10 +141,803 @@ test("검증된 후보가 하나도 없으면 테크 상식은 보류하고 나�
       ? { candidates: [], rejected: [{ candidateId: "c1", reason: "게시일 없음" }], inputTokens: 0, outputTokens: 0 }
       : run.services.groundMarketNews(candidates, ...rest),
   });
+  assert.equal(run.logs[0].status, "success");
+  // 원문 근거를 확인하지 못한 검색 글은 싣지 않는다. 빈 자리는 사람이 검증한 커리큘럼의 복습 개념이다
+  const items = run.saved[0].tech?.knowledgeItems ?? [];
+  assert.deepEqual(items.map((item) => [item.slug, item.review]), [[TECH_CURRICULUM[0].slug, true], [TECH_CURRICULUM[1].slug, true]]);
+  assert.equal(run.calls.tech[0].mode, "review");
+  const curation = run.logs[0].audit?.tech?.curation;
+  assert.equal(curation?.status, "review");
+  assert.ok(curation?.chosen?.every((entry) => entry.fallback && entry.review));
+  assert.ok(curation?.rejected?.some((reason) => reason.includes("게시일 없음")));
+});
+
+/* ------------------------------------------------------------------
+ * 테크 상식 하루 두 개 (서로 다른 개념, 가능하면 서로 다른 분야)
+ * ------------------------------------------------------------------ */
+
+const articles = (category: string) => TECH_ARTICLES.filter((article) => article.category === category);
+const firstConcept = (category: string) => TECH_CURRICULUM.find((concept) => concept.category === category)!;
+const [CS_A, CS_B] = articles("cs");
+const [FRONT_A] = articles("frontend");
+const [AI_A] = articles("ai");
+const CS_CONCEPT = firstConcept("cs");
+
+/** 테크 큐레이터는 ids를 그 순서대로 추천하고, 경제 큐레이터는 첫 후보를 고른다. 받은 인자는 calls.curate에 남는다. */
+function curateTech(run: ReturnType<typeof harness>, ids: string[]): BriefingServices["curateKnowledge"] {
+  return async (params) => {
+    run.calls.curate.push(params);
+    return {
+      picks: params.kind === "tech"
+        ? ids.map((id) => ({ id, title: "", reason: `추천 ${id}` }))
+        : [{ id: params.candidates[0].id, title: params.candidates[0].title, reason: "첫 후보" }],
+      inputTokens: 0, outputTokens: 0,
+    };
+  };
+}
+
+/** slugs를 하루에 모두 배운 학습 이력. */
+function learned(slugs: string[]) {
+  return [{ briefingDate: "2026-10-08", items: slugs.map((slug) => ({ slug, title: slug })) }];
+}
+
+/** 그날 검색으로 찾은 기술 글(발굴 후보 d-) 하나. */
+function discovered(title: string, field: TechTopic["field"], url: string): TechTopic {
+  return { title, summary: "요약", field, format: "article", learning: 8,
+    candidate: { title, summary: "요약", region: "GLOBAL", category: "software", importance: 8, sources: [{ ...CANDIDATE.sources[0], url }] } };
+}
+
+/**
+ * 테크 상식 원문 확인(후보 하나짜리 호출). 실제처럼 접두어로 id를 매기고 요청한 출처 URL을 원문으로 돌려준다.
+ * fail에 든 제목은 근거 확인에 실패한다. 뉴스 근거 확인(후보 여럿)은 harness 기본 동작을 따른다. 읽은 제목은 grounded에 남는다.
+ */
+function groundTech(run: ReturnType<typeof harness>, fail: string[] = [], grounded: string[] = []): BriefingServices["groundMarketNews"] {
+  return async (candidates, date, signal, maxAge, allowUndated, idPrefix = "c") => {
+    if (candidates.length > 1) return run.services.groundMarketNews(candidates, date, signal, maxAge, allowUndated, idPrefix);
+    const [source] = candidates;
+    grounded.push(source.title);
+    const id = `${idPrefix}1`;
+    if (fail.includes(source.title)) return { candidates: [], rejected: [{ candidateId: id, reason: "원문 근거 문장 없음" }], inputTokens: 0, outputTokens: 0 };
+    const doc = { ...CANDIDATE.documents[0], requestedUrl: source.sources[0].url, source: { ...source.sources[0], publishedAt: CANDIDATE.sources[0].publishedAt } };
+    return {
+      candidates: [{ ...CANDIDATE, id, title: source.title, region: source.region, category: source.category, sources: [doc.source], documents: [doc], facts: [{ ...CANDIDATE.facts[0], id: `${id}-f1` }] }],
+      rejected: [], inputTokens: 0, outputTokens: 0,
+    };
+  };
+}
+
+test("테크 상식 정상: 추천 1·2위가 다른 분야이고 둘 다 원문 근거를 통과하면 추천 순서대로 두 개를 싣고, 원문마다 어느 상식의 근거인지 붙여 넘긴다", async () => {
+  const run = harness();
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    curateKnowledge: curateTech(run, [CS_A.slug, FRONT_A.slug, AI_A.slug]),
+    groundMarketNews: groundTech(run),
+  });
+  const items = run.saved[0].tech?.knowledgeItems ?? [];
+  assert.deepEqual(items.map((item) => item.slug), [CS_A.slug, FRONT_A.slug]);
+  assert.deepEqual(items.map((item) => item.references?.[0].url), [CS_A.url, FRONT_A.url]);
+  const curation = run.logs[0].audit?.tech?.curation;
+  assert.equal(curation?.status, "curated");
+  assert.deepEqual(curation?.chosen?.map((entry) => [entry.id, entry.category]), [[CS_A.slug, "cs"], [FRONT_A.slug, "frontend"]]);
+  // 두 원문을 합쳐 넘기되, id가 겹치지 않고 각자 자기 상식의 slug를 단다
+  const params = run.calls.tech[0];
+  assert.deepEqual(params.concepts.map((concept) => concept.slug), [CS_A.slug, FRONT_A.slug]);
+  assert.deepEqual(params.candidates.map((candidate) => [candidate.knowledgeSlug, candidate.documents[0].source.url]), [[CS_A.slug, CS_A.url], [FRONT_A.slug, FRONT_A.url]]);
+  assert.equal(new Set(params.candidates.map((candidate) => candidate.id)).size, 2);
+  assert.deepEqual(run.logs[0].audit?.tech?.evidence.map((entry) => entry.candidateId), params.candidates.map((candidate) => candidate.id));
+  // 큐레이터에게 오늘 두 개를 싣는다고 알린다
+  assert.equal(run.calls.curate.find((call) => call.kind === "tech")?.count, 2);
+});
+
+test("테크 상식 분야 우선: 추천 1·2위가 같은 분야면 2위는 미루고, 다른 분야인 3위가 통과하면 1위와 3위를 싣는다", async () => {
+  const run = harness();
+  const grounded: string[] = [];
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    curateKnowledge: curateTech(run, [CS_A.slug, CS_B.slug, AI_A.slug]),
+    groundMarketNews: groundTech(run, [], grounded),
+  });
+  assert.deepEqual(run.saved[0].tech?.knowledgeItems.map((item) => item.slug), [CS_A.slug, AI_A.slug]);
+  // 미룬 2위는 자리가 찼으므로 원문을 읽지도 않는다
+  assert.deepEqual(grounded, [CS_A.title, AI_A.title]);
+  assert.deepEqual(run.logs[0].audit?.tech?.curation?.chosen?.map((entry) => entry.id), [CS_A.slug, AI_A.slug]);
+});
+
+test("테크 상식 다른 분야 없음: 다른 분야 추천이 근거 확인에 실패하면 같은 분야 두 개를 싣는다", async () => {
+  const run = harness();
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    curateKnowledge: curateTech(run, [CS_A.slug, CS_B.slug, AI_A.slug]),
+    groundMarketNews: groundTech(run, [AI_A.title]),
+  });
+  const items = run.saved[0].tech?.knowledgeItems ?? [];
+  assert.deepEqual(items.map((item) => [item.slug, item.category]), [[CS_A.slug, "cs"], [CS_B.slug, "cs"]]);
+  const curation = run.logs[0].audit?.tech?.curation;
+  assert.equal(curation?.status, "curated");
+  assert.ok(curation?.rejected?.some((reason) => reason.startsWith(AI_A.slug) && reason.includes("원문 근거 문장 없음")));
+});
+
+test("테크 상식 근거 실패: 추천 가운데 하나만 통과하면 그것과, 이미 고른 것과 다른 분야의 검증된 커리큘럼 개념 하나를 싣고 탈락 사유를 남긴다", async () => {
+  const run = harness();
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    curateKnowledge: curateTech(run, [CS_A.slug, FRONT_A.slug, AI_A.slug]),
+    groundMarketNews: groundTech(run, [CS_A.title, AI_A.title]),
+  });
+  const items = run.saved[0].tech?.knowledgeItems ?? [];
+  assert.equal(items.length, 2);
+  assert.equal(items[0].slug, FRONT_A.slug);
+  assert.equal(items[1].format, "concept");
+  assert.ok(TECH_CURRICULUM.some((concept) => concept.slug === items[1].slug));
+  assert.notEqual(items[1].category, "frontend");
+  const curation = run.logs[0].audit?.tech?.curation;
+  // 추천을 하나라도 썼으므로 큐레이션이다. 대체로 채운 항목은 표시한다
+  assert.equal(curation?.status, "curated");
+  assert.deepEqual(curation?.chosen?.map((entry) => [entry.id, entry.fallback ?? false]), [[FRONT_A.slug, false], [`k-${items[1].slug}`, true]]);
+  assert.equal(curation?.rejected?.length, 2);
+  // 원문은 통과한 아티클 것만 넘긴다
+  assert.deepEqual(run.calls.tech[0].candidates.map((candidate) => candidate.knowledgeSlug), [FRONT_A.slug]);
+});
+
+test("테크 상식 대체 풀 바닥: 커리큘럼·아티클을 다 쓰고 발굴 글이 1개뿐이면 복습 개념으로 두 번째를 채우고 그 항목에만 복습 표시를 한다", async () => {
+  const run = harness();
+  // 최신순 이력. 가장 오래된 날에 커리큘럼 첫 개념이 있다
+  const all = TECH_CURRICULUM.map((concept) => concept.slug);
+  const history = [
+    { briefingDate: "2026-10-08", items: [...all.slice(1), ...TECH_ARTICLES.map((article) => article.slug)].map((slug) => ({ slug, title: slug })) },
+    { briefingDate: "2026-10-01", items: [{ slug: all[0], title: all[0] }] },
+  ];
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    getTechConceptHistory: async () => history,
+    discoverTechTopics: async () => ({ topics: [discovered("새 글", "frontend", "https://example.com/new-post")], searchTrace: [], rejectedUrls: [], inputTokens: 0, outputTokens: 0, webSearchCalls: 0 }),
+    curateKnowledge: curateTech(run, ["d-1"]),
+    groundMarketNews: groundTech(run),
+  });
+  const items = run.saved[0].tech?.knowledgeItems ?? [];
+  assert.equal(items.length, 2);
+  assert.ok(items[0].slug.startsWith("d-"));
+  assert.equal(items[0].review, undefined);
+  assert.deepEqual([items[1].slug, items[1].review], [all[0], true]);
+  // 새 글이 섞였으므로 작성 모드는 새 개념이다. 복습 표시는 항목마다 따로 단다
+  assert.equal(run.calls.tech[0].mode, "new");
+  const curation = run.logs[0].audit?.tech?.curation;
+  assert.equal(curation?.status, "curated");
+  assert.deepEqual(curation?.chosen?.map((entry) => [entry.id, entry.fallback ?? false, entry.review ?? false]), [["d-1", false, false], [`k-${all[0]}`, true, true]]);
+});
+
+test("테크 상식 같은 개념은 두 번 싣지 않는다: 같은 후보를 두 번 추천하면 한 번만 쓰고 나머지 자리는 다른 개념으로 채운다", async () => {
+  const run = harness();
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    curateKnowledge: curateTech(run, [`k-${CS_CONCEPT.slug}`, `k-${CS_CONCEPT.slug}`]),
+  });
+  const slugs = run.saved[0].tech?.knowledgeItems.map((item) => item.slug) ?? [];
+  assert.equal(slugs.length, 2);
+  assert.equal(slugs[0], CS_CONCEPT.slug);
+  assert.notEqual(slugs[1], CS_CONCEPT.slug);
+  assert.ok(run.logs[0].audit?.tech?.curation?.rejected?.some((reason) => reason.includes("두 번 추천")));
+});
+
+test("테크 상식 형식 혼합: 개념과 아티클을 함께 쓰면 항목마다 자기 형식으로 쓰고, 원문은 아티클 항목에만 붙이며, 검토는 개념 항목을 원문 부재로 걸지 않게 한다", async () => {
+  const run = harness();
+  let prompt = "";
+  let reviewPrompt = "";
+  let reviewed: GroundedCandidate[] = [];
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    curateKnowledge: curateTech(run, [`k-${CS_CONCEPT.slug}`, FRONT_A.slug]),
+    groundMarketNews: groundTech(run),
+    generateTechSection: (params) => generateTechSection(params, {
+      write: async (input) => {
+        prompt = input;
+        return { draft: { knowledgeItems: params.concepts.map((concept) => ({ ...DRAFT.knowledgeItems[0], slug: concept.slug, title: concept.title, level: concept.level, category: concept.category })) }, inputTokens: 0, outputTokens: 0 };
+      },
+      review: async (content, candidates, date) => {
+        reviewed = candidates;
+        reviewPrompt = buildGroundingReviewPrompt(content, candidates, date);
+        return { review: { news: [], framing: { supported: true, reason: "항목마다 일치" } }, inputTokens: 0, outputTokens: 0 };
+      },
+    }),
+  });
+  // 작성: 두 주제를 각자의 형식 안내로, 원문은 아티클 slug로 표시해 넘긴다
+  assert.match(prompt, /아래 주제 2개를 각각 한 항목으로 쓴다/);
+  assert.doesNotMatch(prompt, /주제 하나만/);
+  assert.ok(prompt.includes(`## 형식: 개념 (해당 항목: ${CS_CONCEPT.slug})`));
+  assert.ok(prompt.includes(`## 형식: 아티클 요약 (해당 항목: ${FRONT_A.slug})`));
+  assert.ok(prompt.includes(`<source_article slug="${FRONT_A.slug}">`));
+  assert.ok(!prompt.includes(`<source_article slug="${CS_CONCEPT.slug}">`));
+  assert.match(prompt, /개념 항목은 원문 없이 쓴다/);
+  // 검토: 원문은 아티클 항목의 것으로 표시되고, 원문 없는 개념 항목을 원문 부재로 걸지 말라고 한다
+  assert.deepEqual(reviewed.map((candidate) => candidate.knowledgeSlug), [FRONT_A.slug]);
+  assert.ok(reviewPrompt.includes(`"knowledgeSlug":"${FRONT_A.slug}"`));
+  assert.match(reviewPrompt, /knowledgeSlug가 그 항목의 slug와 같은 원문만 그 항목의 근거다/);
+  assert.match(reviewPrompt, /원문이 없다는 이유로, 다른 항목의 원문에 없다는 이유로 supported=false로 하지 않는다/);
+  // 저장: 항목마다 자기 형식과 '더 알아보기'가 붙는다
+  const items = run.saved[0].tech?.knowledgeItems ?? [];
+  assert.deepEqual(items.map((item) => [item.slug, item.format]), [[CS_CONCEPT.slug, "concept"], [FRONT_A.slug, "article"]]);
+  assert.deepEqual(items[0].references, CS_CONCEPT.references);
+  assert.equal(items[1].references?.[0].url, FRONT_A.url);
+});
+
+test("테크 상식을 두 개 고르는 날에도 경제 상식은 하나다", async () => {
+  const run = harness();
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    curateKnowledge: curateTech(run, [CS_A.slug, FRONT_A.slug]),
+    groundMarketNews: groundTech(run),
+  });
+  assert.equal(run.saved[0].content.knowledgeItems.length, 1);
+  assert.equal((run.calls.generate[0] as { concepts: unknown[] }).concepts.length, 1);
+  assert.equal(run.calls.curate.find((call) => call.kind === "economy")?.count, 1);
+  assert.equal(run.logs[0].audit?.curation?.chosen?.length, 1);
+  assert.equal(run.saved[0].tech?.knowledgeItems.length, 2);
+});
+
+test("다음 날에는 전날 실은 테크 상식 두 개념(커리큘럼 개념·아티클)이 모두 후보에서 빠진다", async () => {
+  const run = harness();
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    curateKnowledge: curateTech(run, [`k-${CS_CONCEPT.slug}`, FRONT_A.slug]),
+    groundMarketNews: groundTech(run),
+  });
+  const saved = run.saved[0].tech?.knowledgeItems ?? [];
+  assert.equal(saved.length, 2);
+  // 저장한 항목을 학습 이력으로 읽는 방식(readConceptHistory)과 같게 만든다
+  const history = [{ briefingDate: DATE, items: saved.map((item) => ({ slug: item.slug, title: item.title, category: item.category, format: item.format, level: item.level, url: item.references?.[0]?.url })) }];
+  const ids = techCandidates(history).map((candidate) => candidate.id);
+  assert.ok(!ids.includes(`k-${CS_CONCEPT.slug}`));
+  assert.ok(!ids.includes(FRONT_A.slug));
+});
+
+test("테크 후보가 하나도 없으면 가장 오래된 커리큘럼 개념 두 개를 복습으로 싣고 항목마다 복습 표시를 한다", async () => {
+  const run = harness();
+  const all = TECH_CURRICULUM.map((concept) => concept.slug);
+  // 최신순 이력. 마지막 행(가장 오래된 날)에 커리큘럼 앞 두 개가 있다. 아티클도 모두 소개했다
+  const history = [
+    { briefingDate: "2026-10-08", items: [...all.slice(2), ...TECH_ARTICLES.map((article) => article.slug)].map((slug) => ({ slug, title: slug })) },
+    { briefingDate: "2026-10-01", items: all.slice(0, 2).map((slug) => ({ slug, title: slug })) },
+  ];
+  await createDailyBriefing(DATE, {}, { ...run.services, getTechConceptHistory: async () => history });
+  const items = run.saved[0].tech?.knowledgeItems ?? [];
+  assert.deepEqual(items.map((item) => [item.slug, item.review]), [[all[0], true], [all[1], true]]);
+  assert.equal(run.calls.tech[0].mode, "review");
+  const curation = run.logs[0].audit?.tech?.curation;
+  assert.equal(curation?.status, "review");
+  assert.deepEqual(curation?.chosen?.map((entry) => entry.id), [`k-${all[0]}`, `k-${all[1]}`]);
+  // 경제 상식은 새 개념이라 복습 표시가 없다
+  assert.ok(run.saved[0].content.knowledgeItems.every((item) => !item.review));
+});
+
+test("테크 상식 같은 원문: URL이 같은 발굴 글 두 개는 원문을 한 번만 읽어 한 번만 싣고, 두 번째에는 '이미 고른' 사유를 남긴다", async () => {
+  const run = harness();
+  const grounded: string[] = [];
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    // 같은 글을 호스트(www)·끝 슬래시만 다르게 두 번 찾았다. 분야도 다르게 매겼다
+    discoverTechTopics: async () => ({
+      topics: [discovered("글 A", "frontend", "https://www.example.com/post/"), discovered("글 A 다시", "cs", "https://example.com/post")],
+      searchTrace: [], rejectedUrls: [], inputTokens: 0, outputTokens: 0, webSearchCalls: 0,
+    }),
+    curateKnowledge: curateTech(run, ["d-1", "d-2"]),
+    groundMarketNews: groundTech(run, [], grounded),
+  });
+  const items = run.saved[0].tech?.knowledgeItems ?? [];
+  assert.equal(items.length, 2);
+  assert.ok(items[0].slug.startsWith("d-"));
+  // 두 번째 자리는 다른 개념(커리큘럼 대체)이다. 같은 글의 원문은 다시 읽지 않는다
+  assert.equal(items[1].format, "concept");
+  assert.deepEqual(grounded, ["글 A"]);
+  const curation = run.logs[0].audit?.tech?.curation;
+  assert.ok(curation?.rejected?.some((reason) => reason.startsWith("d-2: 이미 고른 d-1와 같은 개념")));
+  assert.deepEqual(curation?.chosen?.map((entry) => entry.id), ["d-1", `k-${items[1].slug}`]);
+});
+
+test("테크 상식 같은 원문: 커리큘럼 개념과 아티클이 같은 글을 가리키면 추천에서도 대체에서도 한 번만 싣는다", async () => {
+  const agent = TECH_CURRICULUM.find((concept) => concept.slug === "q-ai-agent")!;
+  const article = TECH_ARTICLES.find((entry) => entry.slug === "a-building-effective-agents")!;
+  assert.equal(agent.references?.[0].url, article.url);
+  // q-ai-agent 앞의 ai 개념을 배워 두면 q-ai-agent가 ai 분야 첫 미학습 개념(후보·대체 풀 맨 앞)이 된다
+  const ai = TECH_CURRICULUM.filter((concept) => concept.category === "ai");
+  const beforeAgent = ai.slice(0, ai.indexOf(agent)).map((concept) => concept.slug);
+
+  // 추천: 개념을 먼저 고르면 같은 글의 아티클은 원문을 읽지 않고 거른다
+  const picked = harness();
+  const grounded: string[] = [];
+  await createDailyBriefing(DATE, {}, { ...picked.services,
+    getTechConceptHistory: async () => learned(beforeAgent),
+    curateKnowledge: curateTech(picked, [`k-${agent.slug}`, article.slug]),
+    groundMarketNews: groundTech(picked, [], grounded),
+  });
+  const slugs = picked.saved[0].tech?.knowledgeItems.map((item) => item.slug) ?? [];
+  assert.equal(slugs.length, 2);
+  assert.equal(slugs[0], agent.slug);
+  assert.ok(!slugs.includes(article.slug));
+  assert.deepEqual(grounded, []);
+  assert.ok(picked.logs[0].audit?.tech?.curation?.rejected?.some((reason) => reason.startsWith(`${article.slug}: 이미 고른 k-${agent.slug}와 같은 개념`)));
+
+  // 대체: 아티클을 고른 뒤, 대체 풀 맨 앞이 같은 글의 개념이어도 건너뛴다
+  const filled = harness();
+  const others = TECH_CURRICULUM.filter((concept) => concept.category !== "ai").map((concept) => concept.slug);
+  await createDailyBriefing(DATE, {}, { ...filled.services,
+    getTechConceptHistory: async () => learned([...others, ...beforeAgent]),
+    curateKnowledge: curateTech(filled, [article.slug]),
+    groundMarketNews: groundTech(filled),
+  });
+  const items = filled.saved[0].tech?.knowledgeItems ?? [];
+  assert.equal(items.length, 2);
+  assert.equal(items[0].slug, article.slug);
+  assert.notEqual(items[1].slug, agent.slug);
+  assert.notEqual(items[1].references?.[0].url, article.url);
+});
+
+test("테크 상식 대체: 남은 커리큘럼이 고른 개념과 같은 분야뿐이면 같은 분야의 다른 개념으로 채운다", async () => {
+  const run = harness();
+  const ai = TECH_CURRICULUM.filter((concept) => concept.category === "ai");
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    getTechConceptHistory: async () => learned(TECH_CURRICULUM.filter((concept) => concept.category !== "ai").map((concept) => concept.slug)),
+    curateKnowledge: curateTech(run, [`k-${ai[0].slug}`]),
+  });
+  const items = run.saved[0].tech?.knowledgeItems ?? [];
+  assert.deepEqual(items.map((item) => [item.slug, item.category]), [[ai[0].slug, "ai"], [ai[1].slug, "ai"]]);
+  assert.deepEqual(run.logs[0].audit?.tech?.curation?.chosen?.map((entry) => entry.fallback ?? false), [false, true]);
+});
+
+test("테크 상식 대체: 대체 풀 맨 앞이 이미 고른 분야여도 고르지 않은 분야의 개념을 먼저 쓴다", async () => {
+  const run = harness();
+  const pool = techCandidates([]);
+  const cs = pool.filter((candidate) => candidate.concept && candidate.category === "cs");
+  // 두 번째 cs 개념을 고르면 남은 대체 풀 맨 앞은 첫 cs 개념이다
+  assert.equal(pool[0].id, cs[0].id);
+  await createDailyBriefing(DATE, {}, { ...run.services, curateKnowledge: curateTech(run, [cs[1].id]) });
+  const items = run.saved[0].tech?.knowledgeItems ?? [];
+  assert.equal(items.length, 2);
+  assert.equal(items[0].slug, cs[1].concept?.slug);
+  assert.notEqual(items[1].category, "cs");
+  assert.equal(items[1].slug, pool.find((candidate) => candidate.concept && candidate.category !== "cs")?.concept?.slug);
+});
+
+test("경제 복습일: 경제 커리큘럼을 다 돌았으면 작성에 복습 모드를 넘기고 저장할 때 복습 표시를 한다", async () => {
+  const run = harness();
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    getConceptHistory: async () => learned(CURRICULUM.map((concept) => concept.slug)),
+    // 넘겨받은 개념으로 상식을 쓴다
+    generateDailyBriefing: async (params) => {
+      const result = await run.services.generateDailyBriefing(params);
+      return { ...result, content: { ...result.content, knowledgeItems: params.concepts.map((concept) => ({ ...result.content.knowledgeItems[0], ...concept })) } };
+    },
+  });
+  const params = run.calls.generate[0] as { mode: string; concepts: { slug: string }[] };
+  assert.equal(params.mode, "review");
+  assert.deepEqual(params.concepts.map((concept) => concept.slug), [CURRICULUM[0].slug]);
+  assert.deepEqual(run.saved[0].content.knowledgeItems.map((item) => [item.slug, item.review]), [[CURRICULUM[0].slug, true]]);
+  const curation = run.logs[0].audit?.curation;
+  assert.equal(curation?.status, "review");
+  assert.deepEqual(curation?.chosen?.map((entry) => entry.id), [`k-${CURRICULUM[0].slug}`]);
+  // 미학습 후보가 없는 날은 경제 큐레이터를 부르지 않는다
+  assert.ok(!run.calls.curate.some((call) => call.kind === "economy"));
+});
+
+test("테크 상식 두 항목을 함께 쓰다 최종 실패하면 첫 항목(과 그 원문)만으로 다시 써서 발행하고, 그것도 실패하면 테크만 뺀다", async () => {
+  /** 두 항목을 함께 쓰면(failSingle이면 하나만 써도) 검토에 걸려 최종 실패한다. */
+  const writer = (run: ReturnType<typeof harness>, failSingle: boolean): BriefingServices["generateTechSection"] => async (params) => {
+    if (params.concepts.length < 2 && !failSingle) return run.services.generateTechSection(params);
+    run.calls.tech.push(params);
+    throw new BriefingValidationError([{ attempt: 2, code: "briefing.unsupported", message: `${FRONT_A.slug}: 원문에 없는 수치` }], "검토 실패", { inputTokens: 7, outputTokens: 3 });
+  };
+
+  const narrowed = harness();
+  await createDailyBriefing(DATE, {}, { ...narrowed.services,
+    curateKnowledge: curateTech(narrowed, [CS_A.slug, FRONT_A.slug]),
+    groundMarketNews: groundTech(narrowed),
+    generateTechSection: writer(narrowed, false),
+  });
+  const [both, single] = narrowed.calls.tech;
+  assert.deepEqual(both.concepts.map((concept) => concept.slug), [CS_A.slug, FRONT_A.slug]);
+  // 다시 쓸 때는 첫 항목과 그 항목의 원문만 넘긴다
+  assert.deepEqual(single.concepts.map((concept) => concept.slug), [CS_A.slug]);
+  assert.deepEqual(single.candidates.map((candidate) => candidate.knowledgeSlug), [CS_A.slug]);
+  assert.equal(single.signal?.aborted, false);
+  assert.deepEqual(narrowed.saved[0].tech?.knowledgeItems.map((item) => item.slug), [CS_A.slug]);
+  const tech = narrowed.logs[0].audit?.tech;
+  assert.equal(tech?.stage, "complete");
+  assert.equal(tech?.errorMessage, undefined);
+  assert.deepEqual(tech?.narrowed?.dropped, [FRONT_A.slug]);
+  assert.match(tech?.narrowed?.error ?? "", /검토 실패/);
+  assert.deepEqual(tech?.narrowed?.violations.map((violation) => violation.code), ["briefing.unsupported"]);
+  assert.deepEqual(tech?.evidence.map((entry) => entry.candidateId), single.candidates.map((candidate) => candidate.id));
+  // 고른 기록은 그대로 두 개다
+  assert.equal(tech?.curation?.chosen?.length, 2);
+
+  const failed = harness();
+  await createDailyBriefing(DATE, {}, { ...failed.services,
+    curateKnowledge: curateTech(failed, [CS_A.slug, FRONT_A.slug]),
+    groundMarketNews: groundTech(failed),
+    generateTechSection: writer(failed, true),
+  });
+  assert.equal(failed.calls.tech.length, 2);
+  assert.equal(failed.saves(), 1);
+  assert.equal(failed.saved[0].tech, null);
+  assert.equal(failed.saved[0].content.knowledgeItems.length, 1);
+  assert.equal(failed.logs[0].status, "success");
+  assert.deepEqual(failed.logs[0].audit?.tech?.narrowed?.dropped, [FRONT_A.slug]);
+  assert.match(failed.logs[0].audit?.tech?.errorMessage ?? "", /검토 실패/);
+});
+
+test("테크 상식이 자기 기한(240초)을 넘기면 테크만 끊고, 경제 파트는 실행 기한 전에 남은 시간으로 저장한다", async (t) => {
+  // 실행 기한(260초) 가운데 저장 몫(20초)을 남긴 240초가 테크 기한이다. 가짜 시계로 그 시점을 넘긴다.
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+  const run = harness();
+  const aborted: boolean[] = [];
+  let economySignal: AbortSignal | undefined;
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    generateDailyBriefing: async (params) => { economySignal = params.signal; return run.services.generateDailyBriefing(params); },
+    generateTechSection: async (params) => {
+      run.calls.tech.push(params);
+      // 테크 작성 응답이 오지 않는 사이 시간이 흐른다
+      t.mock.timers.tick(239_999);
+      aborted.push(params.signal?.aborted ?? false);
+      t.mock.timers.tick(1);
+      aborted.push(params.signal?.aborted ?? false);
+      throw params.signal?.reason ?? new Error("테크 기한 신호가 끊기지 않았다");
+    },
+  });
+  assert.deepEqual(aborted, [false, true]);
+  // 기한이 끝났으므로 첫 항목만으로 다시 쓰지도 않는다
+  assert.equal(run.calls.tech.length, 1);
+  assert.equal(economySignal?.aborted, false);
+  assert.equal(run.saves(), 1);
+  assert.equal(run.saved[0].tech, null);
+  assert.equal(run.saved[0].content.knowledgeItems.length, 1);
+  assert.equal(run.logs[0].status, "success");
+  assert.match(run.logs[0].audit?.tech?.errorMessage ?? "", /테크 상식 시간 예산\(240초\)을 넘겨/);
+});
+
+test("큐레이터 추천 수는 오늘 실을 개수보다 2개 많다(하나를 싣는 날은 3개 그대로)", () => {
+  const base = { kind: "tech" as const, date: DATE, candidates: [], recent: [] };
+  assert.match(buildCuratorPrompt(base), /상위 3개를 순서대로 추천한다/);
+  assert.match(buildCuratorPrompt({ ...base, count: 1 }), /picks: 상위 3개/);
+  assert.match(buildCuratorPrompt({ ...base, count: 2 }), /상위 4개를 순서대로 추천한다/);
+  assert.match(buildCuratorPrompt({ ...base, count: 2 }), /picks: 상위 4개/);
+});
+
+test("테크 상식 같은 원문: 원문 확인 뒤 리다이렉트로 같은 URL이 된 두 후보는 한 번만 싣는다", async () => {
+  const run = harness();
+  const grounded: string[] = [];
+  // 발굴 글의 후보 URL은 아티클과 다르지만, 원문을 읽어 보니 같은 글로 리다이렉트됐다
+  const moved = discovered("옮겨진 글", "cs", "https://short.example.com/x");
+  const ground = groundTech(run, [], grounded);
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    discoverTechTopics: async () => ({ topics: [moved], searchTrace: [], rejectedUrls: [], inputTokens: 0, outputTokens: 0, webSearchCalls: 0 }),
+    curateKnowledge: curateTech(run, [FRONT_A.slug, "d-1"]),
+    groundMarketNews: async (candidates, ...rest) => {
+      const result = await ground(candidates, ...rest);
+      if (candidates.length > 1 || candidates[0].title !== moved.title) return result;
+      return { ...result, candidates: result.candidates.map((entry) => ({
+        ...entry,
+        sources: entry.sources.map((source) => ({ ...source, url: FRONT_A.url })),
+        documents: entry.documents.map((doc) => ({ ...doc, source: { ...doc.source, url: FRONT_A.url } })),
+      })) };
+    },
+  });
+  const items = run.saved[0].tech?.knowledgeItems ?? [];
+  assert.equal(items.length, 2);
+  assert.equal(items[0].slug, FRONT_A.slug);
+  assert.equal(items.filter((item) => item.references?.[0].url === FRONT_A.url).length, 1);
+  // 두 번째 자리는 다른 개념(커리큘럼 대체)이다. 후보 URL로는 몰랐으므로 원문은 읽었다
+  assert.equal(items[1].format, "concept");
+  assert.deepEqual(grounded, [FRONT_A.title, moved.title]);
+  const curation = run.logs[0].audit?.tech?.curation;
+  assert.ok(curation?.rejected?.some((reason) => reason.startsWith(`d-1: 이미 고른 ${FRONT_A.slug}와 같은 개념`)));
+  assert.deepEqual(run.calls.tech[0].candidates.map((candidate) => candidate.knowledgeSlug), [FRONT_A.slug]);
+});
+
+test("테크 상식 같은 참고 문서: 참고 URL만 같은 커리큘럼 개념 둘은 서로 다른 개념이라 함께 싣는다", async () => {
+  const run = harness();
+  const ai = TECH_CURRICULUM.filter((concept) => concept.category === "ai");
+  const structured = ai.find((concept) => concept.slug === "q-structured-output")!;
+  const tool = ai.find((concept) => concept.slug === "q-tool-calling")!;
+  assert.equal(structured.references?.[0].url, tool.references?.[0].url);
+  // 두 개념이 ai 분야 미학습 후보 맨 앞에 오도록 앞선 ai 개념을 배워 둔다
+  const before = ai.slice(0, ai.indexOf(structured)).map((concept) => concept.slug);
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    getTechConceptHistory: async () => learned(before),
+    curateKnowledge: curateTech(run, [`k-${structured.slug}`, `k-${tool.slug}`]),
+  });
+  assert.deepEqual(run.saved[0].tech?.knowledgeItems.map((item) => item.slug), [structured.slug, tool.slug]);
+  const curation = run.logs[0].audit?.tech?.curation;
+  assert.deepEqual(curation?.chosen?.map((entry) => [entry.id, entry.fallback ?? false]), [[`k-${structured.slug}`, false], [`k-${tool.slug}`, false]]);
+  assert.ok(!curation?.rejected?.some((reason) => reason.includes("같은 개념")));
+});
+
+/**
+ * 두 항목 이상을 함께 쓰면 failure로 최종 실패한다. failure가 문자열이면 2차 시도의 검토 사유 하나, 배열이면 시도별 검토 사유다.
+ * 한 항목씩 쓸 때는 failSingle에 든 slug만 실패하고 나머지는 쓴다. 실패한 호출은 입력 7·출력 3 토큰을 쓴 것으로 들고 나간다.
+ */
+function narrowingWriter(
+  run: ReturnType<typeof harness>,
+  failure: string | { attempt: number; message: string }[],
+  failSingle: string[] = [],
+): BriefingServices["generateTechSection"] {
+  return async (params) => {
+    const slugs = params.concepts.map((concept) => concept.slug);
+    if (slugs.length < 2 && !slugs.some((slug) => failSingle.includes(slug))) return run.services.generateTechSection(params);
+    run.calls.tech.push(params);
+    const reasons = slugs.length < 2 ? [{ attempt: 2, message: `${slugs[0]}: 혼자 써도 원문에 없는 수치` }]
+      : typeof failure === "string" ? [{ attempt: 2, message: failure }]
+      : failure;
+    const violations = reasons.map((reason) => ({ ...reason, code: "briefing.unsupported" }));
+    throw new BriefingValidationError(violations, violations[violations.length - 1].message, { inputTokens: 7, outputTokens: 3 });
+  };
+}
+
+test("테크 상식 좁힌 재생성: 첫 항목이 검토 사유에 나오면 두 번째 항목(과 그 원문)으로 다시 써서 발행한다", async () => {
+  const run = harness();
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    curateKnowledge: curateTech(run, [CS_A.slug, FRONT_A.slug]),
+    groundMarketNews: groundTech(run),
+    generateTechSection: narrowingWriter(run, `${CS_A.slug}: 원문에 없는 수치를 보탰다`),
+  });
+  assert.deepEqual(run.calls.tech.map((params) => params.concepts.map((concept) => concept.slug)), [[CS_A.slug, FRONT_A.slug], [FRONT_A.slug]]);
+  assert.deepEqual(run.calls.tech[1].candidates.map((candidate) => candidate.knowledgeSlug), [FRONT_A.slug]);
+  assert.deepEqual(run.saved[0].tech?.knowledgeItems.map((item) => item.slug), [FRONT_A.slug]);
+  const tech = run.logs[0].audit?.tech;
+  assert.equal(tech?.errorMessage, undefined);
+  assert.deepEqual(tech?.narrowed?.dropped, [CS_A.slug]);
+  assert.deepEqual(tech?.narrowed?.retries, [{ slugs: [FRONT_A.slug] }]);
+  assert.match(tech?.narrowed?.error ?? "", new RegExp(CS_A.slug));
+});
+
+test("테크 상식 좁힌 재생성: 걸린 항목을 사유로 가릴 수 없으면 첫 항목으로, 그것도 실패하면 두 번째 항목으로 다시 쓰고 사용량은 한 번씩만 센다", async () => {
+  const run = harness();
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    curateKnowledge: curateTech(run, [CS_A.slug, FRONT_A.slug]),
+    groundMarketNews: groundTech(run),
+    // 사유에 slug가 없다. 첫 항목은 혼자 써도 걸린다
+    generateTechSection: narrowingWriter(run, "설명이 원문과 다르다", [CS_A.slug]),
+  });
+  assert.deepEqual(run.calls.tech.map((params) => params.concepts.map((concept) => concept.slug)), [[CS_A.slug, FRONT_A.slug], [CS_A.slug], [FRONT_A.slug]]);
+  assert.deepEqual(run.saved[0].tech?.knowledgeItems.map((item) => item.slug), [FRONT_A.slug]);
+  const narrowed = run.logs[0].audit?.tech?.narrowed;
+  assert.deepEqual(narrowed?.dropped, [CS_A.slug]);
+  assert.deepEqual(narrowed?.retries?.map((entry) => [entry.slugs, entry.error !== undefined]), [[[CS_A.slug], true], [[FRONT_A.slug], false]]);
+
+  // 실패한 두 생성(함께 쓴 것, 첫 항목)의 사용량을 바로 쓴 날보다 한 번씩만 더 센다
+  const plain = harness();
+  await createDailyBriefing(DATE, {}, { ...plain.services, curateKnowledge: curateTech(plain, [CS_A.slug, FRONT_A.slug]), groundMarketNews: groundTech(plain) });
+  assert.equal((run.logs[0].inputTokens ?? 0) - (plain.logs[0].inputTokens ?? 0), 7 + 7);
+  assert.equal((run.logs[0].outputTokens ?? 0) - (plain.logs[0].outputTokens ?? 0), 3 + 3);
+});
+
+test("테크 상식 좁힌 재생성: 사유가 시도마다 다른 항목을 탓하면 마지막 시도의 사유로 가린다", async () => {
+  const run = harness();
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    curateKnowledge: curateTech(run, [CS_A.slug, FRONT_A.slug]),
+    groundMarketNews: groundTech(run),
+    // 1차는 두 번째 항목, 2차(마지막)는 첫 항목이 걸렸다. 1차에 걸린 항목은 2차에서 고쳤다
+    generateTechSection: narrowingWriter(run, [
+      { attempt: 1, message: `${FRONT_A.slug}: 원문에 없는 수치` },
+      { attempt: 2, message: `${CS_A.slug}: 원문과 다른 결론` },
+    ]),
+  });
+  assert.deepEqual(run.calls.tech.map((params) => params.concepts.map((concept) => concept.slug)), [[CS_A.slug, FRONT_A.slug], [FRONT_A.slug]]);
+  assert.deepEqual(run.saved[0].tech?.knowledgeItems.map((item) => item.slug), [FRONT_A.slug]);
+  assert.deepEqual(run.logs[0].audit?.tech?.narrowed?.dropped, [CS_A.slug]);
+});
+
+test("테크 상식 좁힌 재생성: 사유가 두 항목을 모두 탓하면 가릴 수 없으므로 첫 항목부터 하나씩 다시 쓰고, 빈 목록으로는 쓰지 않는다", async () => {
+  const both = `${CS_A.slug}와 ${FRONT_A.slug}의 설명이 서로 겹친다`;
+  for (const [failSingle, expected] of [
+    [[], [[CS_A.slug, FRONT_A.slug], [CS_A.slug]]],
+    [[CS_A.slug], [[CS_A.slug, FRONT_A.slug], [CS_A.slug], [FRONT_A.slug]]],
+  ] as const) {
+    const run = harness();
+    await createDailyBriefing(DATE, {}, { ...run.services,
+      curateKnowledge: curateTech(run, [CS_A.slug, FRONT_A.slug]),
+      groundMarketNews: groundTech(run),
+      generateTechSection: narrowingWriter(run, both, [...failSingle]),
+    });
+    const calls = run.calls.tech.map((params) => params.concepts.map((concept) => concept.slug));
+    assert.deepEqual(calls, expected);
+    assert.ok(calls.every((slugs) => slugs.length > 0));
+    assert.deepEqual(run.saved[0].tech?.knowledgeItems.map((item) => item.slug), expected[expected.length - 1]);
+  }
+});
+
+test("테크 상식 좁힌 재생성: 남은 테크 시간이 한 항목 호출 한 번의 제한 시간보다 적으면 다시 쓰지 않고 테크만 뺀다", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+  const run = harness();
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    curateKnowledge: curateTech(run, [CS_A.slug, FRONT_A.slug]),
+    groundMarketNews: groundTech(run),
+    generateTechSection: async (params) => {
+      run.calls.tech.push(params);
+      // 두 항목을 쓰고 검토하는 사이 테크 기한(240초)까지 55초만 남았다. 최소 필요 시간으로 보는 한 항목 호출 한 번의 제한 시간(60초)보다 적다
+      t.mock.timers.tick(185_000);
+      throw new BriefingValidationError([{ attempt: 2, code: "briefing.unsupported", message: `${FRONT_A.slug}: 원문에 없는 수치` }], "검토 실패", { inputTokens: 7, outputTokens: 3 });
+    },
+  });
+  assert.equal(run.calls.tech.length, 1);
+  assert.equal(run.saves(), 1);
   assert.equal(run.saved[0].tech, null);
   assert.equal(run.logs[0].status, "success");
-  assert.equal(run.logs[0].audit?.tech?.curation?.status, "skipped");
-  assert.ok(run.logs[0].audit?.tech?.curation?.rejected?.some((reason) => reason.includes("게시일 없음")));
+  const tech = run.logs[0].audit?.tech;
+  assert.match(tech?.narrowed?.skipped ?? "", /남은 테크 시간\(55초\)이 1개 항목 호출 한 번의 제한 시간\(60초, 최소 필요 시간\)보다 적었다/);
+  assert.deepEqual(tech?.narrowed?.retries, []);
+  assert.deepEqual(tech?.narrowed?.dropped, [CS_A.slug, FRONT_A.slug]);
+  assert.match(tech?.errorMessage ?? "", /검토 실패/);
+  assert.deepEqual(tech?.violations.map((violation) => violation.code), ["briefing.unsupported"]);
+});
+
+test("테크 상식: 남은 테크 시간이 처음부터 두 항목 호출 한 번의 제한 시간보다 적으면 첫 항목만 쓴다", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+  const run = harness();
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    // 발굴이 오래 걸려 테크 기한까지 80초 남았다. 최소 필요 시간으로 보는 호출 한 번의 제한 시간이 두 항목(90초)보다는 적고 한 항목(60초)보다는 많다
+    discoverTechTopics: async () => {
+      t.mock.timers.tick(160_000);
+      return { topics: [], searchTrace: [], rejectedUrls: [], inputTokens: 0, outputTokens: 0, webSearchCalls: 0 };
+    },
+    curateKnowledge: curateTech(run, [CS_A.slug, FRONT_A.slug]),
+    groundMarketNews: groundTech(run),
+  });
+  assert.deepEqual(run.calls.tech.map((params) => params.concepts.map((concept) => concept.slug)), [[CS_A.slug]]);
+  assert.deepEqual(run.calls.tech[0].candidates.map((candidate) => candidate.knowledgeSlug), [CS_A.slug]);
+  assert.deepEqual(run.saved[0].tech?.knowledgeItems.map((item) => item.slug), [CS_A.slug]);
+  const narrowed = run.logs[0].audit?.tech?.narrowed;
+  assert.deepEqual(narrowed?.dropped, [FRONT_A.slug]);
+  assert.match(narrowed?.error ?? "", /남은 테크 시간\(80초\)이 2개 항목 호출 한 번의 제한 시간\(90초, 최소 필요 시간\)보다 적었다/);
+});
+
+test("테크 상식: 한 항목만 쓸 때도 남은 테크 시간이 호출 한 번의 제한 시간보다 적으면 쓰지 않고 테크만 뺀다", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+  const run = harness();
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    // 발굴이 오래 걸려 테크 기한까지 55초 남았다. 두 항목(90초)에도, 첫 항목만으로 줄여도(60초) 제한 시간보다 적다
+    discoverTechTopics: async () => {
+      t.mock.timers.tick(185_000);
+      return { topics: [], searchTrace: [], rejectedUrls: [], inputTokens: 0, outputTokens: 0, webSearchCalls: 0 };
+    },
+    curateKnowledge: curateTech(run, [CS_A.slug, FRONT_A.slug]),
+    groundMarketNews: groundTech(run),
+  });
+  assert.equal(run.calls.tech.length, 0);
+  assert.equal(run.saves(), 1);
+  assert.equal(run.saved[0].tech, null);
+  assert.equal(run.saved[0].content.knowledgeItems.length, 1);
+  assert.equal(run.logs[0].status, "success");
+  const tech = run.logs[0].audit?.tech;
+  assert.deepEqual(tech?.narrowed?.dropped, [FRONT_A.slug]);
+  assert.match(tech?.narrowed?.skipped ?? "", new RegExp(`남은 테크 시간\\(55초\\)이 1개 항목 호출 한 번의 제한 시간\\(60초, 최소 필요 시간\\)보다 적었다\\. ${CS_A.slug} 작성을 건너뛰었다`));
+  assert.equal(tech?.errorMessage, tech?.narrowed?.skipped);
+});
+
+test("테크 큐레이터 호출이 테크 기한에 끊기면 큐레이터 실패·탈락으로 기록하지 않고, 대체 개념으로 쓰지도 않은 채 테크만 뺀다", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+  const run = harness();
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    curateKnowledge: async (params) => {
+      if (params.kind === "economy") return curateTech(run, [])(params);
+      t.mock.timers.tick(240_000);
+      throw new Error("Request was aborted.");
+    },
+  });
+  assert.equal(run.calls.tech.length, 0);
+  assert.equal(run.saved[0].tech, null);
+  assert.equal(run.logs[0].status, "success");
+  const tech = run.logs[0].audit?.tech;
+  assert.ok(tech?.errorMessage?.startsWith("테크 상식 시간 예산(240초)을 넘겨 중단했습니다."), tech?.errorMessage);
+  assert.equal(tech?.curation?.error, undefined);
+  assert.equal(tech?.curation?.chosen, undefined);
+  assert.deepEqual(tech?.curation?.rejected, []);
+});
+
+test("경제 큐레이터 호출 중 실행이 취소되면 큐레이션 기록을 실패 로그에 남기고, 작성 없이 원래 중단 오류로 멈춘다", async () => {
+  const run = harness();
+  const controller = new AbortController();
+  await assert.rejects(
+    () => createDailyBriefing(DATE, { signal: controller.signal }, { ...run.services,
+      curateKnowledge: async (params) => {
+        if (params.kind === "tech") return curateTech(run, [])(params);
+        controller.abort();
+        throw new Error("Request was aborted.");
+      },
+    }),
+    (error: unknown) => error instanceof Error && error.message === "Request was aborted." && error.name !== "SelectionAbortedError",
+  );
+  assert.equal(run.calls.generate.length, 0);
+  assert.equal(run.saves(), 0);
+  assert.equal(run.logs[0].status, "failed");
+  assert.equal(run.logs[0].errorMessage, "Request was aborted.");
+  const curation = run.logs[0].audit?.curation;
+  assert.equal(curation?.status, "curated");
+  assert.equal(curation?.error, undefined);
+  assert.deepEqual(curation?.rejected, []);
+});
+
+test("테크 상식이 기한에 SDK식 중단 오류(Request was aborted.)로 끊겨도 실패 사유는 테크 기한으로 시작한다", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+  const run = harness();
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    curateKnowledge: curateTech(run, [CS_A.slug, FRONT_A.slug]),
+    groundMarketNews: groundTech(run),
+    generateTechSection: (params) => {
+      run.calls.tech.push(params);
+      return generateTechSection(params, {
+        write: async () => {
+          t.mock.timers.tick(240_000);
+          // OpenAI SDK는 signal로 끊긴 요청을 이 문구로 던진다
+          throw new Error("Request was aborted.");
+        },
+        review: async () => { throw new Error("검토까지 가지 않는다"); },
+      });
+    },
+  });
+  // 기한이 끝났으므로 줄여 다시 쓰지 않는다
+  assert.equal(run.calls.tech.length, 1);
+  assert.equal(run.saved[0].tech, null);
+  assert.equal(run.logs[0].status, "success");
+  const message = run.logs[0].audit?.tech?.errorMessage ?? "";
+  assert.ok(message.startsWith("테크 상식 시간 예산(240초)을 넘겨 중단했습니다."), message);
+  assert.match(message, /Request was aborted\./);
+});
+
+test("테크 상식을 고르는 중 테크 기한에 끊기면 끊긴 후보를 탈락 사유로 남기지 않고, 남은 추천도 읽지 않은 채 테크만 뺀다", async (t) => {
+  // 원문 확인은 끊기면 던지기도 하고(근거 문장 선택), 빈 결과를 돌려주기도 한다(본문 읽기). 어느 쪽도 후보 탓이 아니다.
+  for (const aborted of ["throw", "empty"] as const) {
+    t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
+    const run = harness();
+    const grounded: string[] = [];
+    await createDailyBriefing(DATE, {}, { ...run.services,
+      curateKnowledge: curateTech(run, [CS_A.slug, FRONT_A.slug, AI_A.slug]),
+      groundMarketNews: async (candidates, ...rest) => {
+        if (candidates.length > 1) return run.services.groundMarketNews(candidates, ...rest);
+        grounded.push(candidates[0].title);
+        t.mock.timers.tick(240_000);
+        if (aborted === "throw") throw new Error("Request was aborted.");
+        return { candidates: [], rejected: [{ candidateId: `${CS_A.slug}:1`, url: CS_A.url, reason: "This operation was aborted" }], inputTokens: 0, outputTokens: 0 };
+      },
+    });
+    assert.deepEqual(grounded, [CS_A.title], aborted);
+    assert.equal(run.calls.tech.length, 0);
+    assert.equal(run.saved[0].tech, null);
+    assert.equal(run.logs[0].status, "success");
+    const tech = run.logs[0].audit?.tech;
+    assert.ok(tech?.errorMessage?.startsWith("테크 상식 시간 예산(240초)을 넘겨 중단했습니다."), tech?.errorMessage);
+    // 고르던 기록(추천)은 남기되, 끊긴 후보를 탈락 사유로 남기지 않는다
+    assert.deepEqual(tech?.curation?.picks?.map((pick) => pick.id), [CS_A.slug, FRONT_A.slug, AI_A.slug]);
+    assert.deepEqual(tech?.curation?.rejected, [], aborted);
+    assert.equal(tech?.curation?.chosen, undefined);
+    t.mock.timers.reset();
+  }
+});
+
+test("새 개념과 복습이 섞인 날: 복습 안내는 복습 항목에만 붙이고, 새 개념 항목은 새 개념 안내로 쓴다", async () => {
+  const run = harness();
+  // 커리큘럼 마지막 개념 하나만 남기고 모두 배웠다(첫 개념이 가장 오래전이다). 아티클도 모두 소개했다
+  const all = TECH_CURRICULUM.map((concept) => concept.slug);
+  const last = all[all.length - 1];
+  const history = [
+    { briefingDate: "2026-10-08", items: [...all.slice(1, -1), ...TECH_ARTICLES.map((article) => article.slug)].map((slug) => ({ slug, title: slug })) },
+    { briefingDate: "2026-10-01", items: [{ slug: all[0], title: all[0] }] },
+  ];
+  let prompt = "";
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    getTechConceptHistory: async () => history,
+    curateKnowledge: curateTech(run, [`k-${last}`]),
+    generateTechSection: (params) => {
+      run.calls.tech.push(params);
+      return generateTechSection(params, {
+        write: async (input) => {
+          prompt = input;
+          return { draft: { knowledgeItems: params.concepts.map((concept) => ({ ...DRAFT.knowledgeItems[0], slug: concept.slug, title: concept.title, level: concept.level, category: concept.category })) }, inputTokens: 0, outputTokens: 0 };
+        },
+        review: async () => ({ review: { news: [], framing: { supported: true, reason: "교육" } }, inputTokens: 0, outputTokens: 0 }),
+      });
+    },
+  });
+  const items = run.saved[0].tech?.knowledgeItems ?? [];
+  assert.deepEqual(items.map((item) => [item.slug, item.review ?? false]), [[last, false], [all[0], true]]);
+  const params = run.calls.tech[0];
+  assert.equal(params.mode, "new");
+  assert.deepEqual(params.reviewSlugs, [all[0]]);
+  // 복습 안내('다른 각도')는 복습 항목 한 줄에만 있다
+  const reviewLines = prompt.split("\n").filter((line) => line.includes("다른 각도(심화)"));
+  assert.deepEqual(reviewLines.length, 1);
+  assert.ok(reviewLines[0].startsWith(`- 복습 항목(${all[0]}): `), reviewLines[0]);
+  assert.ok(!reviewLines[0].includes(last));
+  assert.ok(prompt.includes(`- 새 개념 항목(${last}): 독자가 이미 기본은 알 수 있다고 가정한다.`));
+  assert.doesNotMatch(prompt, /복습 모드다/);
 });
 
 /** 받은 후보를 모두 근거 확인된 후보로 돌려준다. id는 실제 구현처럼 접두어(1차 c, 재수집 r)와 위치로 매긴다. */

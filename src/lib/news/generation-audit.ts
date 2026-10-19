@@ -70,10 +70,18 @@ export type SlotAudit = {
 };
 
 export type CurationAudit = {
-  /** curated = 큐레이터 추천 채택 / fallback = 검증된 커리큘럼 개념으로 대체 / review = 커리큘럼 복습 / skipped = 발행 보류 */
+  /**
+   * curated = 큐레이터 추천을 하나 이상 채택(모자란 자리는 대체로 채웠을 수 있다) / fallback = 추천을 하나도 못 써 검증된 커리큘럼 개념으로 대체
+   * review = 커리큘럼 복습(미학습 후보가 없었거나, 추천을 못 써 복습 개념으로만 채웠다) / skipped = 발행 보류
+   */
   status: "curated" | "fallback" | "review" | "skipped";
   picks?: { id: string; title: string; reason: string }[];
-  chosen?: { id: string; title: string; format: string; reason?: string };
+  /**
+   * 고른 상식. 지면 순서다. 테크 상식은 하루 여러 개라 배열로 남긴다.
+   * status가 curated여도 추천으로 못 채운 자리를 대체(커리큘럼 개념)로 채운 항목이 뒤에 올 수 있다. 그 항목은 fallback이다.
+   * review는 커리큘럼을 다 돌아 복습으로 고른 항목이다.
+   */
+  chosen?: { id: string; title: string; format: string; category: string; reason?: string; fallback?: true; review?: true }[];
   /** 추천됐지만 쓰지 못한 후보와 그 이유 */
   rejected?: string[];
   discovered?: number;
@@ -85,6 +93,21 @@ export type TechAudit = Omit<GenerationAudit, "tech" | "coverage"> & {
   violations: BriefingViolation[];
   /** 실패했다면 그 사유. 이날 IT 파트 없이 발행했다는 뜻이다. */
   errorMessage?: string;
+  /**
+   * 여러 상식을 함께 쓰지 못해 항목을 줄였다.
+   * - 함께 작성·검토할 테크 시간이 처음부터 모자랐다면 error가 그 사유이고, 첫 항목만 썼다.
+   * - 함께 쓰다 최종 실패했다면 error·violations가 그 실패다. retries는 줄여서 다시 쓴 시도(실패한 시도는 error)이고,
+   *   skipped는 남은 테크 시간이 모자라 다시 쓰지 않은 사유다.
+   * dropped는 마지막으로 쓴 항목에 들지 않은 상식 slug다(다시 쓰지 못했으면 전부).
+   * attempts·violations·reviews는 마지막으로 쓴 생성의 기록이다.
+   */
+  narrowed?: {
+    dropped: string[];
+    error: string;
+    violations: BriefingViolation[];
+    retries?: { slugs: string[]; error?: string }[];
+    skipped?: string;
+  };
 };
 
 /**

@@ -50,8 +50,13 @@ export const NEWS_SLOT_SECTIONS = {
  */
 export const NEWS_PER_DAY = { min: 1, max: NEWS_SLOTS.length } as const;
 
-/** 하루 상식 개수. 테크·경제 각각 하나씩 깊게 읽는다. 짝 개념도 붙이지 않는다. */
-export const TECH_CONCEPTS_PER_DAY = 1;
+/**
+ * 하루 상식 개수. 짝 개념은 붙이지 않는다.
+ * 테크 상식은 서로 다른 개념 두 개(가능하면 서로 다른 분야)를, 경제 상식은 하나를 깊게 읽는다.
+ * 테크 상식은 검증을 통과한 추천이 모자라면 빈 자리를 검증된 커리큘럼 개념(커리큘럼을 다 돌았으면 복습 개념)으로 채운다.
+ * 그보다 적게 내는 것은 생성 실패(줄여 다시 쓴 경우)·테크 기한·빈 커리큘럼 때뿐이다.
+ */
+export const TECH_CONCEPTS_PER_DAY = 2;
 export const ECONOMY_CONCEPTS_PER_DAY = 1;
 
 /** IT 파트 하루 뉴스 분량. 경제 파트와 같이 근거가 부족하면 줄여서 낸다. */

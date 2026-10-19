@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NEWS_PER_DAY, NEWS_SLOTS, TECH_NEWS_PER_DAY, TODAY_KEYWORDS_PER_DAY } from "@/config/app";
+import { ECONOMY_CONCEPTS_PER_DAY, NEWS_PER_DAY, NEWS_SLOTS, TECH_CONCEPTS_PER_DAY, TECH_NEWS_PER_DAY, TODAY_KEYWORDS_PER_DAY } from "@/config/app";
 
 /**
  * AI 응답 검증 스키마.
@@ -118,7 +118,11 @@ export const knowledgeItemSchema = z.object({
 /** STEP 2 — Daily Briefing 생성 결과 */
 export const dailyBriefingSchema = z
   .object({
-    knowledgeItems: z.array(knowledgeItemSchema).min(1).max(2),
+    /**
+     * 하루 경제 상식 개수(ECONOMY_CONCEPTS_PER_DAY)에서 상한을 만든다. 짝 개념으로 두 개를 싣던 날이 있어 2개까지는 허용한다.
+     * 실제 개수는 verify.ts가 고른 개념 수와 맞춘다.
+     */
+    knowledgeItems: z.array(knowledgeItemSchema).min(1).max(Math.max(ECONOMY_CONCEPTS_PER_DAY, 2)),
     /**
      * 하루 최대 건수(슬롯 수)는 여기서 막지 않는다. AI 출력의 required slot과 verify.ts의 슬롯 고유성 검사가 막는다.
      * 여기서 막으면 rank 없는 위반이라 마지막 시도에서 넘친 뉴스만 뺄 수 없고 그날 지면 전체가 실패한다.
@@ -150,7 +154,8 @@ export const dailyBriefingSchema = z
  * 이전 row에는 IT 뉴스가 들어 있어 newsItems를 그대로 읽는다.
  */
 export const techSectionSchema = z.object({
-  knowledgeItems: z.array(knowledgeItemSchema).min(1).max(2),
+  /** 하루 테크 상식 개수(TECH_CONCEPTS_PER_DAY)가 상한이다. 실제 개수는 verify.ts가 고른 개념 수와 맞춘다. */
+  knowledgeItems: z.array(knowledgeItemSchema).min(1).max(TECH_CONCEPTS_PER_DAY),
   newsItems: z.array(newsIssueSchema).max(TECH_NEWS_PER_DAY.max),
 });
 

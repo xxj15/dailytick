@@ -1,7 +1,7 @@
 import "server-only";
 import { zodTextFormat } from "openai/helpers/zod";
 import { getModel, getOpenAI } from "@/lib/openai/client";
-import { buildCuratorPrompt } from "@/lib/openai/prompts";
+import { buildCuratorPrompt, curatorPickCount } from "@/lib/openai/prompts";
 import { curatorSchema } from "@/lib/openai/schemas";
 
 export type CuratorPick = { id: string; title: string; reason: string };
@@ -18,7 +18,7 @@ export async function curateKnowledge(params: Parameters<typeof buildCuratorProm
   }, { timeout: 45_000, maxRetries: 0, signal });
   if (!response.output_parsed) throw new Error("큐레이터 응답이 없습니다.");
   return {
-    picks: curatorSchema.parse(response.output_parsed).picks.slice(0, 3) as CuratorPick[],
+    picks: curatorSchema.parse(response.output_parsed).picks.slice(0, curatorPickCount(params.count)) as CuratorPick[],
     inputTokens: response.usage?.input_tokens ?? 0,
     outputTokens: response.usage?.output_tokens ?? 0,
   };

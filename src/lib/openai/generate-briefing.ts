@@ -6,7 +6,7 @@ import {
   type Violation,
 } from "@/lib/briefing/verify";
 import type { DateString } from "@/lib/date";
-import { getModel, getOpenAI } from "@/lib/openai/client";
+import { getModel, getOpenAI, timeoutForItems } from "@/lib/openai/client";
 import { buildBriefingPrompt, buildTechSectionPrompt } from "@/lib/openai/prompts";
 import {
   aiDailyBriefingSchema,
@@ -26,7 +26,7 @@ import { zodTextFormat } from "openai/helpers/zod";
 import type { z } from "zod";
 import { materializeBriefing } from "@/lib/briefing/materialize";
 import type { GroundedCandidate } from "@/lib/news/evidence-types";
-import { reviewViolations, type GroundingReview } from "@/lib/news/review";
+import { reviewViolations, tagSafeText, type GroundingReview } from "@/lib/news/review";
 import { reviewBriefing } from "@/lib/openai/review-briefing";
 
 export type ReviewRecord = { attempt: number; review: GroundingReview };
@@ -47,8 +47,13 @@ export class BriefingValidationError extends Error {
 export type GenerateBriefingParams = {
   date: DateString;
   concepts: Concept[];
-  /** 커리큘럼을 한 바퀴 돈 뒤라면 "review". 설명 방식이 달라진다. */
+  /** 커리큘럼을 한 바퀴 돈 뒤라 모든 개념이 복습이면 "review". 설명 방식이 달라진다. */
   mode: "new" | "review";
+  /**
+   * 복습으로 고른 개념의 slug. 새 개념과 복습이 섞인 날(테크 상식) 복습 안내를 이 항목에만 준다.
+   * 넘기지 않으면 mode를 따른다(review면 모두 복습, new면 모두 새 개념).
+   */
+  reviewSlugs?: string[];
   candidates: GroundedCandidate[];
   learnedTitles: string[];
   /** 발행 하한선. 넘기지 않으면 경제 파트 기준(SOURCE_MAX_AGE_HOURS)이다. */
@@ -68,12 +73,13 @@ export type GenerateBriefingResult<C extends GroundedSection = DailyBriefingCont
   reviews: ReviewRecord[];
 };
 
-function draftWriter(schema: z.ZodType, name: string): GenerateBriefingDependencies["write"] {
+/** 작성 호출. 제한 시간은 한 번에 쓰는 상식 항목 수(items)에 맞춘다. */
+function draftWriter(schema: z.ZodType, name: string, items: number): GenerateBriefingDependencies["write"] {
   return async (input, signal) => {
     const response = await getOpenAI().responses.parse({
       model: getModel(), input,
       text: { format: zodTextFormat(schema, name) },
-    }, { timeout: 60_000, maxRetries: 0, signal });
+    }, { timeout: timeoutForItems(items), maxRetries: 0, signal });
     return { draft: response.output_parsed, inputTokens: response.usage?.input_tokens ?? 0, outputTokens: response.usage?.output_tokens ?? 0 };
   };
 }
@@ -86,7 +92,7 @@ export type GenerateBriefingDependencies = {
 /** STEP 2 — 경제 본문(경제 상식·주요 이슈·키워드·한 줄) 생성. */
 export function generateDailyBriefing(
   params: GenerateBriefingParams,
-  dependencies: GenerateBriefingDependencies = { write: draftWriter(aiDailyBriefingSchema, "daily_briefing"), review: reviewBriefing },
+  dependencies: GenerateBriefingDependencies = { write: draftWriter(aiDailyBriefingSchema, "daily_briefing", params.concepts.length), review: reviewBriefing },
 ): Promise<GenerateBriefingResult> {
   return generateGroundedSection({
     prompt: buildBriefingPrompt(params), aiSchema: aiDailyBriefingSchema, schema: dailyBriefingSchema,
@@ -96,16 +102,39 @@ export function generateDailyBriefing(
 
 /**
  * STEP 2 — 테크 상식 생성. 뉴스는 쓰지 않는다.
- * 아티클·트렌드면 candidates에 서버가 읽은 원문이 들어 있고, 검토 단계가 요약을 그 원문과 대조한다.
+ * 하루 상식 여러 개를 한 번에 쓴다. 아티클·트렌드 항목이면 candidates에 서버가 읽은 그 항목의 원문이 들어 있고,
+ * 작성·검토 단계가 항목마다 자기 원문(knowledgeSlug가 같은 원문)만 근거로 본다. 개념 항목은 원문이 없다.
  */
-export function generateTechSection(
+export async function generateTechSection(
   params: GenerateBriefingParams,
-  dependencies: GenerateBriefingDependencies = { write: draftWriter(aiTechKnowledgeSchema, "tech_knowledge"), review: reviewBriefing },
+  dependencies: GenerateBriefingDependencies = { write: draftWriter(aiTechKnowledgeSchema, "tech_knowledge", params.concepts.length), review: reviewBriefing },
 ): Promise<GenerateBriefingResult<TechSection>> {
+  const attributed = { ...params, candidates: attributeKnowledgeSources(params.concepts, params.candidates) };
   return generateGroundedSection({
-    prompt: buildTechSectionPrompt(params), aiSchema: aiTechKnowledgeSchema, schema: techSectionSchema,
+    prompt: buildTechSectionPrompt(attributed), aiSchema: aiTechKnowledgeSchema, schema: techSectionSchema,
     materialize: (draft) => ({ knowledgeItems: draft.knowledgeItems, newsItems: [] }), requireCandidates: false,
-  }, params, dependencies);
+    // 재시도 문구(검토 사유·AI가 쓴 글)도 원문 태그 뒤에 붙으므로 태그를 위장하지 못하게 이스케이프한다.
+    retryNote: tagSafeText,
+  }, attributed, dependencies);
+}
+
+/**
+ * 테크 상식 원문마다 어느 상식의 근거인지(knowledgeSlug) 확정한다.
+ * 상식이 하나면 표시 없는 원문은 그 상식의 것이다. 어느 상식의 것인지 알 수 없는 원문이 있으면 쓰지 않고 멈춘다.
+ * 다른 항목의 원문으로 쓰거나 검토하면 근거 확인이 무의미해진다.
+ * 반대로 아티클·트렌드 항목에 귀속된 원문이 없어도 쓰지 않고 멈춘다. 원문 없이 요약하면 근거 없는 글이 된다.
+ */
+function attributeKnowledgeSources(concepts: Concept[], candidates: GroundedCandidate[]): GroundedCandidate[] {
+  const slugs = new Set(concepts.map((concept) => concept.slug));
+  const attributed = candidates.map((candidate) => {
+    const slug = candidate.knowledgeSlug ?? (concepts.length === 1 ? concepts[0].slug : undefined);
+    if (!slug || !slugs.has(slug)) throw new Error(`원문 ${candidate.id}가 오늘 테크 상식 가운데 어느 항목의 근거인지 알 수 없습니다.`);
+    return candidate.knowledgeSlug === slug ? candidate : { ...candidate, knowledgeSlug: slug };
+  });
+  const unsourced = concepts.filter((concept) =>
+    (concept.format === "article" || concept.format === "trend") && !attributed.some((candidate) => candidate.knowledgeSlug === concept.slug));
+  if (unsourced.length) throw new Error(`아티클·트렌드 항목 ${unsourced.map((concept) => concept.slug).join(", ")}에 귀속된 원문이 없습니다.`);
+  return attributed;
 }
 
 type SectionSpec<D, C extends GroundedSection> = {
@@ -118,6 +147,8 @@ type SectionSpec<D, C extends GroundedSection> = {
   materialize: (draft: D, candidates: GroundedCandidate[]) => unknown;
   /** 근거가 확보된 뉴스 후보가 있어야만 쓰는 섹션인가. */
   requireCandidates: boolean;
+  /** 재시도 프롬프트에 붙이는 위반 문구를 다듬는다. 없으면 그대로 붙인다(경제 파트). */
+  retryNote?: (text: string) => string;
 };
 
 /**
@@ -127,7 +158,7 @@ type SectionSpec<D, C extends GroundedSection> = {
  * 두 번째도 실패하면 저장하지 않고 던진다. 잘못된 데이터를 DB에 넣지 않는다.
  */
 async function generateGroundedSection<D, C extends GroundedSection>(
-  { prompt: basePrompt, aiSchema, schema, materialize, requireCandidates }: SectionSpec<D, C>,
+  { prompt: basePrompt, aiSchema, schema, materialize, requireCandidates, retryNote = (text) => text }: SectionSpec<D, C>,
   params: GenerateBriefingParams,
   dependencies: GenerateBriefingDependencies,
 ): Promise<GenerateBriefingResult<C>> {
@@ -159,7 +190,7 @@ async function generateGroundedSection<D, C extends GroundedSection>(
 
 직전 응답이 검증을 통과하지 못했다. 아래 문제를 고쳐서 다시 작성하라.
 
-${lastError}`;
+${retryNote(lastError)}`;
 
     let response;
     try {

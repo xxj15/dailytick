@@ -20,6 +20,11 @@ export type GroundedCandidate = Omit<NewsCandidate, "summary"> & {
   id: string;
   facts: EvidenceFact[];
   documents: SourceDocument[];
+  /**
+   * 테크 상식 원문에만 있다. 이 원문이 근거인 상식의 slug.
+   * 하루 상식이 여러 개면 작성·검토가 항목마다 자기 원문만 보도록 이 값으로 가른다.
+   */
+  knowledgeSlug?: string;
 };
 
 export type EvidenceRejection = { candidateId: string; url?: string; reason: string };

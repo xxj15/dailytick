@@ -20,3 +20,11 @@ export function getOpenAI(): OpenAI {
 export function getModel(): string {
   return getServerEnv().OPENAI_MODEL;
 }
+
+/**
+ * 작성·검토 호출 한 번의 제한 시간. 상식 항목 하나 기준 60초에, 항목이 하나 늘 때마다 30초를 더한다.
+ * 테크 상식처럼 여러 항목을 한 번에 쓰고 검토하는 호출이 항목 하나 기준 시간에 걸리지 않게 한다.
+ */
+export function timeoutForItems(items: number): number {
+  return 60_000 + 30_000 * Math.max(0, items - 1);
+}
