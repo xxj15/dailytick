@@ -17,10 +17,38 @@ export const PUBLISH_MINUTE_KST = 30;
 /** 창간일. Issue Number 계산 기준. */
 export const FIRST_ISSUE_DATE = "2026-08-25";
 
-/** 하루 뉴스 분량. */
-// 개수·지역 할당보다 근거 확보가 우선이다. 근거가 없으면 발행 자체를 중단한다.
-// 오늘의 주요 이슈. 한 데스크가 분야와 상관없이 중요도 순으로 고른다. 중요한 사건이 적은 날은 적게 낸다.
-export const NEWS_PER_DAY = { min: 1, max: 6, default: 5 } as const;
+/**
+ * 오늘의 주요 이슈는 정해진 세 자리(슬롯)에 한 건씩 싣는다. 배열 순서가 곧 지면 순서(rank)다.
+ *   top      오늘의 화제. 분야와 상관없이 여러 매체가 같은 날 크게 다룬 사건
+ *   domestic 국내 정세. region KR, 분류가 DOMESTIC_NEWS_CATEGORIES 중 하나(국내 정치·정책·외교·안보·경제·금융·기업)
+ *   it       IT. 분류가 IT_NEWS_CATEGORIES 중 하나
+ * 세 슬롯은 서로 다른 사건이어야 한다. 근거 있는 기사로 채우지 못한 슬롯은 비워 두고, 다른 분야로 대신 채우지 않는다.
+ */
+export const NEWS_SLOTS = ["top", "domestic", "it"] as const;
+
+/** it 슬롯에 들어갈 수 있는 분류. domestic 슬롯에는 들어갈 수 없다. */
+export const IT_NEWS_CATEGORIES = ["ai", "semiconductor", "software", "platform", "security"] as const;
+
+/**
+ * domestic 슬롯에 들어갈 수 있는 분류. 정치·정책·외교·안보·경제·금융·기업이다.
+ * 사회(society)·과학(science)·국제 일반(world)·기타(other)와 IT 분류는 들어갈 수 없다. 이런 사건은 화제(top)로만 싣는다.
+ */
+export const DOMESTIC_NEWS_CATEGORIES = [
+  "politics", "policy", "geopolitics", "rates", "stocks", "fx", "macro", "industry", "commodities",
+] as const;
+
+/** 슬롯에 맞는 후보를 본문으로 확인하지 못했을 때 다시 훑을 수집 섹션. 국내 정세의 외교·안보는 수집 프롬프트가 world 섹션으로 보낸다. */
+export const NEWS_SLOT_SECTIONS = {
+  top: ["politics", "world", "society", "economy", "tech"],
+  domestic: ["politics", "world", "economy"],
+  it: ["tech"],
+} as const;
+
+/**
+ * 하루 뉴스 분량. 슬롯 수가 최대다. 근거가 없으면 슬롯을 비우고, 하나도 없으면 발행 자체를 중단한다.
+ * 최대 건수는 슬롯 고유성 검사(verify.ts)가 지킨다. 저장 스키마의 상한은 트림을 위해 더 넉넉하다.
+ */
+export const NEWS_PER_DAY = { min: 1, max: NEWS_SLOTS.length } as const;
 
 /** 하루 상식 개수. 테크·경제 각각 하나씩 깊게 읽는다. 짝 개념도 붙이지 않는다. */
 export const TECH_CONCEPTS_PER_DAY = 1;
@@ -51,8 +79,14 @@ export const TECH_SOURCE_MAX_AGE_HOURS = 72;
 /** STEP 1에서 수집할 뉴스 후보 개수. */
 export const NEWS_CANDIDATE_COUNT = { min: 10, max: 15 } as const;
 
-/** 본문을 직접 읽어 근거를 확인할 후보 수 상한. 중요도 순으로 자른다. 수집 시간과 비용의 균형점이다. */
+/** 본문을 직접 읽어 근거를 확인할 후보 수 상한. 수집 시간과 비용의 균형점이다. */
 export const NEWS_GROUND_LIMIT = 12;
+
+/**
+ * 근거 확인 자리를 슬롯마다 먼저 이만큼 잡은 뒤 나머지를 중요도 순으로 채운다.
+ * 중요도로만 자르면 국내·IT 후보가 통째로 빠질 수 있다. 본문 접근 실패에 대비해 하나보다 넉넉히 둔다.
+ */
+export const NEWS_GROUND_PER_SLOT = 3;
 
 /** 테크 상식 발굴: 그날 검색으로 찾는 최근 기술 글 후보 수와 허용 기간. 커리큘럼·아티클 후보와 함께 큐레이터가 본다. */
 export const TECH_DISCOVERY_COUNT = { min: 4, max: 8 } as const;

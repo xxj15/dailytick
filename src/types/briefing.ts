@@ -8,12 +8,14 @@ import type {
   newsCoverageSchema,
   newsIssueSchema,
   newsRegionSchema,
+  newsSlotSchema,
   newsSourceSchema,
   techSectionSchema,
 } from "@/lib/openai/schemas";
 
 /** 타입의 단일 출처는 Zod 스키마다. 스키마를 고치면 타입이 따라온다. */
 export type NewsRegion = z.infer<typeof newsRegionSchema>;
+export type NewsSlot = z.infer<typeof newsSlotSchema>;
 export type NewsCategory = z.infer<typeof newsCategorySchema>;
 export type NewsSource = z.infer<typeof newsSourceSchema>;
 export type MarketImpact = z.infer<typeof marketImpactSchema>;

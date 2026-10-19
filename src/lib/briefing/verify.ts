@@ -3,11 +3,13 @@ import type { Concept } from "@/data/curriculum";
 import { isFreshSource, type DateString } from "@/lib/date";
 import type { GroundedCandidate } from "@/lib/news/evidence-types";
 import { sourceMatchKey } from "@/lib/news/search-provenance";
+import { SLOT_NAME, slotMismatch, slotOrder } from "@/lib/news/slots";
 import type {
   BriefingViolation,
   GroundedSection,
   KnowledgeItem,
   NewsIssue,
+  NewsSlot,
   RecentNewsEntry,
 } from "@/types/briefing";
 
@@ -47,10 +49,62 @@ export function verifyBriefing(
 ): Violation[] {
   return [
     ...knowledgeViolations(content.knowledgeItems, concepts),
+    ...slotViolations(content.newsItems),
     ...freshnessViolations(content.newsItems, date, maxSourceAgeHours),
     ...duplicateViolations(content.newsItems, recentNews),
     ...(candidates ? evidenceViolations(content.newsItems, candidates) : []),
   ];
+}
+
+/**
+ * 기사는 슬롯(오늘의 화제·국내·IT)마다 한 건, 서로 다른 사건이어야 한다.
+ *
+ * 걸린 뉴스는 rank로 가리킨다. 재시도로 고치고, 마지막 시도에서는 그 뉴스만 빼고 발행한다. 뺀 슬롯은 빈 슬롯이다.
+ * 지면 순서대로 보며 앞 슬롯이 먼저 자리를 잡는다. 화제와 국내가 같은 사건이면 국내 쪽이 걸린다.
+ * 슬롯에 맞지 않는 뉴스는 자리도 사건도 차지하지 않는다. 뒤에 오는 맞는 뉴스를 함께 버리지 않기 위해서다.
+ * slot이 없는 뉴스(과거 row·테크 파트)는 슬롯 규칙을 보지 않는다.
+ *
+ * 재시도하는 모델은 직전 초안을 보지 못한다. 어느 기사인지 알 수 있도록 메시지에 후보 id와 제목을 함께 쓴다.
+ */
+function slotViolations(items: NewsIssue[]): Violation[] {
+  const slots = new Map<NewsSlot, NewsIssue>();
+  const events = new Map<string, number>();
+  return [...items].sort(bySlot).flatMap((item): Violation[] => {
+    const mismatch = item.slot ? slotMismatch(item.slot, item) : null;
+    if (mismatch) return [{ code: "news.slot_mismatch", rank: item.rank, message: `${newsLabel(item)}: ${mismatch}` }];
+
+    const holder = item.slot ? slots.get(item.slot) : undefined;
+    if (item.slot && holder !== undefined) {
+      return [{
+        code: "news.slot_duplicate", rank: item.rank,
+        message: `${newsLabel(item)}: ${SLOT_NAME[item.slot]} 슬롯은 ${newsLabel(holder)}가 이미 차지했습니다. 슬롯마다 한 건만 싣습니다. 비어 있는 슬롯에 맞는 다른 사건으로 바꾸고, 맞는 후보가 없으면 이 뉴스를 빼세요.`,
+      }];
+    }
+
+    const candidateId = item.evidence?.candidateId;
+    const same = candidateId ? events.get(candidateId) : undefined;
+    if (same !== undefined) {
+      return [{
+        code: "news.same_event", rank: item.rank,
+        message: `뉴스 ${item.rank}: 뉴스 ${same}와 같은 후보(${candidateId})를 다시 썼습니다. 슬롯마다 서로 다른 사건을 싣습니다. 이 슬롯에 맞는 다른 후보로 바꾸고, 없으면 이 뉴스를 빼세요.`,
+      }];
+    }
+
+    if (item.slot) slots.set(item.slot, item);
+    if (candidateId) events.set(candidateId, item.rank);
+    return [];
+  });
+}
+
+/** 재시도 메시지에서 뉴스를 가리키는 말. 예: 뉴스 3(후보 c4 "삼성전자 실적") */
+function newsLabel(item: NewsIssue): string {
+  const candidateId = item.evidence?.candidateId;
+  return `뉴스 ${item.rank}(${candidateId ? `후보 ${candidateId} ` : ""}"${item.title}")`;
+}
+
+/** 슬롯 순서(오늘의 화제 → 국내 → IT), 같은 슬롯 안에서는 AI가 매긴 rank 순서. */
+function bySlot(a: NewsIssue, b: NewsIssue): number {
+  return slotOrder(a.slot) - slotOrder(b.slot) || a.rank - b.rank;
 }
 
 function evidenceViolations(items: NewsIssue[], candidates: GroundedCandidate[]): Violation[] {
@@ -202,11 +256,12 @@ function applyConceptIdentity(
 }
 
 /**
- * AI가 매긴 중요도 순서(rank)대로 정렬하고 1부터 다시 매긴다.
- * 지역이나 분야로 다시 줄 세우지 않는다. 그날 가장 중요한 사건이 맨 앞이다.
+ * 슬롯 순서(오늘의 화제 → 국내 → IT)대로 정렬하고 rank를 1부터 다시 매긴다.
+ * 빈 슬롯은 건너뛰고 번호를 잇는다. AI가 매긴 rank는 순서의 근거로 쓰지 않는다.
+ * slot이 없는 뉴스는 지금처럼 rank 순서다.
  */
 function orderNewsIssues(items: NewsIssue[]): NewsIssue[] {
   return [...items]
-    .sort((a, b) => a.rank - b.rank)
+    .sort(bySlot)
     .map((item, index) => ({ ...item, rank: index + 1 }));
 }

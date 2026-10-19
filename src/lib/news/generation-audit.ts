@@ -1,7 +1,7 @@
 import type { GroundedCandidate, EvidenceRejection } from "@/lib/news/evidence-types";
 import type { SearchTrace } from "@/lib/news/search-provenance";
 import type { ReviewRecord } from "@/lib/openai/generate-briefing";
-import type { BriefingViolation } from "@/types/briefing";
+import type { BriefingViolation, NewsSlot } from "@/types/briefing";
 
 export type GenerationAudit = {
   stage: "history" | "search" | "sources" | "generation" | "save" | "complete";
@@ -21,13 +21,39 @@ export type GenerationAudit = {
 export type CoverageAudit = {
   sections: { section: string; searched: boolean; note: string }[];
   /**
-   * ok = 충분 / thin_day = 다 훑었는데 중요한 사건이 적은 날 / narrow_search = 검색 범위가 좁았던 날
-   * sources_failed = 후보는 충분했는데 본문·게시일 확인에서 대부분 떨어진 날 (출처 품질 문제)
+   * 본문 근거 확인(재수집 포함)을 마친 뒤 세 슬롯을 채울 수 있는가. 빈 슬롯이 있으면 원인을 아래 순서로 가른다.
+   * ok = 세 슬롯 모두 근거 있는 후보가 있다
+   * sources_failed = 수집한 후보로는 채울 수 있던 빈 슬롯이 있다. 그 후보가 본문·게시일 확인에서 떨어졌다 (출처 품질 문제)
+   * narrow_search = 빈 슬롯에 맞는 후보 자체가 없었고, 섹션을 덜 훑었다 (검색 범위 문제)
+   * thin_day = 빈 슬롯에 맞는 후보 자체가 없었고, 섹션은 다 훑었다 (그날 사정)
    */
   verdict: "ok" | "thin_day" | "narrow_search" | "sources_failed";
+  /** 빈 슬롯 때문에 재수집을 시도했는가. 실패했어도 true다. */
   recollected: boolean;
+  /** 재수집을 겨냥한 슬롯. 재수집하지 않았으면 비어 있다. */
+  recollectedSlots: NewsSlot[];
+  /**
+   * 재수집(수집 또는 근거 확인)이 실패했거나 끝까지 하지 못한 이유. 재수집 시간 예산 초과, 근거 확인할 시간 부족도 여기 남는다.
+   * 실패해도 1차 결과로 발행한다. 성공했거나 재수집하지 않았으면 없다.
+   */
+  recollectError?: string;
   candidates: number;
   grounded: number;
+  /** 슬롯별 결과. 어떤 슬롯이 왜 비었는지 여기서 본다. */
+  slots: SlotAudit[];
+};
+
+export type SlotAudit = {
+  slot: NewsSlot;
+  /** 수집한 후보 가운데 이 슬롯에 맞는 수 */
+  candidates: number;
+  /** 그중 본문 근거가 확인된 수 */
+  grounded: number;
+  /** 발행 결과. 작성·검토 전에 멈췄거나 작성·검토가 실패해 발행하지 않았으면 없다. 마지막 시도에서 빠진 슬롯도 empty다. */
+  status?: "filled" | "empty";
+  /** filled면 발행한 rank, empty면 비운 이유 */
+  rank?: number;
+  reason?: string;
 };
 
 export type CurationAudit = {

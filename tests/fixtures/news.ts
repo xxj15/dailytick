@@ -18,6 +18,23 @@ export const CANDIDATE: GroundedCandidate = {
 };
 export const DRAFT: z.infer<typeof aiDailyBriefingSchema> = {
   knowledgeItems: [{ ...CONCEPT, definition: "정의", explanation: "설명", example: null, securitiesPoint: "업무 연결", keywords: ["금리"] }],
-  newsItems: [{ rank: 1, candidateId: "c1", followUp: null, region: "KR", factIds: ["c1-f1"], title: "기준금리 동결", whyImportant: "차입 비용을 이해하는 기준이 될 수 있다.", impact: null, marketImpact: { stocks: null, rates: "경기와 물가 흐름에 따라 시장금리 기대가 달라질 수 있다.", fx: null, industry: null }, interpretation: null }],
+  newsItems: [{ rank: 1, slot: "top", candidateId: "c1", followUp: null, region: "KR", factIds: ["c1-f1"], title: "기준금리 동결", whyImportant: "차입 비용을 이해하는 기준이 될 수 있다.", impact: null, marketImpact: { stocks: null, rates: "경기와 물가 흐름에 따라 시장금리 기대가 달라질 수 있다.", fx: null, industry: null }, interpretation: null }],
   todayKeywords: ["기준금리", "통화정책", "금융시장"], oneLiner: "기준금리 동결의 의미를 살펴봅니다.",
 };
+
+type DraftNews = z.infer<typeof aiDailyBriefingSchema>["newsItems"][number];
+
+/** 같은 근거 문장을 쓰는 다른 후보. 슬롯 테스트에서 지역·분류만 바꿔 쓴다. */
+export function candidate(id: string, overrides: Partial<GroundedCandidate> = {}): GroundedCandidate {
+  return { ...CANDIDATE, id, title: `후보 ${id}`, facts: [{ ...CANDIDATE.facts[0], id: `${id}-f1` }], ...overrides };
+}
+
+/** 국내(KR 정책)·IT(해외 AI) 후보. CANDIDATE(c1, KR 금리)와 함께 세 슬롯을 채운다. */
+export const DOMESTIC = candidate("c2", { category: "policy" });
+export const IT = candidate("c3", { region: "GLOBAL", category: "ai" });
+
+/** 슬롯 기사 초안. 제목에 숫자를 넣지 않는다(근거 없는 숫자 검사에 걸린다). */
+export function draftNews(rank: number, slot: DraftNews["slot"], candidateId: string, overrides: Partial<DraftNews> = {}): DraftNews {
+  const title = { top: "화제 기사", domestic: "국내 기사", it: "IT 기사" }[slot];
+  return { ...DRAFT.newsItems[0], rank, slot, candidateId, factIds: [`${candidateId}-f1`], title, ...overrides };
+}

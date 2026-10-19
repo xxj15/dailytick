@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { TECH_DISCOVERY_MAX_AGE_DAYS } from "@/config/app";
+import { NEWS_SLOTS, TECH_DISCOVERY_MAX_AGE_DAYS } from "@/config/app";
 import { CURRICULUM, type Concept } from "@/data/curriculum";
 import { TECH_CURRICULUM } from "@/data/tech-curriculum";
 import {
@@ -18,7 +18,7 @@ import {
 import type { DateString } from "@/lib/date";
 import { collectMarketNews, discoverTechTopics, NewsCollectionError, type TechTopic } from "@/lib/openai/collect-news";
 import { curateKnowledge, type CuratorPick } from "@/lib/openai/curate";
-import { groundMarketNews, GroundNewsError } from "@/lib/openai/ground-news";
+import { boundForGrounding, groundMarketNews, GroundNewsError, unseenCandidates } from "@/lib/openai/ground-news";
 import {
   BriefingValidationError,
   generateDailyBriefing,
@@ -39,14 +39,15 @@ import {
 } from "@/lib/supabase/generation-logs";
 import type { Briefing, ConceptHistoryEntry, GroundedSection, NewsCandidate, RecentNewsEntry, TechSection } from "@/types/briefing";
 import type { GroundedCandidate } from "@/lib/news/evidence-types";
-import { auditEvidence, type CurationAudit, type GenerationAudit, type TechAudit } from "@/lib/news/generation-audit";
+import { auditEvidence, type CoverageAudit, type CurationAudit, type GenerationAudit, type TechAudit } from "@/lib/news/generation-audit";
+import { emptySlots, fitsSlot, matchSlots } from "@/lib/news/slots";
 import type { BriefingViolation } from "@/types/briefing";
 
 const defaultServices = {
   getBriefingByDate, getConceptHistory, getTechConceptHistory, getRecentNews,
   collectMarketNews, discoverTechTopics, curateKnowledge,
-  groundMarketNews: (candidates: NewsCandidate[], date: DateString, signal?: AbortSignal, maxAgeHours?: number, allowUndated?: boolean) =>
-    groundMarketNews(candidates, date, undefined, signal, maxAgeHours, allowUndated),
+  groundMarketNews: (candidates: NewsCandidate[], date: DateString, signal?: AbortSignal, maxAgeHours?: number, allowUndated?: boolean, idPrefix?: string) =>
+    groundMarketNews(candidates, date, undefined, signal, maxAgeHours, allowUndated, idPrefix),
   generateDailyBriefing: (params: Parameters<typeof generateDailyBriefing>[0]) => generateDailyBriefing(params),
   generateTechSection: (params: Parameters<typeof generateTechSection>[0]) => generateTechSection(params),
   saveBriefing, getModel, startGenerationLog, finishGenerationLog,
@@ -67,15 +68,24 @@ type Usage = { inputTokens: number; outputTokens: number; webSearchCalls: number
 
 /** 실행 기한. Vercel 실행 제한(300초) 전에 정리할 시간을 남긴다. */
 const DEADLINE_MS = 260_000;
-/** 주요 이슈를 한 번 더 수집하려면 이만큼은 남아 있어야 한다. (수집 90초 + 근거·작성·검토) */
-const RECOLLECT_MIN_LEFT_MS = 170_000;
+/**
+ * 재수집이 끝난 뒤 경제 상식 큐레이션(최대 45초)·작성(60초)·검토(60초)와 흔한 재작성 한 번에 남겨 두는 시간.
+ * 재수집은 이 몫을 넘보지 못한다. 재수집은 덤이라, 시간이 모자라면 재수집을 끊고 1차 결과로 발행한다.
+ */
+const RECOLLECT_RESERVE_MS = 110_000;
+/** 주요 이슈를 한 번 더 수집하려면 이만큼은 남아 있어야 한다. (작성 몫 + 재수집 예산 최소 60초) */
+const RECOLLECT_MIN_LEFT_MS = RECOLLECT_RESERVE_MS + 60_000;
+/** 재수집 후보의 본문 근거 확인을 시작하려면 재수집 예산이 이만큼은 남아 있어야 한다. (본문 수집 + 근거 문장 선택) */
+const RECOLLECT_GROUND_MIN_MS = 30_000;
+/** 재수집 후보의 id 접두어. 1차 후보(c1, c2…)와 근거 문장 id(c1-f1…)가 겹치지 않게 한다. */
+const RECOLLECT_ID_PREFIX = "r";
 /** 첫 수집이 시간 초과로 끝났을 때 한 번 더 시도하는 하한. 재수집보다 낮다. 첫 수집이 아무것도 못 남겼기 때문이다. */
 const RETRY_AFTER_TIMEOUT_MIN_LEFT_MS = 150_000;
 
 /**
  * 하루치 브리핑 생성 전체 흐름.
  *
- *   경제·주요 이슈: 최근 뉴스 조회 → 다섯 섹션 수집 → 본문 근거 확인(검색이 좁았으면 1회 재수집) → 경제 상식 큐레이션 → 작성·검토
+ *   경제·주요 이슈: 최근 뉴스 조회 → 슬롯별 후보 수집 → 본문 근거 확인(빈 슬롯이 있으면 그 슬롯만 1회 재수집) → 경제 상식 큐레이션 → 작성·검토
  *   테크 상식:     학습 이력 → 그날 기술 글 발굴 → 큐레이션 → (아티클·트렌드면) 원문 근거 확인 → 작성·검토
  *
  * 두 흐름은 동시에 돈다. 경제·주요 이슈가 지면의 본체라 실패하면 발행하지 않는다.
@@ -141,40 +151,101 @@ export async function createDailyBriefing(
     let grounded = await services.groundMarketNews(candidates, date, signal);
     addUsage(grounded);
 
-    // 근거가 확보된 이슈가 적은데 섹션을 덜 훑었거나 검색 결과로 확인된 후보 자체가 적었다면,
-    // 시간이 될 때 한 번 더 수집한다. (후보가 적은 건 모델이 검색에 없던 URL을 내서 걸러진 경우가 많다)
+    // 근거가 확인된 후보로 채울 수 없는 슬롯이 있으면, 시간이 될 때 그 슬롯의 섹션을 겨냥해 한 번 더 수집한다.
+    // (후보가 모자란 건 모델이 검색에 없던 URL을 내서 걸러진 경우가 많다)
+    // 재수집은 덤이다. 1차에서 확인한 근거는 다시 읽지도 덮어쓰지도 않고, 재수집이 실패하거나 시간 예산을 넘겨도 1차 결과로 발행한다.
     const coverage = news.coverage ?? [];
-    const searched = coverage.filter((entry) => entry.searched).length;
+    const emptyBefore = emptySlots(grounded.candidates);
     let recollected = false;
-    if (grounded.candidates.length < 3 && (searched < 4 || candidates.length < 6) && timeLeft() > RECOLLECT_MIN_LEFT_MS) {
-      const focusSections = ["politics", "world", "society", "economy", "tech"].filter(
-        (section) => !coverage.some((entry) => entry.section === section && entry.searched),
-      );
-      const more = await services.collectMarketNews(date, signal, { recentNews, focusSections });
-      addUsage(more);
-      audit.searchTrace = [...audit.searchTrace, ...more.searchTrace];
-      audit.rejectedUrls = [...audit.rejectedUrls, ...more.rejectedUrls];
-      candidates = [...candidates, ...more.candidates.filter((entry) => !candidates.some((prev) => prev.title === entry.title))];
-      grounded = await services.groundMarketNews(candidates, date, signal);
-      addUsage(grounded);
+    let recollectError: string | undefined;
+    if (emptyBefore.length && timeLeft() > RECOLLECT_MIN_LEFT_MS) {
       recollected = true;
-      for (const entry of more.coverage ?? []) {
-        const index = coverage.findIndex((prev) => prev.section === entry.section);
-        if (index === -1) coverage.push(entry);
-        else if (entry.searched) coverage[index] = entry;
+      const fitsEmpty = (candidate: NewsCandidate) => emptyBefore.some((slot) => fitsSlot(slot, candidate));
+      // 1차에서 실제로 본문을 읽은 후보. 근거 확인 한도에 잘려 읽지 않은 후보는 시도한 것으로 치지 않는다.
+      const tried = new Set(boundForGrounding(candidates));
+      // 읽지 않은 1차 후보 가운데 빈 슬롯에 맞는 것은 이번에 함께 읽는다.
+      const unread = candidates.filter((candidate) => !tried.has(candidate) && fitsEmpty(candidate));
+
+      // 재수집 전용 기한. 실행 기한(signal)에 더해, 작성·검토 몫(RECOLLECT_RESERVE_MS)이 남는 시점에 끊는다.
+      const recollectLeft = () => timeLeft() - RECOLLECT_RESERVE_MS;
+      const budgetMs = recollectLeft();
+      const budgetError = `재수집 시간 예산(${Math.round(budgetMs / 1000)}초)을 넘겨 중단했습니다.`;
+      const budget = new AbortController();
+      const budgetTimer = setTimeout(
+        () => budget.abort(new DOMException("재수집 시간 예산을 넘겼습니다.", "TimeoutError")),
+        budgetMs,
+      );
+      const recollectSignal = AbortSignal.any([signal, budget.signal]);
+      try {
+        const more = await services.collectMarketNews(date, recollectSignal, {
+          recentNews,
+          focusSlots: emptyBefore,
+          // 같은 후보·같은 실패 URL을 다시 내서 수집 시간을 버리지 않게 한다.
+          previousTitles: candidates.map((candidate) => candidate.title),
+          rejectedUrls: [...new Set([...audit.rejectedUrls, ...grounded.rejected.flatMap((entry) => (entry.url ? [entry.url] : []))])],
+        });
+        addUsage(more);
+        audit.searchTrace = [...audit.searchTrace, ...more.searchTrace];
+        audit.rejectedUrls = [...audit.rejectedUrls, ...more.rejectedUrls];
+        for (const entry of more.coverage ?? []) {
+          const index = coverage.findIndex((prev) => prev.section === entry.section);
+          if (index === -1) coverage.push(entry);
+          else if (entry.searched) coverage[index] = entry;
+        }
+        // 1차에서 읽었거나 지금 읽을 후보와 겹치는 출처는 빼고 새 후보로 받는다.
+        const fresh = unseenCandidates(more.candidates, [...tried, ...unread]);
+        // 수집 기록에는 1차 후보와 제목이 같은 후보를 다시 세지 않는다.
+        const firstTitles = new Set(candidates.map((candidate) => candidate.title.trim()));
+        candidates = [...candidates, ...fresh.filter((candidate) => !firstTitles.has(candidate.title.trim()))];
+        // 본문을 읽는 것은 빈 슬롯에 맞는 후보뿐이다. 이미 채울 수 있는 슬롯의 후보까지 읽어 시간을 쓰지 않는다.
+        const targets = [...unread, ...fresh.filter(fitsEmpty)];
+        if (targets.length) {
+          if (recollectLeft() < RECOLLECT_GROUND_MIN_MS) {
+            throw new Error(`재수집 후보 ${targets.length}건의 본문을 확인할 시간이 남지 않아 건너뛰었습니다.`);
+          }
+          const added = await services.groundMarketNews(targets, date, recollectSignal, undefined, undefined, RECOLLECT_ID_PREFIX);
+          addUsage(added);
+          grounded = { ...grounded, candidates: [...grounded.candidates, ...added.candidates], rejected: [...grounded.rejected, ...added.rejected] };
+          // 본문을 하나도 읽기 전에 예산이 끝나면 근거 확인은 던지지 않고 빈 결과를 돌려준다. 끊긴 사실을 따로 남긴다.
+          if (budget.signal.aborted) recollectError = budgetError;
+        }
+      } catch (error) {
+        // 실행 기한·취소는 재수집 실패가 아니다. 이어서 할 수 있는 일이 없으므로 그대로 멈춘다.
+        // 재수집 자기 기한으로 끊긴 것은 재수집 실패다. 1차 결과로 이어 간다.
+        if (signal.aborted) throw error;
+        recollectError = budget.signal.aborted ? budgetError : error instanceof Error ? error.message : String(error);
+        if (error instanceof NewsCollectionError) {
+          addUsage(error.usage);
+          audit.searchTrace = [...audit.searchTrace, ...error.trace];
+          audit.rejectedUrls = [...audit.rejectedUrls, ...error.rejectedUrls];
+        }
+        if (error instanceof GroundNewsError) grounded = { ...grounded, rejected: [...grounded.rejected, ...error.rejected] };
+      } finally {
+        clearTimeout(budgetTimer);
       }
     }
     const searchedAfter = coverage.filter((entry) => entry.searched).length;
-    audit.coverage = {
+    const emptyAfter = emptySlots(grounded.candidates);
+    const collectable = matchSlots(candidates);
+    const coverageAudit: CoverageAudit = {
       sections: coverage,
-      verdict: grounded.candidates.length >= 3 ? "ok"
+      // 수집한 후보로는 채울 수 있었는데 본문 확인에서 떨어졌다면 출처 문제, 후보 자체가 없었다면 검색 범위나 그날 사정이다.
+      verdict: emptyAfter.length === 0 ? "ok"
+        : emptyAfter.some((slot) => collectable[slot]) ? "sources_failed"
         : searchedAfter < 4 ? "narrow_search"
-        : candidates.length >= 6 ? "sources_failed"
         : "thin_day",
       recollected,
+      recollectedSlots: recollected ? emptyBefore : [],
+      ...(recollectError ? { recollectError } : {}),
       candidates: candidates.length,
       grounded: grounded.candidates.length,
+      slots: NEWS_SLOTS.map((slot) => ({
+        slot,
+        candidates: candidates.filter((candidate) => fitsSlot(slot, candidate)).length,
+        grounded: grounded.candidates.filter((candidate) => fitsSlot(slot, candidate)).length,
+      })),
     };
+    audit.coverage = coverageAudit;
     audit.sourceRejections = grounded.rejected;
     audit.evidence = auditEvidence(grounded.candidates);
     if (!grounded.candidates.length) throw new Error("실제 본문으로 확인한 최신 뉴스가 없습니다.");
@@ -205,6 +276,13 @@ export async function createDailyBriefing(
     attempts = generated.attempts;
     violations = generated.violations;
     audit.reviews = generated.reviews;
+
+    // 슬롯별 발행 결과. 다른 분야 기사로 대신 채우지 않으므로 빈 슬롯은 빈 채로 남는다. 마지막 시도에서 빠진 슬롯도 여기서 empty다.
+    coverageAudit.slots = coverageAudit.slots.map((entry) => {
+      const published = generated.content.newsItems.find((item) => item.slot === entry.slot);
+      if (published) return { ...entry, status: "filled", rank: published.rank };
+      return { ...entry, status: "empty", reason: emptyAfter.includes(entry.slot) ? "근거가 확인된 후보로 채울 수 없었다" : "작성·검토 단계에서 빠졌다" };
+    });
 
     const content = markReview(generated.content, economy.choice.mode);
     const tech = await settleTech();

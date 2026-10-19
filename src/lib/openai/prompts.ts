@@ -1,6 +1,10 @@
 import {
+  DOMESTIC_NEWS_CATEGORIES,
+  IT_NEWS_CATEGORIES,
   NEWS_CANDIDATE_COUNT,
   NEWS_PER_DAY,
+  NEWS_SLOT_SECTIONS,
+  NEWS_SLOTS,
   PREFERRED_PUBLISHERS,
   PREFERRED_TECH_PUBLISHERS,
   SOURCE_MAX_AGE_HOURS,
@@ -12,14 +16,15 @@ import {
 import type { Concept } from "@/data/curriculum";
 import { formatKoreanDate, type DateString } from "@/lib/date";
 import type { GroundedCandidate } from "@/lib/news/evidence-types";
-import type { RecentNewsEntry } from "@/types/briefing";
+import { fitsSlot, SLOT_NAME } from "@/lib/news/slots";
+import type { NewsSlot, RecentNewsEntry } from "@/types/briefing";
 
 /**
  * Prompt는 Component가 아니라 이 파일에서만 관리한다.
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고,
  * 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v32";
+export const PROMPT_VERSION = "v33";
 
 /**
  * 모든 단계에 공통으로 적용되는 편집 원칙.
@@ -95,8 +100,8 @@ const EDITOR_PRINCIPLES = `당신은 증권사 취업을 준비하는 금융 초
 - 투자 추천이나 투자 지시처럼 읽힐 수 있는 표현을 사용하지 않는다.
 
 8. 뉴스 범위
-- 분야를 정해 놓고 찾지 않는다. 국내 정치·정책, 국제·외교, 사회, 경제·산업, IT·과학을 모두 훑고
-  그날 가장 중요한 사건을 고른다. 경제·IT가 중요했던 날에는 그 분야가 많아도 된다.
+- 기사는 정해진 세 자리(슬롯)에 한 건씩 싣는다: 오늘의 화제(분야 무관) / 국내 정세 / IT.
+  자리마다 맞는 사건을 찾고, 근거 있는 사건이 없으면 그 자리는 비운다. 다른 분야 기사로 대신 채우지 않는다.
 - 사건사고는 국가적 규모이거나 제도·정책 변화로 이어질 때만 다룬다.
 - 정쟁·발언 공방, 연예·스포츠, 보도자료성·광고성 기사는 다루지 않는다.
 
@@ -124,16 +129,31 @@ const READER_PROFILE = `독자 프로필:
 증권사 면접 활용 가능성도 고려하되,
 면접에 나올 법하다는 이유만으로 시장 중요도가 낮은 뉴스를 과도하게 선정하지 않는다.`;
 
-/** 어떤 뉴스가 '오늘의 주요 이슈'인지 정의한다. */
+/** 어떤 뉴스가 '오늘의 주요 이슈'인지, 어느 자리(슬롯)에 싣는지 정의한다. 슬롯 규칙은 코드(verify.ts)가 다시 검사한다. */
 const NEWS_CRITERIA = `오늘의 주요 이슈는 "오늘 세상에서 일어난 일 가운데 놓치면 안 되는 것"이다.
 
-중요도 판단 기준:
+기사는 아래 세 슬롯에 한 건씩, 이 순서로 싣는다. 세 슬롯은 서로 다른 사건이다.
+
+1. top — 오늘의 화제
+   분야와 상관없이 오늘 여러 주요 매체가 같은 날 크게 다룬 사건. 화제성은 여러 매체의 보도 비중으로 판단한다.
+   조회수나 '많이 본 뉴스' 순위는 확인할 수 없으므로 주장하지 않는다.
+2. domestic — 국내 정세
+   한국에서 일어난 정치·정책·외교·안보·경제·금융·기업 사건. region은 KR이고, category는 ${DOMESTIC_NEWS_CATEGORIES.join("·")} 중 하나다.
+   사회·과학 사건은 여기 두지 않는다(화제로는 실을 수 있다).
+   IT 분류(${IT_NEWS_CATEGORIES.join("·")}) 사건은 여기 두지 않고 it 슬롯에 둔다.
+3. it — IT
+   분류가 ${IT_NEWS_CATEGORIES.join("·")} 중 하나인 사건. 국내·해외 모두 된다.
+
+국내 정세·IT에 맞는 사건이 하나뿐이면 그 사건은 그 슬롯에 싣고, 화제는 나머지 사건에서 고른다.
+화제가 국내 사건이면 국내 정세에는 다른 국내 사건을, 화제가 IT 사건이면 IT에는 다른 IT 사건을 싣는다.
+
+슬롯 안에서 고르는 기준:
 1. 파급 범위 — 얼마나 많은 사람·나라·산업에 영향을 주는가
 2. 새로운 변화 — 오늘(최근 24~48시간) 새로 일어나거나 바뀐 것이 있는가
 3. 지속성 — 며칠 뒤에도 의미가 남는가
 4. 한국 관련성 — 한국 독자의 삶·경제·안보와 닿는가
 
-예시 (분야와 상관없이 중요하면 고른다):
+화제 예시 (어느 분야든 된다):
 - 정치·정책: 법안 통과, 정부의 큰 결정, 선거, 생활을 바꾸는 제도 변화
 - 국제: 전쟁·분쟁의 국면 변화, 정상회담·협정, 주요국의 큰 정책 결정
 - 사회: 인구·교육·의료·노동의 구조적 변화, 사회적으로 크게 논의되는 판결
@@ -205,43 +225,71 @@ oneLiner는 키워드 바로 아래 붙는 한 줄이다.
 /**
  * STEP 1 — 주요 이슈 후보 수집.
  *
- * 다섯 섹션을 모두 훑게 하고, 섹션마다 실제로 검색했는지 coverage로 보고하게 한다.
+ * 세 슬롯(화제·국내·IT) 후보를 따로 찾게 하고, 다섯 섹션을 실제로 훑었는지 coverage로 보고하게 한다.
+ * focusSlots가 있으면 앞선 수집에서 근거 있는 후보를 찾지 못한 슬롯만 겨냥해 다시 찾는다.
+ * 이때 앞선 후보 제목(previousTitles)과 버려진 URL(rejectedUrls)을 함께 넘겨 같은 후보·같은 실패 URL을 다시 내지 않게 한다.
  * 최근 며칠 동안 실은 사건은 새로 바뀐 점이 있을 때만 후보로 낸다.
  */
 export function buildNewsCollectionPrompt(
   date: DateString,
-  options: { recentNews?: RecentNewsEntry[]; focusSections?: string[] } = {},
+  options: { recentNews?: RecentNewsEntry[]; focusSlots?: NewsSlot[]; previousTitles?: string[]; rejectedUrls?: string[] } = {},
 ): string {
   const recent = options.recentNews?.length
     ? options.recentNews.map((entry) => `- [${entry.briefingDate}] ${entry.title}`).join("\n")
     : "(없음)";
+  const previousBlock = options.previousTitles?.length
+    ? `
+
+앞선 수집에서 이미 낸 후보다. 같은 후보는 다시 내지 않는다(같은 제목은 서버가 버린다):
+${options.previousTitles.map((title) => `- ${title}`).join("\n")}`
+    : "";
+  const rejectedBlock = options.rejectedUrls?.length
+    ? `
+
+앞선 수집에서 검색 결과로 확인되지 않았거나 본문·게시일을 읽지 못해 버려진 URL이다. sources에 다시 넣지 않는다:
+${options.rejectedUrls.map((url) => `- ${url}`).join("\n")}`
+    : "";
+  // 재수집이면 비어 있는 슬롯의 후보만 찾는다. 이미 채운 슬롯을 다시 훑느라 재수집 시간 예산을 쓰지 않는다.
+  const focus = options.focusSlots?.length ? options.focusSlots : null;
+  const scope = focus
+    ? `지금 최신 웹 검색을 수행해 아래 슬롯의 오늘의 주요 이슈 후보만 수집하라: ${focus.map((slot) => SLOT_NAME[slot]).join(", ")}
+이 슬롯마다 후보를 4~5개씩 따로 찾는다. 나머지 슬롯은 앞선 수집에서 이미 채웠으므로 그 후보는 찾지 않는다.`
+    : `지금 최신 웹 검색을 수행해 오늘의 주요 이슈 후보를 ${NEWS_CANDIDATE_COUNT.min}~${NEWS_CANDIDATE_COUNT.max}개 수집하라.
+아래 세 슬롯의 후보를 슬롯마다 4~5개씩 따로 찾는다. 한 사건이 화제이면서 국내나 IT에도 맞으면 후보로는 한 번만 낸다.`;
+  const slotSearch: Record<NewsSlot, string> = {
+    top: "top(오늘의 화제): 오늘 주요 일간지·통신사·방송이 함께 크게 다룬 사건을 찾는다. 분야를 가리지 않고 훑는다.",
+    domestic: "domestic(국내 정세): 국회·정부의 큰 결정, 외교·안보의 큰 변화, 국내 증시·환율·금리의 큰 변화, 대기업·금융권의 큰 움직임을 확인한다.",
+    it: "it(IT): AI·반도체·소프트웨어·플랫폼·보안 소식을 국내 IT 매체와 해외 매체에서 확인한다.",
+  };
 
   return `${EDITOR_PRINCIPLES}
 
 오늘은 ${formatKoreanDate(date)} (${date}, Asia/Seoul 기준)이다. 이 지면은 오늘 아침에 발행된다.
 
-지금 최신 웹 검색을 수행해 오늘의 주요 이슈 후보를 ${NEWS_CANDIDATE_COUNT.min}~${NEWS_CANDIDATE_COUNT.max}개 수집하라.
+${scope}
 
 ${NEWS_CRITERIA}
 
 ## 검색 방법
 
-1. 다섯 섹션을 모두 검색한다: politics(국내 정치·정책) / world(국제·외교) / society(사회) / economy(경제·산업) / tech(IT·과학).
-   섹션마다 주요 일간지·통신사·방송의 상위 기사를 확인한다. 검색어는 한국어로 쓰고, 국제 뉴스는 영어 검색도 함께 한다.
-   국내 증시·환율·금리의 큰 변화, 국회·정부의 큰 결정은 반드시 확인한다.
-2. 섹션마다 검토한 결과를 coverage에 적는다. 중요한 사건이 없었다면 searched=true, note에 "중요 사건 없음"이라고 쓴다.
-   검색하지 못한 섹션은 searched=false로 솔직하게 적는다.
+1. 슬롯마다 따로 검색한다.
+${(focus ?? NEWS_SLOTS).map((slot) => `   - ${slotSearch[slot]}`).join("\n")}
+   검색어는 한국어로 쓰고, 국제·IT 뉴스는 영어 검색도 함께 한다.
+2. 다섯 섹션(politics 국내 정치·정책 / world 국제·외교 / society 사회 / economy 경제·산업 / tech IT·과학)마다 검토한 결과를 coverage에 적는다.
+   중요한 사건이 없었다면 searched=true, note에 "중요 사건 없음"이라고 쓴다. 검색하지 못한 섹션은 searched=false로 솔직하게 적는다.
 3. 고른 사건마다 그 사건 이름으로 다시 검색해 개별 기사를 찾는다. sources에는 그 검색 결과에 실제로 나온 기사 URL만 넣는다.
 4. 전날 이전에 일어난 사건은 지금 시점까지의 최신 기사로 후속 상황을 확인하고, 가장 최신 기사를 sources 맨 앞에 둔다.
 5. 아직 일어나지 않은 일(예정된 회의·발표)은 "예정"으로만 쓴다. 결과를 미리 단정하지 않는다.
 6. 이 지면의 기준일은 ${date}이다. 게시 시각이 ${date} 23:59(KST)를 넘는 기사는 서버가 버리므로 sources에 넣지 않는다.
-7. 섹션·목록·홈 화면 URL(예: /index.php, /main.do, /schedule)은 본문이 없어 버려진다. 개별 기사 URL만 넣는다.${
-  options.focusSections?.length
+7. 섹션·목록·랭킹(많이 본 뉴스)·홈 화면 URL(예: /index.php, /main.do, /schedule, /ranking)은 본문이 없어 버려진다. 개별 기사 URL만 넣는다.${
+  focus
     ? `
 
-앞선 수집에서 다음 섹션을 충분히 확인하지 못했다. 이번에는 이 섹션을 먼저, 더 넓게 검색한다: ${options.focusSections.join(", ")}`
+앞선 수집에서 다음 슬롯에 맞는 후보를 본문으로 확인하지 못했다. 이번에는 이 슬롯 후보만, 더 넓게 검색한다.
+앞선 수집과 다른 사건·다른 매체의 기사를 찾고, 본문을 읽을 수 있는 개별 기사 URL을 넣는다.
+${focus.map((slot) => `- ${SLOT_NAME[slot]}: ${NEWS_SLOT_SECTIONS[slot].join("·")} 섹션`).join("\n")}`
     : ""
-}
+}${previousBlock}${rejectedBlock}
 
 ## 최근에 실은 사건 (반복 금지)
 
@@ -264,15 +312,18 @@ ${SOURCE_PREFERENCE}
 
 - section: 위 다섯 섹션 중 하나
 - category: 가장 가까운 분류 (rates·stocks·fx·macro·industry·commodities·policy·politics·world·geopolitics·society·science·ai·semiconductor·software·platform·security·other)
-- region: 사건의 중심이 국내면 KR, 해외면 GLOBAL
+  들어갈 슬롯은 서버가 category와 region으로 정한다. IT 사건은 ${IT_NEWS_CATEGORIES.join("·")} 중 하나로, 그 밖의 사건은 IT 분류가 아닌 것으로 정확히 매긴다.
+  사회·과학 사건은 society·science로 매긴다. 국내 정세 슬롯에는 들어가지 않는다.
+  한국이 당사자인 외교·안보 사건은 geopolitics(또는 politics)로 매기고, world는 한국이 당사자가 아닌 해외 일반 사건에만 쓴다.
+- region: 사건의 중심이 국내면 KR, 해외면 GLOBAL. 한국 매체가 보도했어도 해외 기업·해외 시장 이야기면 GLOBAL이다.
 - summary: 2~3문장. 무슨 일이 있었고 오늘 새로 확인된 것이 무엇인지. 후속이면 이전과 달라진 점.
-- importance: 위 중요도 기준으로 1~10. 5 미만은 내지 않는다.
+- importance: 화제성(여러 매체가 같은 날 크게 다뤘는가)과 위 기준으로 1~10. 3 미만은 내지 않는다.
 - publishedAt: 기사 게시 시각(ISO 8601). 사건 발생 시각과 혼동하지 않는다. 모르면 null이지만 후보마다 하나는 있어야 한다.
 
 ## 최종 점검
 
-- 다섯 섹션을 모두 검색했는가? coverage가 사실과 맞는가?
-- 한 분야로만 몰려 있다면, 정말 그날 그 분야가 가장 중요해서인가?
+- ${focus ? `겨냥한 슬롯(${focus.map((slot) => SLOT_NAME[slot]).join(", ")}) 후보를 찾았는가?` : "세 슬롯(화제·국내·IT) 후보를 각각 찾았는가?"} IT 후보의 category가 IT 분류인가? 국내 후보의 region이 KR이고 category가 사회·과학이 아닌가?
+- coverage가 실제로 훑은 섹션과 맞는가?
 - 최근에 실은 사건을 새 변화 없이 다시 내지 않았는가?
 - 실제 URL인가? 수치와 날짜를 만들지 않았는가?`;
 }
@@ -292,6 +343,21 @@ export function buildBriefingPrompt(params: {
   const recentBlock = params.recentNews?.length
     ? params.recentNews.map((entry) => `- [${entry.briefingDate}] ${entry.title}`).join("\n")
     : "(없음)";
+  // 슬롯마다 둘 수 있는 후보. 맞는 후보가 없는 슬롯은 비워 두라고 미리 알려 다른 분야로 채우지 않게 한다.
+  // 서버의 빈 슬롯 판정(slots.ts matchSlots)과 같은 순서로 배정한다. 국내·IT에 맞는 후보가 하나뿐이면 그 후보는 그 슬롯 몫이고,
+  // 화제는 나머지 후보에서 고른다. 그래야 서버가 채울 수 있다고 본 슬롯을 작성 단계에서 비우지 않는다.
+  const reserved = new Set((["domestic", "it"] as const).flatMap((slot) => {
+    const ids = candidates.filter((candidate) => fitsSlot(slot, candidate)).map((candidate) => candidate.id);
+    return ids.length === 1 ? ids : [];
+  }));
+  const placeable = (slot: NewsSlot, candidate: Pick<GroundedCandidate, "id" | "region" | "category">) =>
+    fitsSlot(slot, candidate) && !(slot === "top" && reserved.has(candidate.id));
+  const slotBlock = NEWS_SLOTS.map((slot) => {
+    const ids = candidates.filter((candidate) => placeable(slot, candidate)).map((candidate) => candidate.id);
+    if (!ids.length) return `- ${SLOT_NAME[slot]}: 맞는 후보 없음. 이 슬롯은 비워 둔다`;
+    const only = slot !== "top" && reserved.has(ids[0]) ? " (이 슬롯에 맞는 후보는 이것뿐이다. top에 쓰지 말고 이 슬롯에 쓴다)" : "";
+    return `- ${SLOT_NAME[slot]}: ${ids.join(", ")}${only}`;
+  }).join("\n");
 
   // concepts는 항상 1개 이상이다.
   // 커리큘럼을 다 돌면 가장 오래전에 다룬 개념이 온다.
@@ -439,25 +505,34 @@ facts.quote에 있는 내용만 사실로 사용할 수 있다. 검색 후보 ti
 
 <news_candidates>
 ${JSON.stringify(candidates.map(({ documents, ...candidate }) => ({
-  ...candidate, documents: documents.map((doc) => ({ sourceId: doc.id, ...doc.source })),
+  ...candidate,
+  slots: NEWS_SLOTS.filter((slot) => placeable(slot, candidate)),
+  documents: documents.map((doc) => ({ sourceId: doc.id, ...doc.source })),
 })), null, 2)}
 </news_candidates>
 
 ${NEWS_CRITERIA}
 
-위 기준으로 오늘 놓치면 안 되는 사건을 고른다. 분야별 개수를 맞추지 않는다.
-- 한국 독자의 지갑·일자리·안전에 바로 닿는 국내 충격(증시 폭락, 금리·환율 급변, 대형 정책 결정)은 해외 소식보다 앞에 둔다.
-- 중요도가 비슷하면 국내 정치·정책·사회 소식을 우선한다. 해외 소식으로만 채우지 않는다.
+## 슬롯 배정
 
-## 뉴스 선정 개수
+각 후보의 slots는 그 후보를 둘 수 있는 슬롯이다. 서버가 후보의 region·category로 계산하고,
+domestic·it에 맞는 후보가 하나뿐이면 그 후보의 slots에서 top을 뺀다.
 
-- 보통 3~${NEWS_PER_DAY.max}개. 중요한 사건이 많은 날은 많이, 적은 날은 적게 고른다.
-- 주말·휴일처럼 중요한 사건이 적으면 2~3개도 괜찮다. 근거가 있는 후보만 쓴다. 개수를 맞추려고 내용을 보태지 않는다.
-- 같은 분야는 3개까지가 기본이다. 그날 그 분야가 압도적으로 중요할 때만 넘긴다.
+${slotBlock}
 
-## 뉴스 순위
+- 슬롯마다 최대 한 건, 모두 최대 ${NEWS_PER_DAY.max}건이다. 각 뉴스의 slot에 top·domestic·it 중 하나를 적는다.
+- 세 슬롯은 서로 다른 후보(candidateId)이자 서로 다른 사건이다. 같은 후보를 두 슬롯에 쓰지 않는다.
+- 배정 순서: domestic과 it을 먼저 정하고, top은 남은 후보에서 고른다.
+  domestic·it에 맞는 후보가 하나뿐이면 그 후보는 그 슬롯에 쓰고 top에 쓰지 않는다. top을 먼저 정하느라 domestic·it을 비우지 않는다.
+  domestic·it에 맞는 후보가 둘 이상이면 그중 가장 큰 사건을 top에 두고 다음 사건을 그 슬롯에 둘 수 있다.
+- top에는 남은 후보 가운데 오늘 여러 매체가 가장 크게 다룬 사건을 둔다. 조회수·순위를 근거 없이 주장하지 않는다.
+- 어느 슬롯이든 slots에 그 슬롯이 있는 후보만 쓴다. region을 GLOBAL로 바로잡은 후보는 domestic에 둘 수 없다.
+- 맞는 후보가 없거나 근거가 약한 슬롯은 비운다. 다른 분야 기사로 채우지 않고, 개수를 맞추려고 내용을 보태지 않는다.
 
-rank는 중요도 순서다. 가장 중요한 사건이 1이다. 지역·분야로 다시 줄 세우지 않는다.
+## 뉴스 순서
+
+지면 순서와 번호는 서버가 정한다. 서버가 뉴스를 슬롯 순서(top → domestic → it)로 놓고 1부터 번호를 매긴다. 빈 슬롯은 건너뛴다.
+newsItems는 top → domestic → it 순서로 쓰고 rank는 1부터 차례로 적는다. 재시도 지적의 "뉴스 N"은 서버가 매긴 번호다.
 
 ## 최근에 실은 사건 (반복 금지)
 
@@ -471,6 +546,7 @@ ${recentBlock}
 ## 중복 방지
 
 - 동일한 사건을 여러 이슈로 나누지 않는다. 원인이 같은 사건(예: 유가 급등과 그로 인한 물가 상승)은 하나로 묶는다.
+- 슬롯이 달라도 같은 사건이면 한 번만 싣는다. 다른 슬롯에는 다른 사건을 찾고, 없으면 비운다.
 
 ## 각 뉴스 작성 순서
 
@@ -493,7 +569,7 @@ ${recentBlock}
 ### 사실 선택
 
 - whatHappened와 sources는 출력하지 않는다. 서버가 선택된 근거 문장과 실제 출처로 조합한다.
-- 각 뉴스에 candidateId와 그 후보에 속하는 factIds 1~3개를 출력한다.
+- 각 뉴스에 slot, candidateId와 그 후보에 속하는 factIds 1~3개를 출력한다.
 - category·publishedAt은 출력하지 않는다. 서버가 후보에서 사용한다.
 - region은 직접 출력한다. 후보의 region은 참고만 하고, 사건의 중심이 어디인지로 다시 판단한다.
 - followUp은 위 '최근에 실은 사건'의 후속일 때만 그 제목을 적고, 아니면 null이다.
@@ -641,7 +717,7 @@ todayKeywords는 지면 맨 위에 거는 단어 목록이다.
 - 각 키워드는 한국어 기준 10자 이내의 명사구
 - 문장이나 서술어를 쓰지 않는다
 - 앞에서 작성한 newsItems에서 실제로 다룬 주제만 쓴다
-- newsItems의 중요도 순서를 따른다
+- newsItems의 슬롯 순서(오늘의 화제 → 국내 → IT)를 따른다
 - 같은 개념을 두 번 쓰지 않는다
 - 오늘 실은 여러 분야의 사건이 고루 드러나게 고른다
 - 숫자를 키워드로 삼지 않는다
@@ -676,8 +752,8 @@ ${ONE_LINER_RULES}
 - securitiesPoint가 실제 증권시장과 연결되는가?
 
 [뉴스]
-- 뉴스 개수가 허용 범위 안인가?
-- rank가 중요도 순서인가? 분야를 정해 놓고 채우지 않았는가?
+- 슬롯마다 한 건 이하이고, 각 뉴스의 slot이 그 후보의 slots 안에 있는가?
+- 세 슬롯이 서로 다른 사건인가? 맞는 후보가 없는 슬롯은 다른 분야로 채우지 않고 비웠는가?
 - 최근에 실은 사건을 새 변화 없이 다시 싣지 않았는가? 후속이면 followUp을 적었는가?
 - 출처가 국내 주요 매체 위주인가?
 - 동일한 사건을 중복 선정하지 않았는가?
@@ -693,7 +769,7 @@ ${ONE_LINER_RULES}
 - 키워드가 3개에서 5개인가?
 - 모두 짧은 명사구인가?
 - 오늘 뉴스에서 실제로 다룬 주제인가?
-- 국내와 글로벌이 모두 들어 있는가?
+- 오늘 실은 슬롯의 사건이 고루 들어 있는가?
 - oneLiner가 한 문장이고 40자 이내인가?
 - oneLiner가 독자를 가르치거나 훈계하지 않고 무슨 일이 있었는지를 말하는가?
 - oneLiner가 키워드를 그대로 나열하지 않는가?

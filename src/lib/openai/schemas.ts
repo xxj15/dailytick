@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NEWS_PER_DAY, TECH_NEWS_PER_DAY, TODAY_KEYWORDS_PER_DAY } from "@/config/app";
+import { NEWS_PER_DAY, NEWS_SLOTS, TECH_NEWS_PER_DAY, TODAY_KEYWORDS_PER_DAY } from "@/config/app";
 
 /**
  * AI 응답 검증 스키마.
@@ -8,7 +8,10 @@ import { NEWS_PER_DAY, TECH_NEWS_PER_DAY, TODAY_KEYWORDS_PER_DAY } from "@/confi
 
 export const newsRegionSchema = z.enum(["KR", "GLOBAL"]);
 
-/** 주요 이슈 수집에서 훑는 다섯 섹션. 분야를 정해 놓고 찾지 않고 모든 섹션을 확인하게 하는 장치다. */
+/** 주요 이슈의 자리. 오늘의 화제·국내·IT. 규칙은 config/app.ts의 NEWS_SLOTS에 있다. */
+export const newsSlotSchema = z.enum(NEWS_SLOTS);
+
+/** 주요 이슈 수집에서 훑는 다섯 섹션. 실제로 어느 섹션을 훑었는지 보고하는 단위이고, 빈 슬롯을 다시 수집할 때 겨냥하는 범위다. */
 export const newsSectionSchema = z.enum(["politics", "world", "society", "economy", "tech"]);
 
 export const newsCategorySchema = z.enum([
@@ -59,6 +62,8 @@ export const newsEvidenceSchema = z.object({
 
 export const newsIssueSchema = z.object({
   rank: z.number().int().positive(),
+  /** 2026-10-19 이전 row와 테크 파트 뉴스에는 없다. 없으면 지금처럼 rank 순서로만 보여준다. */
+  slot: newsSlotSchema.optional(),
   title: z.string().min(1),
   region: newsRegionSchema,
   category: newsCategorySchema,
@@ -114,10 +119,15 @@ export const knowledgeItemSchema = z.object({
 export const dailyBriefingSchema = z
   .object({
     knowledgeItems: z.array(knowledgeItemSchema).min(1).max(2),
+    /**
+     * 하루 최대 건수(슬롯 수)는 여기서 막지 않는다. AI 출력의 required slot과 verify.ts의 슬롯 고유성 검사가 막는다.
+     * 여기서 막으면 rank 없는 위반이라 마지막 시도에서 넘친 뉴스만 뺄 수 없고 그날 지면 전체가 실패한다.
+     * 상한은 트림을 막지 않을 만큼 넉넉히 둔다.
+     */
     newsItems: z
       .array(newsIssueSchema)
       .min(NEWS_PER_DAY.min)
-      .max(NEWS_PER_DAY.max),
+      .max(NEWS_SLOTS.length * 2),
     /**
      * 오늘 지면을 여는 키워드.
      * 글자 수는 프롬프트로만 유도한다. 길이 때문에 브리핑 전체를 버리지 않는다.
@@ -195,6 +205,8 @@ const aiMarketImpactSchema = z.object({
 
 export const aiNewsIssueSchema = z.object({
   rank: z.number(),
+  /** 새로 쓰는 기사는 반드시 슬롯 하나에 들어간다. 슬롯 규칙은 verify.ts가 검사한다. */
+  slot: newsSlotSchema,
   candidateId: z.string(),
   followUp: z.string().nullable(),
   /** 검색 단계가 매긴 지역이 틀렸을 때 작성 단계에서 바로잡는다. 검토 지적을 재시도로 고칠 수 있어야 한다. */
