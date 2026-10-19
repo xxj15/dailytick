@@ -11,8 +11,11 @@ const FIELD_ORDER: NewsField[] = ["politics", "world", "society", "economy", "te
  */
 export function IssuesSection({
   issues,
+  filterable = true,
 }: {
   issues: { key: string; field: NewsField; card: ReactNode }[];
+  /** 슬롯(오늘의 화제·국내·IT)으로 실은 지면은 카드 라벨이 슬롯이라 분야 칩을 두지 않는다. */
+  filterable?: boolean;
 }) {
   const [field, setField] = useState<NewsField | "all">("all");
   const fields = FIELD_ORDER.filter((value) => issues.some((issue) => issue.field === value));
@@ -38,7 +41,7 @@ export function IssuesSection({
 
   return (
     <section>
-      {fields.length > 1 && (
+      {filterable && fields.length > 1 && (
         <div className="mb-7 flex flex-wrap gap-2" aria-label="분야">
           {chip("all", "전체", issues.length)}
           {fields.map((value) => chip(value, NEWS_FIELD_LABEL[value], issues.filter((issue) => issue.field === value).length))}

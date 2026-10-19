@@ -1,5 +1,5 @@
 import { economyField } from "@/data/curriculum";
-import type { NewsCategory, NewsRegion } from "@/types/briefing";
+import type { NewsCategory, NewsRegion, NewsSlot } from "@/types/briefing";
 
 /** 지면에 노출되는 라벨. enum 값을 그대로 보여주지 않는다. */
 export const NEWS_CATEGORY_LABEL: Record<NewsCategory, string> = {
@@ -26,6 +26,13 @@ export const NEWS_CATEGORY_LABEL: Record<NewsCategory, string> = {
 export const NEWS_REGION_LABEL: Record<NewsRegion, string> = {
   KR: "국내",
   GLOBAL: "해외",
+};
+
+/** 주요 이슈의 자리. 2026-10-19 이후 기사에만 있다. */
+export const NEWS_SLOT_LABEL: Record<NewsSlot, string> = {
+  top: "오늘의 화제",
+  domestic: "국내",
+  it: "IT",
 };
 
 /** 상식의 세부 카테고리 칩. 테크는 CS·프론트엔드·AI, 경제는 경제·증권으로 보여준다. */
