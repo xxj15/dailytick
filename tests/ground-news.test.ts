@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
-import { groundCandidates, type CandidateDocuments } from "@/lib/news/ground-candidates";
+import { groundCandidates, isKoreanText, type CandidateDocuments } from "@/lib/news/ground-candidates";
 import { boundForGrounding, groundMarketNews, unseenCandidates } from "@/lib/openai/ground-news";
 import { NEWS_GROUND_LIMIT } from "@/config/app";
 import type { NewsCandidate } from "@/types/briefing";
@@ -53,6 +53,56 @@ test("첫 기사 실패 시 후보에 이미 있던 공식 자료로 대체한�
   });
   assert.equal(result.candidates.length, 1);
   assert.equal(result.candidates[0].sources[0].url, "https://official.example.com/release");
+});
+
+const englishQuote = "Tenstorrent, a chip startup focused on inference, has raised $1.5 billion at a $6.2 billion valuation.";
+const page = (url: string, text: string) => ({ url, contentType: "text/html", body: `<title>기사</title><meta property="article:published_time" content="2026-10-09T07:00:00+09:00"><article>${text.repeat(8)}</article>` });
+
+test("영문 기사는 건너뛰고 한국어 기사 본문을 근거로 쓴다", async () => {
+  const fetched: string[] = [];
+  const result = await groundMarketNews([{ ...input.candidate, sources: [
+    { ...input.candidate.sources[0], title: "Tenstorrent raises $1.5B", url: "https://techcrunch.example.com/a" },
+    { ...input.candidate.sources[0], title: "Chip startup funding", url: "https://reuters.example.com/b" },
+    { ...input.candidate.sources[0], title: "추론 칩 스타트업, 대규모 투자 유치", url: "https://etnews.example.com/c" },
+  ] }], "2026-10-09", {
+    fetch: async (url) => {
+      fetched.push(url);
+      return page(url, url.includes("etnews") ? quote : englishQuote);
+    },
+    select: async (inputs) => ({ selection: { candidates: inputs.map((item) => ({ candidateId: item.id, facts: [{ sourceId: item.documents[0].id, quote: item.documents[0].text.includes(quote) ? quote : englishQuote }] })) }, inputTokens: 0, outputTokens: 0 }),
+  });
+  // 한국어 제목의 출처를 먼저 읽고, 읽히면 영문 기사는 받지도 않는다
+  assert.deepEqual(fetched, ["https://etnews.example.com/c"]);
+  assert.equal(result.candidates[0].facts[0].quote, quote);
+});
+
+test("한국어 기사가 하나도 없으면 후보를 버린다", async () => {
+  let called = false;
+  const result = await groundMarketNews([{ ...input.candidate, sources: [{ ...input.candidate.sources[0], url: "https://techcrunch.example.com/a" }] }], "2026-10-09", {
+    fetch: async (url) => page(url, englishQuote),
+    select: async () => { called = true; throw new Error("호출하면 안 됨"); },
+  });
+  assert.equal(called, false);
+  assert.equal(result.candidates.length, 0);
+  assert.match(result.rejected[0].reason, /한국어 기사가 아닙니다/);
+});
+
+test("한국어 기사 안의 영문 문장은 근거로 받지 않는다", () => {
+  const mixed = { ...input, documents: [{ ...input.documents[0], text: `${quote} ${englishQuote}` }] };
+  const only = groundCandidates([mixed], { candidates: [{ candidateId: "c1", facts: [{ sourceId: "s1", quote: englishQuote }] }] }, "2026-10-09");
+  assert.equal(only.candidates.length, 0);
+  assert.match(only.rejected[0].reason, /한국어 근거 문장이 없습니다/);
+  const both = groundCandidates([mixed], { candidates: [{ candidateId: "c1", facts: [{ sourceId: "s1", quote: englishQuote }, { sourceId: "s1", quote }] }] }, "2026-10-09");
+  assert.deepEqual(both.candidates[0].facts.map((fact) => [fact.id, fact.quote]), [["c1-f1", quote]]);
+  // 테크 상식처럼 koreanOnly를 끄면 영문 문장도 받는다
+  assert.equal(groundCandidates([mixed], { candidates: [{ candidateId: "c1", facts: [{ sourceId: "s1", quote: englishQuote }] }] }, "2026-10-09", undefined, false, false).candidates.length, 1);
+});
+
+test("영문 표기가 많이 섞인 한국어 문장도 한국어로 본다", () => {
+  assert.ok(isKoreanText("OpenAI는 GPT-5.5를 공개했다."));
+  assert.ok(isKoreanText("엔비디아가 GPU 신제품을 발표했다."));
+  assert.ok(!isKoreanText(englishQuote));
+  assert.ok(!isKoreanText("French authorities set curfews in parts of several cities on Monday, including Paris (파리)."));
 });
 
 test("본문을 읽을 후보를 줄일 때 중요도가 낮아도 국내·IT 후보 자리를 먼저 잡는다", () => {

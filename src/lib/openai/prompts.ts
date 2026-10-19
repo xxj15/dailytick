@@ -26,7 +26,7 @@ import type { NewsSlot, RecentNewsEntry } from "@/types/briefing";
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고,
  * 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v35";
+export const PROMPT_VERSION = "v36";
 
 /**
  * 모든 단계에 공통으로 적용되는 편집 원칙.
@@ -182,7 +182,7 @@ ${PREFERRED_PUBLISHERS.global.join(" / ")}
 해외 매체는 국내 보도가 없거나
 수치·원문을 확인해야 할 때 함께 붙인다.
 
-검색어는 한국어로 쓰고, 후보마다 국내 매체 기사를 최소 1개 넣는다.
+검색어는 한국어로 쓰고, 후보마다 국내 매체의 한국어 기사를 최소 1개 넣는다.
 다음 사이트는 서버가 본문을 읽지 못해 반드시 탈락하므로 sources에 넣지 않는다:
 ${UNREADABLE_SOURCES.join(", ")}
 
@@ -250,7 +250,7 @@ ${options.previousTitles.map((title) => `- ${title}`).join("\n")}`
   const rejectedBlock = options.rejectedUrls?.length
     ? `
 
-앞선 수집에서 검색 결과로 확인되지 않았거나 본문·게시일을 읽지 못해 버려진 URL이다. sources에 다시 넣지 않는다:
+앞선 수집에서 검색 결과로 확인되지 않았거나, 본문·게시일을 읽지 못했거나, 한국어 기사가 아니어서 버려진 URL이다. sources에 다시 넣지 않는다:
 ${options.rejectedUrls.map((url) => `- ${url}`).join("\n")}`
     : "";
   // 재수집이면 비어 있는 슬롯의 후보만 찾는다. 이미 채운 슬롯을 다시 훑느라 재수집 시간 예산을 쓰지 않는다.
@@ -281,7 +281,7 @@ ${options.rejectedUrls.map((url) => `- ${url}`).join("\n")}`
       ? `top(오늘의 화제): 섹션마다 깊게 검색하지 않는다. 주요 일간지·통신사·방송의 1면·메인 헤드라인에서 오늘 여러 매체가 함께 크게 다룬 사건 ${ownCount}개를 빠르게 고른다. 1면·홈 화면은 사건을 찾는 데만 쓰고, sources에는 3번처럼 찾은 개별 기사 URL을 넣는다.`
       : "top(오늘의 화제): 오늘 주요 일간지·통신사·방송이 함께 크게 다룬 사건을 찾는다. 분야를 가리지 않고 훑는다.",
     domestic: "domestic(국내 정세): 국회·정부의 큰 결정, 외교·안보의 큰 변화, 국내 증시·환율·금리의 큰 변화, 대기업·금융권의 큰 움직임을 확인한다.",
-    it: "it(IT): AI·반도체·소프트웨어·플랫폼·보안 소식을 국내 IT 매체와 해외 매체에서 확인한다.",
+    it: "it(IT): AI·반도체·소프트웨어·플랫폼·보안 소식을 국내 IT 매체(전자신문·ZDNet Korea·디지털데일리 등)의 한국어 기사로 확인한다. 해외 기업 소식도 국내 매체가 보도한 한국어 기사를 넣는다.",
   };
 
   return `${EDITOR_PRINCIPLES}
@@ -296,7 +296,8 @@ ${NEWS_CRITERIA}
 
 1. ${ownSlot ? "이 슬롯의 사건을 검색한다." : "슬롯마다 따로 검색한다."}
 ${searchSlots.map((slot) => `   - ${slotSearch[slot]}`).join("\n")}
-   검색어는 한국어로 쓰고, 국제·IT 뉴스는 영어 검색도 함께 한다.
+   검색어는 한국어로 쓴다. 해외·IT 사건도 한국어로 검색해 국내 매체의 한국어 기사를 찾는다.
+   영어 검색은 사건을 찾는 데만 쓰고, 찾은 사건은 한국어로 다시 검색해 한국어 기사를 sources에 넣는다.
 2. 다섯 섹션(politics 국내 정치·정책 / world 국제·외교 / society 사회 / economy 경제·산업 / tech IT·과학)마다 검토한 결과를 coverage에 적는다.
    중요한 사건이 없었다면 searched=true, note에 "중요 사건 없음"이라고 쓴다. 검색하지 못한 섹션은 searched=false로 솔직하게 적는다.${
   topFirstPass
@@ -337,8 +338,9 @@ ${SOURCE_PREFERENCE}
 
 - 후보마다 서로 다른 매체의 개별 기사 2~3개를 넣는다. 섹션·목록 페이지, 지면보기·PDF, 영상만 있는 페이지는 넣지 않는다.
 - 여러 뉴스를 모아 놓은 요약·라운드업 페이지(예: "world news summary")는 출처로 쓰지 않는다. 해당 사건의 개별 기사를 찾는다.
-- 국내 사건은 한국어 기사를 반드시 넣고 sources 맨 앞에 둔다. 영문 매체(Korea Times·Korea Herald 등)는 한국어 기사가 없을 때만 쓴다.
-  독자에게 보이는 '무슨 일이 있었나'는 기사 원문 문장 그대로라서, 영문 기사만 있으면 영어로 보인다.
+- 모든 후보(해외·IT 사건 포함)에 한국어 기사를 반드시 넣고 sources 맨 앞에 둔다.
+  독자에게 보이는 '무슨 일이 있었나'는 기사 원문 문장 그대로라서, 서버는 한국어 기사 본문만 근거로 쓴다.
+  영문 기사(Reuters·TechCrunch·Korea Times·Korea Herald 등)만 있는 후보는 서버가 버린다. 한국어 기사를 찾지 못한 사건은 후보로 내지 않는다.
 - URL을 추측하거나 만들지 않는다.
 
 ## 각 후보

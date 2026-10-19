@@ -47,8 +47,8 @@ import type { BriefingViolation } from "@/types/briefing";
 const defaultServices = {
   getBriefingByDate, getConceptHistory, getTechConceptHistory, getRecentNews,
   collectMarketNews, discoverTechTopics, curateKnowledge,
-  groundMarketNews: (candidates: NewsCandidate[], date: DateString, signal?: AbortSignal, maxAgeHours?: number, allowUndated?: boolean, idPrefix?: string) =>
-    groundMarketNews(candidates, date, undefined, signal, maxAgeHours, allowUndated, idPrefix),
+  groundMarketNews: (candidates: NewsCandidate[], date: DateString, signal?: AbortSignal, maxAgeHours?: number, allowUndated?: boolean, idPrefix?: string, koreanOnly?: boolean) =>
+    groundMarketNews(candidates, date, undefined, signal, maxAgeHours, allowUndated, idPrefix, koreanOnly),
   generateDailyBriefing: (params: Parameters<typeof generateDailyBriefing>[0]) => generateDailyBriefing(params),
   generateTechSection: (params: Parameters<typeof generateTechSection>[0]) => generateTechSection(params),
   saveBriefing, getModel, startGenerationLog, finishGenerationLog,
@@ -621,6 +621,8 @@ async function chooseKnowledge(
         Boolean(candidate.article),
         // 상식 여러 개의 원문을 한 번에 넘기므로 원문 id가 겹치지 않게 후보 id를 접두어로 쓴다.
         `${candidate.id}:`,
+        // 테크 상식은 원문을 한국어로 풀어 쓴다. 공식 블로그·릴리스 노트 같은 영문 원문도 근거로 받는다.
+        false,
       );
       usage.inputTokens += grounded.inputTokens;
       usage.outputTokens += grounded.outputTokens;

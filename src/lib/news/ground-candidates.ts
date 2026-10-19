@@ -14,7 +14,21 @@ export const factSelectionSchema = z.object({
 export type FactSelection = z.infer<typeof factSelectionSchema>;
 export type CandidateDocuments = { id: string; candidate: NewsCandidate; documents: SourceDocument[] };
 
-export function groundCandidates(inputs: CandidateDocuments[], selected: FactSelection, date: DateString, maxAgeHours?: number, allowUndated = false) {
+/**
+ * 한국어 글인가. 글자(한글 음절 + 로마자) 가운데 한글이 30% 이상이면 한국어로 본다.
+ * 한국어 기사에도 "OpenAI는 GPT-5.5를 공개했다"처럼 영문 표기가 많이 섞이므로 한글이 과반일 것까지 요구하지 않는다.
+ */
+export function isKoreanText(value: string): boolean {
+  const hangul = value.match(/[가-힣]/g)?.length ?? 0;
+  const latin = value.match(/[A-Za-z]/g)?.length ?? 0;
+  return hangul > 0 && hangul >= (hangul + latin) * 0.3;
+}
+
+/**
+ * koreanOnly면 한국어 근거 문장만 받는다. 주요 이슈의 '무슨 일이 있었나'는 근거 문장 그대로라, 영문 문장이면 지면에 영어가 실린다.
+ * 테크 상식은 원문을 모델이 한국어로 풀어 쓰므로 영문 원문도 쓴다(koreanOnly=false).
+ */
+export function groundCandidates(inputs: CandidateDocuments[], selected: FactSelection, date: DateString, maxAgeHours?: number, allowUndated = false, koreanOnly = true) {
   const rejected: EvidenceRejection[] = [];
   const candidates: GroundedCandidate[] = [];
   for (const input of inputs) {
@@ -23,7 +37,13 @@ export function groundCandidates(inputs: CandidateDocuments[], selected: FactSel
       rejected.push({ candidateId: input.id, reason: "근거 선택 결과가 없거나 중복되었습니다." });
       continue;
     }
-    const facts = entries[0].facts.map((fact, index) => ({ ...fact, quote: normalizeEvidenceText(fact.quote), id: `${input.id}-f${index + 1}` }));
+    const quoted = entries[0].facts.map((fact) => ({ ...fact, quote: normalizeEvidenceText(fact.quote) }));
+    const kept = koreanOnly ? quoted.filter((fact) => isKoreanText(fact.quote)) : quoted;
+    if (quoted.length && !kept.length) {
+      rejected.push({ candidateId: input.id, reason: "한국어 근거 문장이 없습니다." });
+      continue;
+    }
+    const facts = kept.map((fact, index) => ({ ...fact, id: `${input.id}-f${index + 1}` }));
     const valid = facts.length >= 1 && facts.length <= 3 && facts.every((fact) => {
       const doc = input.documents.find((source) => source.id === fact.sourceId);
       return doc && fact.quote.length >= 25 && fact.quote.length <= 400 && doc.text.includes(fact.quote);
