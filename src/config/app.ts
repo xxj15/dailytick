@@ -84,8 +84,32 @@ export const SOURCE_MAX_AGE_HOURS = 72;
  */
 export const TECH_SOURCE_MAX_AGE_HOURS = 72;
 
-/** STEP 1에서 수집할 뉴스 후보 개수. */
+/** 전체 모드(세 슬롯을 한 호출로 수집) 후보 개수. 지금 파이프라인은 슬롯별 1차 수집(NEWS_SLOT_CANDIDATE_COUNT)을 쓴다. */
 export const NEWS_CANDIDATE_COUNT = { min: 10, max: 15 } as const;
+
+/**
+ * 1차 슬롯 수집 호출 하나가 찾는 후보 수.
+ * top은 주요 매체 헤드라인에서 빠르게 고른다. domestic·it은 사건마다 다시 검색해 개별 기사를 찾느라 검색이 많아,
+ * 하나 적게 찾게 해 호출 제한 시간 안에 끝나게 한다.
+ */
+export const NEWS_SLOT_CANDIDATE_COUNT = {
+  top: { min: 4, max: 5 },
+  domestic: { min: 3, max: 4 },
+  it: { min: 3, max: 4 },
+} as const;
+
+/**
+ * 주요 이슈 수집 호출 하나의 OpenAI 제한 시간.
+ * 1차 슬롯 수집은 세 호출이 테크 상식 발굴과 함께 동시에 돌아 느려지기 쉬워 더 길게 준다
+ * (2026-10-19 dryRun 4회 중 2회에서 90초에 걸려 슬롯이 비었다).
+ * 실측으로는 1차 수집 뒤 근거 확인·큐레이션·작성·검토가 약 40~60초라 120초를 다 써도 실행 기한(260초) 안에 들어간다.
+ * 다만 이후 단계가 모두 제한 시간까지 걸리는 최악의 경우(근거 확인 70초 + 큐레이션 45초 + 작성·검토 120초 이상)는
+ * 들어가지 않는다. 그런 날은 실행 기한에 걸려 그날 지면이 실패한다. 슬롯이 비는 쪽과 맞바꾼 위험이다.
+ * 셋 다 시간 초과일 때의 1차 재시도(RETRY_AFTER_TIMEOUT_MIN_LEFT_MS 150초)는 120초 뒤에는 남은 시간이 모자라 사실상 돌지 않는다.
+ * 재수집은 자기 시간 예산이 따로 있고, 전체 모드는 지금 파이프라인이 쓰지 않는다.
+ */
+export const NEWS_COLLECT_TIMEOUT_MS = 90_000;
+export const NEWS_SLOT_COLLECT_TIMEOUT_MS = 120_000;
 
 /** 본문을 직접 읽어 근거를 확인할 후보 수 상한. 수집 시간과 비용의 균형점이다. */
 export const NEWS_GROUND_LIMIT = 12;

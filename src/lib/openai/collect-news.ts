@@ -1,4 +1,5 @@
 import "server-only";
+import { NEWS_COLLECT_TIMEOUT_MS, NEWS_SLOT_COLLECT_TIMEOUT_MS } from "@/config/app";
 import { getModel, getOpenAI } from "@/lib/openai/client";
 import { buildNewsCollectionPrompt, buildTechDiscoveryPrompt } from "@/lib/openai/prompts";
 import {
@@ -43,17 +44,26 @@ export function collectMarketNews(
   signal?: AbortSignal,
   options: Parameters<typeof buildNewsCollectionPrompt>[1] = {},
 ) {
-  return collectNews(buildNewsCollectionPrompt(date, options), signal);
+  return collectNews(buildNewsCollectionPrompt(date, options), signal, newsCollectTimeout(options));
 }
 
 /**
- * 웹 검색을 여러 번 하는 단계라 다른 AI 호출보다 기한을 길게 준다(90초).
+ * 수집 호출의 제한 시간. 1차 슬롯 수집(slot, 재수집 아님)만 길게 준다. 근거는 config/app.ts의 NEWS_SLOT_COLLECT_TIMEOUT_MS.
+ * buildNewsCollectionPrompt처럼 focusSlots가 있으면 재수집으로 본다.
+ */
+export function newsCollectTimeout(options: Parameters<typeof buildNewsCollectionPrompt>[1] = {}): number {
+  return options.slot && !options.focusSlots?.length ? NEWS_SLOT_COLLECT_TIMEOUT_MS : NEWS_COLLECT_TIMEOUT_MS;
+}
+
+/**
+ * 웹 검색을 여러 번 하는 단계라 다른 AI 호출보다 기한을 길게 준다(newsCollectTimeout).
  * 주요 이슈 1차 수집은 슬롯마다 한 번씩 세 호출이 테크 상식 발굴과 함께 동시에 돈다.
  * 그래서 1차 수집은 가장 느린 호출 하나만큼 걸리고, 전체 실행 기한(260초) 안에서 근거 확인·작성·검토 시간이 남는다.
  */
 async function collectNews(
   input: string,
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined,
+  timeout: number,
 ): Promise<CollectNewsResult> {
   const response = await getOpenAI().responses.parse({
     model: getModel(),
@@ -64,7 +74,7 @@ async function collectNews(
     text: {
       format: zodTextFormat(aiNewsCandidateListSchema, "news_candidates"),
     },
-  }, { timeout: 90_000, maxRetries: 0, signal });
+  }, { timeout, maxRetries: 0, signal });
 
   const calls = response.output.filter((item) => item.type === "web_search_call");
   const usage = {

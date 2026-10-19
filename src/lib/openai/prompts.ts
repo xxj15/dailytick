@@ -3,6 +3,7 @@ import {
   IT_NEWS_CATEGORIES,
   NEWS_CANDIDATE_COUNT,
   NEWS_PER_DAY,
+  NEWS_SLOT_CANDIDATE_COUNT,
   NEWS_SLOT_SECTIONS,
   NEWS_SLOTS,
   PREFERRED_PUBLISHERS,
@@ -227,7 +228,7 @@ oneLiner는 키워드 바로 아래 붙는 한 줄이다.
  * STEP 1 — 주요 이슈 후보 수집.
  *
  * 세 슬롯(화제·국내·IT) 후보를 따로 찾게 하고, 다섯 섹션을 실제로 훑었는지 coverage로 보고하게 한다.
- * slot이 있으면 1차 슬롯 수집이다. 슬롯마다 따로 도는 호출 하나가 그 슬롯 후보만 4~5개 찾는다.
+ * slot이 있으면 1차 슬롯 수집이다. 슬롯마다 따로 도는 호출 하나가 그 슬롯 후보만 NEWS_SLOT_CANDIDATE_COUNT만큼 찾는다.
  * focusSlots가 있으면 재수집이다. 앞선 수집에서 근거 있는 후보를 찾지 못한 슬롯만 겨냥해 다시 찾는다.
  * 이때 앞선 후보 제목(previousTitles)과 버려진 URL(rejectedUrls)을 함께 넘겨 같은 후보·같은 실패 URL을 다시 내지 않게 한다.
  * 최근 며칠 동안 실은 사건은 새로 바뀐 점이 있을 때만 후보로 낸다.
@@ -259,21 +260,25 @@ ${options.rejectedUrls.map((url) => `- ${url}`).join("\n")}`
   const searchSlots = focus ?? (ownSlot ? [ownSlot] : NEWS_SLOTS);
   // 서버의 신선도 검사(isFreshSource)와 같은 범위. 범위를 모르면 모델이 며칠 지난 기사를 내고 근거 확인에서 떨어진다.
   const freshRange = freshSourceWindowKST(date);
+  // 슬롯 하나에서 찾는 후보 수. 슬롯마다 다르다(config/app.ts). 1차 슬롯 수집·재수집·전체 모드가 같은 값을 쓴다.
+  const countOf = (slot: NewsSlot) => `${NEWS_SLOT_CANDIDATE_COUNT[slot].min}~${NEWS_SLOT_CANDIDATE_COUNT[slot].max}`;
+  const countsOf = (slots: readonly NewsSlot[]) => slots.map((slot) => `${SLOT_NAME[slot]} ${countOf(slot)}개`).join(", ");
+  const ownCount = ownSlot ? countOf(ownSlot) : "";
   const scope = focus
     ? `지금 최신 웹 검색을 수행해 아래 슬롯의 오늘의 주요 이슈 후보만 수집하라: ${focus.map((slot) => SLOT_NAME[slot]).join(", ")}
-이 슬롯마다 후보를 4~5개씩 따로 찾는다. 나머지 슬롯은 앞선 수집에서 이미 채웠으므로 그 후보는 찾지 않는다.`
+슬롯마다 후보를 따로 찾는다(${countsOf(focus)}). 나머지 슬롯은 앞선 수집에서 이미 채웠으므로 그 후보는 찾지 않는다.`
     : ownSlot
-      ? `지금 최신 웹 검색을 수행해 ${SLOT_NAME[ownSlot]} 슬롯의 오늘의 주요 이슈 후보를 4~5개 수집하라.
+      ? `지금 최신 웹 검색을 수행해 ${SLOT_NAME[ownSlot]} 슬롯의 오늘의 주요 이슈 후보를 ${ownCount}개 수집하라.
 이번 수집은 이 슬롯만 맡는다. ${ownSlot === "top"
           ? "분야와 상관없이 오늘 가장 크게 다룬 사건을 고른다. 국내 정세·IT 사건이어도 된다(서버가 다른 수집 결과와 합친다)."
           : "나머지 슬롯은 다른 수집이 따로 찾으므로 그 후보는 찾지 않는다."}`
       : `지금 최신 웹 검색을 수행해 오늘의 주요 이슈 후보를 ${NEWS_CANDIDATE_COUNT.min}~${NEWS_CANDIDATE_COUNT.max}개 수집하라.
-아래 세 슬롯의 후보를 슬롯마다 4~5개씩 따로 찾는다. 한 사건이 화제이면서 국내나 IT에도 맞으면 후보로는 한 번만 낸다.`;
-  // 1차 화제 수집은 다섯 섹션을 깊게 훑다 호출 기한(90초)을 넘긴다. 주요 매체 헤드라인에서 빠르게 고르게 한다.
+아래 세 슬롯의 후보를 슬롯마다 따로 찾는다(${countsOf(NEWS_SLOTS)}). 한 사건이 화제이면서 국내나 IT에도 맞으면 후보로는 한 번만 낸다.`;
+  // 1차 화제 수집은 다섯 섹션을 깊게 훑다 호출 제한 시간을 넘긴다. 주요 매체 헤드라인에서 빠르게 고르게 한다.
   const topFirstPass = ownSlot === "top";
   const slotSearch: Record<NewsSlot, string> = {
     top: topFirstPass
-      ? "top(오늘의 화제): 섹션마다 깊게 검색하지 않는다. 주요 일간지·통신사·방송의 1면·메인 헤드라인에서 오늘 여러 매체가 함께 크게 다룬 사건 4~5개를 빠르게 고른다. 1면·홈 화면은 사건을 찾는 데만 쓰고, sources에는 3번처럼 찾은 개별 기사 URL을 넣는다."
+      ? `top(오늘의 화제): 섹션마다 깊게 검색하지 않는다. 주요 일간지·통신사·방송의 1면·메인 헤드라인에서 오늘 여러 매체가 함께 크게 다룬 사건 ${ownCount}개를 빠르게 고른다. 1면·홈 화면은 사건을 찾는 데만 쓰고, sources에는 3번처럼 찾은 개별 기사 URL을 넣는다.`
       : "top(오늘의 화제): 오늘 주요 일간지·통신사·방송이 함께 크게 다룬 사건을 찾는다. 분야를 가리지 않고 훑는다.",
     domestic: "domestic(국내 정세): 국회·정부의 큰 결정, 외교·안보의 큰 변화, 국내 증시·환율·금리의 큰 변화, 대기업·금융권의 큰 움직임을 확인한다.",
     it: "it(IT): AI·반도체·소프트웨어·플랫폼·보안 소식을 국내 IT 매체와 해외 매체에서 확인한다.",
@@ -350,7 +355,7 @@ ${SOURCE_PREFERENCE}
 
 ## 최종 점검
 
-- ${focus ? `겨냥한 슬롯(${focus.map((slot) => SLOT_NAME[slot]).join(", ")}) 후보를 찾았는가?` : ownSlot ? `${SLOT_NAME[ownSlot]} 후보를 4~5개 찾았는가?` : "세 슬롯(화제·국내·IT) 후보를 각각 찾았는가?"} IT 후보의 category가 IT 분류인가? 국내 후보의 region이 KR이고 category가 사회·과학이 아닌가?
+- ${focus ? `겨냥한 슬롯(${focus.map((slot) => SLOT_NAME[slot]).join(", ")}) 후보를 찾았는가?` : ownSlot ? `${SLOT_NAME[ownSlot]} 후보를 ${ownCount}개 찾았는가?` : "세 슬롯(화제·국내·IT) 후보를 각각 찾았는가?"} IT 후보의 category가 IT 분류인가? 국내 후보의 region이 KR이고 category가 사회·과학이 아닌가?
 - coverage가 실제로 훑은 섹션과 맞는가?
 - 최근에 실은 사건을 새 변화 없이 다시 내지 않았는가?
 - 실제 URL인가? 수치와 날짜를 만들지 않았는가?`;

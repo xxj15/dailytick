@@ -8,7 +8,7 @@ import { techCandidates } from "@/lib/curation/candidates";
 import { dailyBriefingSchema, newsCandidateSchema, stripNulls } from "@/lib/openai/schemas";
 import { materializeBriefing } from "@/lib/briefing/materialize";
 import { CANDIDATE, DATE, DRAFT, candidate, draftNews } from "./fixtures/news";
-import { NewsCollectionError, type CollectNewsResult, type TechTopic } from "@/lib/openai/collect-news";
+import { NewsCollectionError, newsCollectTimeout, type CollectNewsResult, type TechTopic } from "@/lib/openai/collect-news";
 import { boundForGrounding, groundMarketNews, GroundNewsError } from "@/lib/openai/ground-news";
 import { buildCuratorPrompt, buildNewsCollectionPrompt } from "@/lib/openai/prompts";
 import type { NewsCandidate, NewsSlot } from "@/types/briefing";
@@ -1572,12 +1572,26 @@ test("수집 프롬프트는 서버 신선도 검사와 같은 게시 시각 범
   }
 });
 
-test("1차 슬롯 수집 프롬프트는 맡은 슬롯 후보만 4~5개 찾게 하고 재수집 문구는 넣지 않는다", () => {
+test("수집 호출 제한 시간은 1차 슬롯 수집만 120초이고 재수집·전체 수집은 90초다", () => {
+  assert.equal(newsCollectTimeout({ slot: "it" }), 120_000);
+  assert.equal(newsCollectTimeout({ slot: "top", recentNews: [] }), 120_000);
+  assert.equal(newsCollectTimeout({ focusSlots: ["it"] }), 90_000);
+  assert.equal(newsCollectTimeout({ slot: "it", focusSlots: ["it"] }), 90_000);
+  assert.equal(newsCollectTimeout(), 90_000);
+});
+
+test("1차 슬롯 수집 프롬프트는 맡은 슬롯 후보만 찾게 하고(국내·IT 3~4개, 화제 4~5개) 재수집 문구는 넣지 않는다", () => {
   const prompt = buildNewsCollectionPrompt(DATE, { slot: "it", recentNews: [{ briefingDate: "2026-10-08", title: "어제 뉴스", whatHappened: "…", urls: [] }] });
-  assert.match(prompt, /it\(IT\) 슬롯의 오늘의 주요 이슈 후보를 4~5개 수집하라/);
+  assert.match(prompt, /it\(IT\) 슬롯의 오늘의 주요 이슈 후보를 3~4개 수집하라/);
   assert.match(prompt, /- it\(IT\): AI/);
   assert.match(prompt, /이번 수집이 맡는 섹션은 tech이다/);
-  assert.match(prompt, /- it\(IT\) 후보를 4~5개 찾았는가\?/);
+  assert.match(prompt, /- it\(IT\) 후보를 3~4개 찾았는가\?/);
+  assert.match(buildNewsCollectionPrompt(DATE, { slot: "domestic" }), /domestic\(국내 정세\) 슬롯의 오늘의 주요 이슈 후보를 3~4개 수집하라/);
+  assert.match(buildNewsCollectionPrompt(DATE, { slot: "top" }), /top\(오늘의 화제\) 슬롯의 오늘의 주요 이슈 후보를 4~5개 수집하라/);
+  // 재수집도 슬롯별 후보 수를 쓴다
+  const focus = buildNewsCollectionPrompt(DATE, { focusSlots: ["domestic", "it"] });
+  assert.match(focus, /슬롯마다 후보를 따로 찾는다\(domestic\(국내 정세\) 3~4개, it\(IT\) 3~4개\)/);
+  assert.doesNotMatch(focus, /4~5개씩/);
   assert.match(prompt, /\[2026-10-08\] 어제 뉴스/);
   assert.doesNotMatch(prompt, /- top\(오늘의 화제\): 오늘 주요 일간지|- domestic\(국내 정세\): 국회/);
   assert.doesNotMatch(prompt, /앞선 수집|10~15개|세 슬롯의 후보를/);
