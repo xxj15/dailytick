@@ -178,12 +178,13 @@ export const PREFERRED_PUBLISHERS = {
  * 하나의 고정 프로필을 기준으로 콘텐츠를 생성한다.
  */
 export const USER_PROFILE = {
-  goal: "증권사 취업 및 면접 대비",
+  /** 2026-10-20 사용자가 밝힌 목표. 특정 기업 이름은 프롬프트에 넣지 않는다(모든 글이 그 기업으로 쏠린다). */
+  goal: "DX/AX 엔지니어·금융 IT·커머스 IT 직무 취업 준비 (기술·직무 면접 대비)",
   financeLevel: "beginner",
   locale: "ko-KR",
   timezone: SERVICE_TIMEZONE,
   preferredLength: "concise",
-  newsGoal: "요즘 기업·트렌드·시장 등락 흐름을 파악",
-  techGoal: "프론트엔드 실무, 설계 패턴, 백엔드·클라우드 기초까지 개발자가 실무에서 바로 쓰는 지식을 원리부터 다지기",
-  techLevel: "프론트엔드 개발자 (React·TypeScript)",
+  newsGoal: "경제·산업·IT 흐름을 원인과 영향까지 맥락과 함께 이해",
+  techGoal: "CS·소프트웨어 엔지니어링 기본기와 AI·클라우드 실무(DX/AX)를 원리부터 다지기",
+  techLevel: "프론트엔드(React·TypeScript) 경험이 있는 취업 준비 개발자",
 } as const;
