@@ -53,9 +53,11 @@ const ECONOMY_CATEGORY_LABEL: Record<string, string> = {
   "market-structure": "시장 구조",
   "global-markets": "글로벌 시장",
   business: "기업 경영",
+  "digital-finance": "금융·IT 산업",
 };
 
-const ECONOMY_FIELD_LABEL = { economy: "경제", securities: "증권", business: "경영" } as const;
+/** 금융 칸은 증권 제도·금융상품과 금융·IT 산업을 함께 담는다(2026-10-20 '증권' → '금융'). */
+const ECONOMY_FIELD_LABEL = { economy: "경제", securities: "금융", business: "경영" } as const;
 
 export function knowledgeLabel(category: string): { field: string; detail?: string } {
   if (KNOWLEDGE_FIELD_LABEL[category]) return { field: KNOWLEDGE_FIELD_LABEL[category] };

@@ -22,7 +22,8 @@ export type CurriculumCategory =
   | "financial-statements"
   | "market-structure"
   | "global-markets"
-  | "business";
+  | "business"
+  | "digital-finance";
 
 /** 경제·IT 커리큘럼이 공유하는 모양. 개념 선정·검증 코드는 이 타입만 안다. */
 export type Concept = {
@@ -48,6 +49,8 @@ export type EconomyField = "economy" | "securities" | "business";
 
 export function economyField(category: string): EconomyField {
   if (category === "business") return "business";
+  // 금융·IT 산업은 금융(증권과 같은 칸)에 둔다. 지면 칩은 '금융'이다
+  if (category === "digital-finance") return "securities";
   return ["economy-basics", "macro", "rates-bonds", "global-markets"].includes(category) ? "economy" : "securities";
 }
 
@@ -203,6 +206,20 @@ const ALL: CurriculumConcept[] = [
   { slug: "stock-option", title: "스톡옵션: 직원에게 주식을 주는 이유", level: 3, category: "business" },
   { slug: "venture-funding", title: "스타트업 투자 단계: 시드부터 시리즈 C까지", level: 3, category: "business" },
   { slug: "restructuring", title: "구조조정과 워크아웃: 어려운 회사를 살리는 방법", level: 4, category: "business" },
+
+  // 금융·IT 산업 — 결제·핀테크·플랫폼·디지털 금융의 구조. 금융 IT·커머스 IT 직무에서 마주치는 산업 상식 (2026-10-20 사용자 요청)
+  { slug: "payment-pg", title: "간편결제는 어떻게 돈을 벌까 (PG와 결제 수수료)", level: 2, category: "digital-finance" },
+  { slug: "card-payment-flow", title: "카드를 한 번 긁으면 돈은 어디를 거쳐 갈까 (승인·매입·정산)", level: 2, category: "digital-finance" },
+  { slug: "commerce-gmv-take-rate", title: "커머스 회사의 성적표: 거래액(GMV)과 수수료율", level: 2, category: "digital-finance" },
+  { slug: "open-banking", title: "앱 하나로 모든 은행 계좌를 보는 원리 (오픈뱅킹)", level: 2, category: "digital-finance" },
+  { slug: "mydata", title: "내 금융 정보를 내가 옮기는 제도 (마이데이터)", level: 2, category: "digital-finance" },
+  { slug: "internet-only-bank", title: "인터넷전문은행은 기존 은행과 무엇이 다를까", level: 2, category: "digital-finance" },
+  { slug: "subscription-metrics", title: "구독 서비스 회사는 무엇으로 평가받을까 (반복 매출과 이탈률)", level: 3, category: "digital-finance" },
+  { slug: "it-capex-opex", title: "IT 투자는 비용일까 자산일까 (CAPEX·OPEX와 감가상각)", level: 3, category: "digital-finance" },
+  { slug: "platform-fee-regulation", title: "플랫폼 수수료와 규제는 왜 늘 부딪칠까", level: 3, category: "digital-finance" },
+  { slug: "financial-cloud-regulation", title: "금융회사는 왜 클라우드를 마음대로 못 쓸까 (망분리와 전자금융 규제)", level: 3, category: "digital-finance" },
+  { slug: "stablecoin", title: "스테이블코인은 어떻게 가치를 고정할까", level: 3, category: "digital-finance" },
+  { slug: "security-token-offering", title: "토큰증권(STO)은 기존 증권과 무엇이 다를까", level: 3, category: "digital-finance" },
 ];
 
 export const CURRICULUM: CurriculumConcept[] = rotateByCategory(ALL, (concept) => economyField(concept.category));

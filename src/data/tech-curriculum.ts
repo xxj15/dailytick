@@ -6,6 +6,7 @@ import { rotateByCategory } from "@/lib/curriculum/rotate";
  *
  * 경제 커리큘럼과 같은 규칙을 따른다. AI가 주제를 고르지 않고 출제 순서는 코드가 정한다.
  * CS·설계 패턴 · 프론트엔드 실무 · 백엔드·클라우드 · AI 네 분야를 돌아가며 낸다.
+ * 하루 두 개는 CS·소프트웨어 엔지니어링 축(cs·frontend)과 AI·클라우드 축(ai·backend)에서 하나씩 고른다(curation/candidates.ts TECH_AXIS, 2026-10-20).
  * 개발자가 실무에서 바로 마주치는 기본기(MVC 같은 설계 패턴, EC2 같은 클라우드 서버)를 고루 다지기 위해서다. (2026-10-20 사용자 요청)
  *
  * 제목은 교과서 목차 대신 "어, 그거 왜 그렇지?" 싶은 질문으로 단다.
@@ -66,6 +67,8 @@ const BY_CATEGORY: TechCurriculumConcept[] = [
     references: [{ title: "Martin Fowler: Presentation Domain Data Layering", url: "https://martinfowler.com/bliki/PresentationDomainDataLayering.html" }] },
   { slug: "q-design-patterns", title: "디자인 패턴은 왜 배울까: 싱글톤·옵저버·전략", level: 3, category: "cs",
     references: [{ title: "Refactoring.Guru: 디자인 패턴", url: "https://refactoring.guru/ko/design-patterns" }] },
+  { slug: "q-authorization", title: "로그인한 사람이 어디까지 할 수 있을까 (인가와 역할 기반 권한)", level: 3, category: "cs",
+    references: [{ title: "OWASP: Authorization Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html" }] },
   { slug: "q-google-login", title: "'구글로 로그인'의 원리 (OAuth)", level: 4, category: "cs",
     references: [{ title: "OAuth 2.0 간단 정리 (oauth.net)", url: "https://oauth.net/2/" }] },
   { slug: "q-password-storage", title: "비밀번호는 서버에 어떻게 저장될까", level: 4, category: "cs",
@@ -82,6 +85,12 @@ const BY_CATEGORY: TechCurriculumConcept[] = [
     references: [{ title: "Cloudflare: CDN이란?", url: "https://www.cloudflare.com/ko-kr/learning/cdn/what-is-a-cdn/" }] },
   { slug: "q-rate-limit", title: "API가 '요청이 너무 많습니다'를 돌려주는 원리 (Rate Limit)", level: 4, category: "cs",
     references: [{ title: "Cloudflare: Rate limiting이란?", url: "https://www.cloudflare.com/ko-kr/learning/bots/what-is-rate-limiting/" }] },
+  { slug: "q-isolation-level", title: "같은 데이터를 동시에 고치면 무슨 일이 생길까 (트랜잭션 격리 수준)", level: 4, category: "cs",
+    references: [{ title: "PostgreSQL 문서: Transaction Isolation", url: "https://www.postgresql.org/docs/current/transaction-iso.html" }] },
+  { slug: "q-optimistic-lock", title: "재고 1개에 주문 2개가 동시에 오면 (낙관적 락과 비관적 락)", level: 4, category: "cs",
+    references: [{ title: "Martin Fowler: Optimistic Offline Lock", url: "https://martinfowler.com/eaaCatalog/optimisticOfflineLock.html" }] },
+  { slug: "q-db-replication", title: "DB 서버가 한 대 죽어도 서비스가 버티는 법 (복제와 장애 조치)", level: 4, category: "cs",
+    references: [{ title: "PostgreSQL 문서: High Availability", url: "https://www.postgresql.org/docs/current/high-availability.html" }] },
   { slug: "q-realtime-chat", title: "카톡 메시지는 어떻게 실시간으로 올까 (WebSocket)", level: 5, category: "cs",
     references: [{ title: "MDN: WebSocket API", url: `${MDN}/Web/API/WebSockets_API` }] },
   { slug: "q-git-time-travel", title: "Git은 어떻게 과거로 돌아갈까", level: 5, category: "cs",
@@ -92,6 +101,8 @@ const BY_CATEGORY: TechCurriculumConcept[] = [
     references: [{ title: "AWS: 메시지 대기열이란?", url: "https://aws.amazon.com/ko/message-queue/" }] },
   { slug: "q-system-design-url", title: "단축 URL 서비스는 어떻게 설계할까 (시스템 설계 맛보기)", level: 5, category: "cs",
     references: [{ title: "System Design Primer", url: "https://github.com/donnemartin/system-design-primer" }] },
+  { slug: "q-saga", title: "서비스가 나뉘면 주문 취소는 어떻게 되돌릴까 (분산 트랜잭션과 사가)", level: 5, category: "cs",
+    references: [{ title: "microservices.io: Saga pattern", url: "https://microservices.io/patterns/data/saga.html" }] },
 
   // 프론트엔드 — 브라우저·JS·TS·CSS·React/Vue/Next.js·성능·접근성
   { slug: "q-rendering-pipeline", title: "브라우저는 HTML을 어떻게 화면으로 그릴까", level: 1, category: "frontend",
@@ -186,6 +197,12 @@ const BY_CATEGORY: TechCurriculumConcept[] = [
     references: [{ title: "AWS 문서: Amazon CloudWatch란?", url: "https://docs.aws.amazon.com/ko_kr/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html" }] },
   { slug: "q-blue-green", title: "서비스를 끄지 않고 배포하는 법 (무중단 배포)", level: 4, category: "backend",
     references: [{ title: "Martin Fowler: Blue Green Deployment", url: "https://martinfowler.com/bliki/BlueGreenDeployment.html" }] },
+  { slug: "q-api-gateway", title: "서비스가 수십 개면 입구는 어떻게 관리할까 (API 게이트웨이)", level: 4, category: "backend",
+    references: [{ title: "microservices.io: API Gateway pattern", url: "https://microservices.io/patterns/apigateway.html" }] },
+  { slug: "q-system-integration", title: "오래된 사내 시스템과 새 서비스를 어떻게 이을까 (시스템 통합 패턴)", level: 4, category: "backend",
+    references: [{ title: "Enterprise Integration Patterns", url: "https://www.enterpriseintegrationpatterns.com/" }] },
+  { slug: "q-etl-pipeline", title: "흩어진 데이터를 한곳에 모으는 법 (ETL과 데이터 파이프라인)", level: 4, category: "backend",
+    references: [{ title: "AWS: ETL이란?", url: "https://aws.amazon.com/what-is/etl/" }] },
   { slug: "q-docker", title: "'내 컴퓨터에선 되는데'를 없애는 도커", level: 5, category: "backend",
     references: [{ title: "Docker 문서: Docker 개요", url: "https://docs.docker.com/get-started/docker-overview/" }] },
   { slug: "q-serverless", title: "서버리스는 정말 서버가 없을까", level: 5, category: "backend",
@@ -228,6 +245,11 @@ const BY_CATEGORY: TechCurriculumConcept[] = [
     references: [{ title: "Anthropic 문서: Vision", url: "https://docs.anthropic.com/en/docs/build-with-claude/vision" }] },
   { slug: "q-ai-eval", title: "AI 답변이 좋은지 어떻게 평가할까", level: 4, category: "ai",
     references: [{ title: "Anthropic 문서: 성공 기준 정의하기", url: "https://docs.anthropic.com/en/docs/test-and-evaluate/define-success" }] },
+  { slug: "q-prompt-injection", title: "AI에게 몰래 명령을 끼워 넣는 공격 (프롬프트 인젝션과 AI 보안)", level: 4, category: "ai",
+    references: [
+      { title: "OWASP GenAI: LLM01 Prompt Injection", url: "https://genai.owasp.org/llmrisk/llm01-prompt-injection/" },
+      { title: "OWASP Top 10 for LLM Applications", url: "https://owasp.org/www-project-top-10-for-large-language-model-applications/" },
+    ] },
   { slug: "q-ai-cost", title: "AI 기능의 비용은 어떻게 계산될까 (토큰 과금과 캐싱)", level: 5, category: "ai",
     references: [{ title: "Anthropic 문서: Prompt caching", url: "https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching" }] },
   { slug: "q-ai-ux", title: "AI 기능 화면은 어떻게 만들까: 로딩·스트리밍·실패 처리", level: 5, category: "ai",

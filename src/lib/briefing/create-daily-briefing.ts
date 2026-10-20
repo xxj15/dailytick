@@ -7,6 +7,7 @@ import {
   economyCandidates,
   fallbackConcept,
   recentKnowledge,
+  techAxis,
   techCandidates,
   type KnowledgeCandidate,
 } from "@/lib/curation/candidates";
@@ -312,8 +313,8 @@ function referenceKey(url: string | undefined): string | null {
  *
  * 큐레이터가 추천한 순서대로 검증을 시도한다. 아티클은 원문 근거 확인을 통과해야만 쓴다.
  * 이미 고른 것과 같은 개념인 후보는 원문을 읽기 전에 거른다.
- * 여러 개를 고를 때는 가능하면 서로 다른 분야(category)로 고른다.
- * 이미 고른 분야의 추천은 검증하지 않고 미뤄 둔다. 다른 분야 추천을 다 본 뒤에도 자리가 남을 때만 추천 순서대로 검증해 쓴다.
+ * 여러 개를 고를 때는 가능하면 서로 다른 갈래(groupOf. 테크 상식은 축, 그 밖에는 분야)로 고른다.
+ * 이미 고른 갈래의 추천은 검증하지 않고 미뤄 둔다. 다른 분야 추천을 다 본 뒤에도 자리가 남을 때만 추천 순서대로 검증해 쓴다.
  * 그래도 모자라면 사람이 검증한 커리큘럼 개념(이미 고른 것과 다른 개념, 가능하면 다른 분야)으로 채운다.
  * 대체할 미학습 개념도 없으면(커리큘럼을 다 돌았으면) 커리큘럼 복습 개념으로 빈 자리를 채운다.
  * 하나도 고르지 못하면 고르지 않는다(발행 보류). 미학습 후보가 하나도 없으면 커리큘럼 복습으로 넘어간다.
@@ -331,10 +332,13 @@ async function chooseKnowledge(
     date: DateString;
     services: BriefingServices;
     signal: AbortSignal;
+    /** 다양성을 보는 갈래. 테크 상식은 축(techAxis)이다. 없으면 분야(category) 그대로다. */
+    groupOf?: (category: string) => string;
   },
   count: number,
 ): Promise<{ choices: Choice[]; audit: CurationAudit; usage: Usage }> {
   const { history, candidates, date, services, signal } = params;
+  const groupOf = params.groupOf ?? ((category: string) => category);
   const usage: Usage = { inputTokens: 0, outputTokens: 0, webSearchCalls: 0 };
   // 경제 상식은 후보를 다섯 갈래로 보여주므로 최근 이력도 같은 갈래 이름으로 맞춘다. 그래야 겹침 감점이 작동한다.
   const recent = recentKnowledge(history).map((entry) =>
@@ -343,7 +347,7 @@ async function chooseKnowledge(
 
   /** 고른 것. order는 추천 순위(대체로 채운 것은 추천 뒤)다. */
   const taken: { order: number; choice: Choice; entry: ChosenEntry }[] = [];
-  const takenCategories = () => new Set(taken.map(({ entry }) => entry.category));
+  const takenGroups = () => new Set(taken.map(({ entry }) => groupOf(entry.category)));
   /**
    * 이미 고른 것과 같은 개념인가. slug가 같으면 같은 개념이다.
    * 한쪽 이상이 원문을 확인하는 상식(sourced: 아티클)이면 첫 참고 URL(정규화)이 같아도 같은 개념이다.
@@ -496,7 +500,7 @@ async function chooseKnowledge(
         continue;
       }
       seen.add(candidate.id);
-      if (takenCategories().has(candidate.category)) {
+      if (takenGroups().has(groupOf(candidate.category))) {
         deferred.push({ order, pick, candidate });
         continue;
       }
@@ -520,8 +524,8 @@ async function chooseKnowledge(
   const pool = candidates.filter((candidate) => candidate.concept && !taken.some(({ entry }) => entry.id === candidate.id));
   while (taken.length < count) {
     const open = pool.filter((candidate) => !sameAs(candidate.concept?.slug, candidate.concept?.references?.[0]?.url, false));
-    const categories = takenCategories();
-    const fallback = fallbackConcept(open.filter((candidate) => !categories.has(candidate.category)), recent) ?? fallbackConcept(open, recent);
+    const groups = takenGroups();
+    const fallback = fallbackConcept(open.filter((candidate) => !groups.has(groupOf(candidate.category))), recent) ?? fallbackConcept(open, recent);
     if (!fallback?.concept) break;
     pool.splice(pool.indexOf(fallback), 1);
     taken.push({
@@ -604,7 +608,7 @@ async function createTechSection(
     audit.stage = "sources";
     let picked: Awaited<ReturnType<typeof chooseKnowledge>>;
     try {
-      picked = await chooseKnowledge("tech", { history, candidates, curriculum: TECH_CURRICULUM, date, services, signal }, TECH_CONCEPTS_PER_DAY);
+      picked = await chooseKnowledge("tech", { history, candidates, curriculum: TECH_CURRICULUM, date, services, signal, groupOf: techAxis }, TECH_CONCEPTS_PER_DAY);
     } catch (error) {
       // 고르는 중 테크 기한·취소로 끊겼다. 그때까지의 큐레이션 기록·사용량은 남기고, 원래 오류로 테크를 생략한다.
       if (!(error instanceof SelectionAbortedError)) throw error;
