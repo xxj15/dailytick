@@ -96,7 +96,12 @@ export async function groundMarketNews(
             pending = dependencies.fetch(key, signal).then((response) => extractSource(response, key));
             cache.set(key, pending);
           }
-          const doc = await pending;
+          const fetched = await pending;
+          // 주요 이슈는 RSS에서 받은 매체명·제목을 쓴다. 페이지 메타데이터에는 "미래를 보는 창 - 전자신문", "… | 연합뉴스" 같은 홍보 문구·접미사가 붙는다.
+          // 테크 상식은 사람이 단 한국어 제목 대신 원문 제목을 남긴다(더 알아보기 링크에 원문 제목이 보여야 한다).
+          const doc = koreanOnly
+            ? { ...fetched, source: { ...fetched.source, publisher: source.publisher, title: source.title } }
+            : fetched;
           if (!fresh(doc.source.publishedAt)) {
             rejected.push({ candidateId: id, url: source.url, reason: "본문의 게시일이 없거나 최신 범위를 벗어났습니다." });
             continue;

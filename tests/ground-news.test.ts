@@ -158,3 +158,16 @@ test("후보가 근거 확인 한도보다 많아도 중요도가 가장 낮은 
   assert.ok(result.candidates.some((candidate) => candidate.title === "국내 정책"));
   assert.ok(result.candidates.some((candidate) => candidate.title === "AI 발표"));
 });
+
+test("주요 이슈 출처는 페이지 메타데이터 대신 RSS의 매체명·제목을 쓴다", async () => {
+  const rss = { title: "정보보호 공시 의무, 내년부터 全 상장사로 확대", publisher: "서울경제", url: "https://example.com/rss", publishedAt: "2026-10-09T08:00:00+09:00" };
+  const result = await groundMarketNews([{ ...input.candidate, sources: [rss] }], "2026-10-09", {
+    fetch: async (url) => ({ url, contentType: "text/html", body: `<title>정보보호 공시 의무 확대 | 서울경제</title><meta property="og:site_name" content="미래를 보는 창 - 서울경제"><meta property="article:published_time" content="2026-10-09T07:00:00+09:00"><article>${quote.repeat(8)}</article>` }),
+    select: async (inputs) => ({ selection: { candidates: inputs.map((item) => ({ candidateId: item.id, facts: [{ sourceId: item.documents[0].id, quote }] })) }, inputTokens: 10, outputTokens: 5 }),
+  });
+  assert.equal(result.candidates.length, 1);
+  assert.equal(result.candidates[0].sources[0].publisher, "서울경제");
+  assert.equal(result.candidates[0].sources[0].title, rss.title);
+  // 게시 시각은 실제로 읽은 본문 값을 그대로 쓴다
+  assert.equal(result.candidates[0].sources[0].publishedAt, "2026-10-08T22:00:00.000Z");
+});
