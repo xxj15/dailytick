@@ -5,6 +5,7 @@ import { buildNewsSelectionPrompt } from "@/lib/openai/prompts";
 import { aiNewsSelectionSchema, newsCandidateSchema } from "@/lib/openai/schemas";
 import type { DateString } from "@/lib/date";
 import { candidatesFromPicks, collectFeedItems, normalizeItemId, selectionScore, type FeedItem, type FeedResult, type SelectionScores } from "@/lib/news/rss";
+import { repeatOfRecent } from "@/lib/news/repeat";
 import type { NewsCandidate, RecentNewsEntry } from "@/types/briefing";
 import { zodTextFormat } from "openai/helpers/zod";
 
@@ -39,6 +40,8 @@ export type NewsSelectionAudit = {
   rejected: { title: string; reason: string }[];
   /** 후보 모양 검사(newsCandidateSchema)에서 떨어진 후보와 첫 이유 */
   invalid?: string[];
+  /** 최근에 실은 사건과 같아 뺀 후보(같은 기사 URL이거나 제목이 거의 같다) */
+  repeats?: { title: string; recent: string }[];
 };
 
 async function selectFromFeeds(input: string, signal?: AbortSignal) {
@@ -83,11 +86,18 @@ export async function collectMarketNews(
     throw new NewsCollectionError(`뉴스 후보 고르기 실패: ${reason}`, usage);
   }
   const invalid: string[] = [];
+  const repeats: { title: string; recent: string }[] = [];
   const candidates = candidatesFromPicks(parsed.data.candidates, items)
     .flatMap((candidate) => {
       const checked = newsCandidateSchema.safeParse(candidate);
       if (!checked.success) invalid.push(`${candidate.title}: ${checked.error.issues[0]?.path.join(".")} ${checked.error.issues[0]?.message}`);
       return checked.success ? [checked.data] : [];
+    })
+    // 모델이 놓친 반복을 코드가 한 번 더 거른다. 같은 기사 URL이거나 제목이 거의 같은 후보다(지표 기사는 URL만 본다)
+    .filter((candidate) => {
+      const recent = repeatOfRecent(candidate, options.recentNews ?? []);
+      if (recent) repeats.push({ title: candidate.title, recent });
+      return !recent;
     });
   const known = new Set(items.map((item) => item.id));
   const selection: NewsSelectionAudit = {
@@ -100,6 +110,7 @@ export async function collectMarketNews(
     }),
     rejected: parsed.data.rejected,
     ...(invalid.length ? { invalid } : {}),
+    ...(repeats.length ? { repeats } : {}),
   };
   return { candidates, feeds, pool: items.length, selection, ...usage };
 }
