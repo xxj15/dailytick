@@ -10,7 +10,7 @@ import type { ConceptHistoryEntry } from "@/types/briefing";
  * 이미 다룬 개념·아티클은 후보에서 빼고, 분야와 난이도가 고루 보이도록 나눠 담는다.
  */
 
-/** 큐레이터에게 보여주는 후보 한 줄. id 접두사로 출처를 구분한다. k- 커리큘럼 / a- 아티클 / d- 그날 검색 */
+/** 큐레이터에게 보여주는 후보 한 줄. id 접두사로 출처를 구분한다. k- 커리큘럼 / a- 아티클 */
 export type KnowledgeCandidate = {
   id: string;
   format: KnowledgeFormat;
@@ -50,7 +50,7 @@ function spread<T extends { category: string }>(items: T[], perCategory: number)
   });
 }
 
-/** 테크 상식 후보: 미학습 커리큘럼 개념(분야당 4개) + 아직 소개하지 않은 아티클 전부. 그날 검색 후보는 따로 붙인다. */
+/** 테크 상식 후보: 미학습 커리큘럼 개념(분야당 4개) + 아직 소개하지 않은 아티클 전부. */
 export function techCandidates(history: ConceptHistoryEntry[]): KnowledgeCandidate[] {
   const seen = learned(history);
   const concepts = spread(TECH_CURRICULUM.filter((concept) => !seen.slugs.has(concept.slug)), 4).map((concept) => ({
@@ -114,7 +114,7 @@ export function economyCandidates(history: ConceptHistoryEntry[]): KnowledgeCand
 }
 
 /**
- * 큐레이터가 고르지 못했을 때 쓸 대체 후보. 사람이 검증한 커리큘럼 개념만 쓴다 (아티클·검색 후보는 쓰지 않는다).
+ * 큐레이터가 고르지 못했을 때 쓸 대체 후보. 사람이 검증한 커리큘럼 개념만 쓴다 (아티클은 쓰지 않는다).
  * 최근에 많이 나온 분야를 피하고, 같은 점수면 앞의 후보(쉬운 것)를 고른다.
  */
 export function fallbackConcept(candidates: KnowledgeCandidate[], recent: RecentKnowledge[]): KnowledgeCandidate | undefined {

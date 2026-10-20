@@ -53,7 +53,7 @@ export function buildGroundingReviewPrompt(content: GroundedSection, candidates:
   const used = knowledgeOnly
     ? new Set(candidates.map((candidate) => candidate.id))
     : new Set(content.newsItems.map((item) => item.evidence?.candidateId));
-  // 테크 상식은 원문의 항목 귀속을 knowledgeSlug로 가르므로, 원문·작성 결과(발굴 글 제목 포함)가 태그 경계를 넘어
+  // 테크 상식은 원문의 항목 귀속을 knowledgeSlug로 가르므로, 원문·작성 결과(아티클 제목 포함)가 태그 경계를 넘어
   // 다른 항목의 원문처럼 보이지 않게 이스케이프한다. 뉴스 검토 프롬프트는 그대로 둔다.
   const dataJson = knowledgeOnly ? tagSafeJson : (value: unknown) => JSON.stringify(value);
   return `당신은 발행 전 근거 검토자다. 작성자와 독립적으로 아래 브리핑을 실제 자료와 대조한다. 기준일 ${date}, Asia/Seoul.

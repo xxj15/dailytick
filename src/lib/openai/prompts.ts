@@ -5,11 +5,7 @@ import {
   NEWS_PICKS_PER_SLOT,
   NEWS_SLOTS,
   PREFERRED_PUBLISHERS,
-  PREFERRED_TECH_PUBLISHERS,
   SOURCE_MAX_AGE_HOURS,
-  TECH_DISCOVERY_COUNT,
-  TECH_DISCOVERY_MAX_AGE_DAYS,
-  UNREADABLE_SOURCES,
   USER_PROFILE,
 } from "@/config/app";
 import type { Concept } from "@/data/curriculum";
@@ -25,7 +21,7 @@ import type { NewsSlot, RecentNewsEntry } from "@/types/briefing";
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고,
  * 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v39";
+export const PROMPT_VERSION = "v40";
 
 /**
  * 모든 단계에 공통으로 적용되는 편집 원칙.
@@ -801,66 +797,6 @@ const TECH_READER_PROFILE = `독자 프로필:
 특정 회사 내부 시스템의 지엽적인 이야기나 연구 수준의 AI 글보다 내 일에 바로 쓸 수 있는 지식을 원한다.`;
 
 /**
- * 테크 상식 발굴 — 그날 검색으로 '읽을 가치가 있는' 최근 기술 글을 찾는다.
- *
- * 뉴스가 아니다. 사건 전달은 주요 이슈 데스크가 맡고, 여기서는 개발자가 배우고 생각해 볼 거리를 찾는다.
- * 찾은 글은 큐레이터 후보로만 쓰고, 고른 뒤에는 서버가 원문을 직접 읽어 근거를 확인한다.
- */
-const TECH_SOURCE_PREFERENCE = `출처 선호 순서:
-
-1순위 — 공식 발표 자료
-${PREFERRED_TECH_PUBLISHERS.official.join(" / ")} 등 기업 공식 뉴스룸·블로그, 정부 발표
-
-2순위 — 국내 IT·경제 매체
-${PREFERRED_TECH_PUBLISHERS.kr.join(" / ")}
-
-3순위 — 해외 매체 (보조)
-${PREFERRED_TECH_PUBLISHERS.global.join(" / ")}
-
-개인 블로그, 커뮤니티, 유튜브, 요약 사이트는 출처로 사용하지 않는다.`;
-
-export function buildTechDiscoveryPrompt(date: DateString, options: { recentTitles?: string[] } = {}): string {
-  return `${TECH_EDITOR_PRINCIPLES}
-
-${TECH_READER_PROFILE}
-
-오늘은 ${formatKoreanDate(date)} (${date}, Asia/Seoul 기준)이다.
-
-지금 웹 검색으로 '오늘의 테크 상식' 후보가 될 최근 기술 글을 ${TECH_DISCOVERY_COUNT.min}~${TECH_DISCOVERY_COUNT.max}개 찾아라.
-뉴스 속보가 아니라, 개발자가 읽고 실무에 바로 써먹을 거리가 남는 글이다.
-
-## 찾을 것 (분야를 고루)
-
-- frontend: React·Next.js·TypeScript·CSS·브라우저·웹 성능의 실무 기법을 설명하는 아티클, 공식 블로그·릴리스 글
-- cs: MVC·계층형 아키텍처·디자인 패턴·API 설계·DB·네트워크처럼 설계와 기본기를 실무 사례로 설명하는 글
-- backend: EC2·S3 같은 클라우드 서버, 배포(CI/CD)·Docker·Nginx·모니터링처럼 서비스를 올리고 운영하는 법을 설명하는 글
-- ai: AI를 개발에 직접 쓰는 법(AI 코딩 도구 활용, LLM API로 기능 만들기)을 설명하는 글
-
-국내 기업 기술 블로그(토스·우아한형제들·카카오·당근 등)의 실무 글도 좋은 후보다.
-
-## 기준
-
-- 최근 ${TECH_DISCOVERY_MAX_AGE_DAYS}일 이내 게시된 글. 게시일이 확인되는 글만 낸다.
-- 투자·실적·주가·인사 같은 업계 소식, 단순 제품 홍보, 이벤트 안내는 내지 않는다.
-- 특정 회사 내부 시스템에만 해당하는 지엽적인 글, 연구·실험 수준의 AI 글(에이전트 하네스·벤치마크 논문 등)은 내지 않는다.
-- 한 회사의 같은 발표를 여러 후보로 나누지 않는다.
-- 다음 사이트는 서버가 본문을 읽지 못해 탈락하므로 넣지 않는다: ${UNREADABLE_SOURCES.join(", ")}
-- 개별 글 URL만 넣는다. 목록·태그·문서 색인 페이지는 넣지 않는다. 검색 결과에 실제로 나온 URL만 쓴다.
-
-최근에 이미 소개한 주제 (겹치지 않게): ${options.recentTitles?.length ? options.recentTitles.join(" / ") : "(없음)"}
-
-${TECH_SOURCE_PREFERENCE}
-
-## 각 후보
-
-- field: frontend / cs / backend / ai
-- format: article(기술 글 요약) 또는 trend(최근 기술 변화 해설)
-- summary: 2~3문장. 이 글에서 무엇을 배울 수 있는가
-- learning: 1~10. 프론트엔드 경험이 있는 개발자가 새로 배우는 정도 (정의만 반복하는 글은 낮게)
-- sources: 글 URL (원문 우선, 원문을 다룬 신뢰할 만한 해설 글은 보조)`;
-}
-
-/**
  * 테크 상식 작성. 하루 상식 여러 개를 한 번에 쓰고, 항목마다 자기 형식에 따라 쓰는 방법이 다르다.
  *   concept  — 커리큘럼 개념을 설명한다. 원문이 없다
  *   article  — 서버가 읽은 원문을 요약하고, 무엇을 배울지 짚는다
@@ -1054,8 +990,7 @@ ${reader}
 ${kind === "tech"
     ? `- 개발자가 실무에서 바로 쓰는 지식(프론트엔드 실무, 설계 패턴, API 설계, 클라우드 서버·배포·운영)을 가장 우대한다.
 - 특정 회사 내부 시스템에만 해당하는 지엽적인 사례, 연구·실험 수준의 AI 글(에이전트 하네스·보안 운영 자동화·벤치마크 등)은 크게 감점한다.
-- 출처가 공식 문서·1차 발표·평판 있는 기술 블로그인 후보를 우대한다.
-- d- 후보(그날 검색으로 찾은 최근 글)는 실무에 바로 쓸 수 있을 때만 시의성 가산점을 준다.`
+- 출처가 공식 문서·1차 발표·평판 있는 기술 블로그인 후보를 우대한다.`
     : `- 너무 어렵지 않으면서 누구나 알아야 할 상식을 가장 우대한다. 경제 뉴스와 증권사 면접에서 자주 나오는 개념이 먼저다.
 - 실무자나 쓰는 어렵고 지엽적인 개념(VaR·NCR·듀레이션·DLS·신용공여 같은)은 감점한다. 그 바탕이 되는 기초를 다룬 뒤에만 고른다.
 - 정의를 넘어 실제 시장·경제·기업 현상과 연결해 설명할 수 있는 개념을 우대한다.

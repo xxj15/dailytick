@@ -75,12 +75,6 @@ export const TODAY_KEYWORDS_PER_DAY = { min: 1, max: 5 } as const;
 export const SOURCE_MAX_AGE_HOURS = 72;
 
 /**
- * IT 뉴스의 발행 하한선. 뉴스는 경제·시사와 같이 최대 72시간까지만 허용한다.
- * 주 단위로 나오는 릴리스 노트·아티클은 뉴스가 아니라 테크 상식의 '더 알아보기'로 다룬다.
- */
-export const TECH_SOURCE_MAX_AGE_HOURS = 72;
-
-/**
  * 주요 이슈 후보를 모으는 국내 언론 RSS. (2026-10-20 웹 검색을 대신한다. 웹 검색 비용이 지면 생성 비용의 대부분이었다)
  * 서버가 기사 본문과 게시 시각을 실제로 읽을 수 있는 매체만 둔다(2026-10-20 로컬 점검).
  * 조선일보 본지는 본문을 못 읽어, 한겨레는 피드에 게시 시각이 없고 AI 활용 금지를 밝혀 뺐다.
@@ -129,10 +123,6 @@ export const NEWS_GROUND_LIMIT = 6;
  */
 export const NEWS_GROUND_PER_SLOT = 2;
 
-/** 테크 상식 발굴: 그날 검색으로 찾는 최근 기술 글 후보 수와 허용 기간. 커리큘럼·아티클 후보와 함께 큐레이터가 본다. */
-export const TECH_DISCOVERY_COUNT = { min: 4, max: 8 } as const;
-export const TECH_DISCOVERY_MAX_AGE_DAYS = 14;
-
 /**
  * 뉴스 출처 선호 매체. (명세 §17)
  * 독자가 한국 증권시장 기준으로 읽으므로 국내 경제지를 우선한다.
@@ -163,44 +153,6 @@ export const PREFERRED_PUBLISHERS = {
     "SEC",
   ],
 } as const;
-
-/** IT 파트 출처 선호 매체. 경제 파트와 같은 우선순위 규칙이다. */
-export const PREFERRED_TECH_PUBLISHERS = {
-  // 서버가 본문과 게시일을 실제로 읽을 수 있는 매체만 둔다. (2026-10-17 수집 점검)
-  // The Verge는 유료 표시, openai.com·axios.com은 자동 수집 차단이라 근거로 쓸 수 없다.
-  kr: ["ZDNet Korea", "블로터", "아이뉴스24", "디지털데일리", "전자신문"],
-  global: ["InfoQ", "The Register", "Ars Technica", "TechCrunch", "Reuters"],
-  /** 릴리스 노트·공식 블로그. 프레임워크·도구 소식은 원문이 가장 정확하다. */
-  official: [
-    "React 블로그",
-    "Next.js·Vercel 블로그",
-    "Chrome for Developers",
-    "GitHub 블로그",
-    "TypeScript 블로그",
-    "Anthropic",
-    "OpenAI",
-    "Google",
-    "Microsoft",
-  ],
-} as const;
-
-/**
- * 자동 수집을 막아(HTTP 403) 서버가 본문을 읽을 수 없는 사이트. 근거로 쓸 수 없으므로 검색 단계에서 피하게 한다.
- * (2026-10-18 생성 로그 기준)
- */
-export const UNREADABLE_SOURCES = [
-  "apnews.com",
-  "axios.com",
-  "investing.com",
-  "marketscreener.com",
-  "openai.com",
-  "theverge.com",
-  "imf.org",
-  // 로컬에서는 열리지만 배포 서버(Vercel)에서는 403을 돌려준다 (2026-10-18 점검)
-  "hankyung.com",
-  // 유료 기사 표시
-  "lemonde.fr",
-] as const;
 
 /**
  * MVP는 다중 사용자를 대상으로 하지 않는다.

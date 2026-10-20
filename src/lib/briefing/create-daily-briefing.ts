@@ -1,6 +1,5 @@
 import "server-only";
-import { createHash } from "node:crypto";
-import { ECONOMY_CONCEPTS_PER_DAY, NEWS_SLOTS, TECH_CONCEPTS_PER_DAY, TECH_DISCOVERY_MAX_AGE_DAYS } from "@/config/app";
+import { ECONOMY_CONCEPTS_PER_DAY, NEWS_SLOTS, TECH_CONCEPTS_PER_DAY } from "@/config/app";
 import { CURRICULUM, type Concept } from "@/data/curriculum";
 import { TECH_CURRICULUM } from "@/data/tech-curriculum";
 import {
@@ -16,7 +15,7 @@ import {
   selectTodayConcepts,
 } from "@/lib/curriculum/select-next-concepts";
 import type { DateString } from "@/lib/date";
-import { collectMarketNews, discoverTechTopics, NewsCollectionError, type TechTopic } from "@/lib/openai/collect-news";
+import { collectMarketNews, NewsCollectionError } from "@/lib/openai/collect-news";
 import { curateKnowledge, type CuratorPick } from "@/lib/openai/curate";
 import { groundMarketNews, GroundNewsError } from "@/lib/openai/ground-news";
 import {
@@ -40,13 +39,13 @@ import {
 import type { Briefing, ConceptHistoryEntry, GroundedSection, NewsCandidate, RecentNewsEntry, TechSection } from "@/types/briefing";
 import type { GroundedCandidate } from "@/lib/news/evidence-types";
 import { auditEvidence, type CoverageAudit, type CurationAudit, type GenerationAudit, type TechAudit } from "@/lib/news/generation-audit";
-import { sourceMatchKey } from "@/lib/news/search-provenance";
+import { sourceMatchKey } from "@/lib/news/url-key";
 import { emptySlots, fitsSlot, matchSlots } from "@/lib/news/slots";
 import type { BriefingViolation } from "@/types/briefing";
 
 const defaultServices = {
   getBriefingByDate, getConceptHistory, getTechConceptHistory, getRecentNews,
-  collectMarketNews, discoverTechTopics, curateKnowledge,
+  collectMarketNews, curateKnowledge,
   groundMarketNews: (candidates: NewsCandidate[], date: DateString, signal?: AbortSignal, maxAgeHours?: number, allowUndated?: boolean, idPrefix?: string, koreanOnly?: boolean) =>
     groundMarketNews(candidates, date, undefined, signal, maxAgeHours, allowUndated, idPrefix, koreanOnly),
   generateDailyBriefing: (params: Parameters<typeof generateDailyBriefing>[0]) => generateDailyBriefing(params),
@@ -81,7 +80,7 @@ const TECH_DEADLINE_MS = DEADLINE_MS - TECH_SAVE_RESERVE_MS;
  * 하루치 브리핑 생성 전체 흐름.
  *
  *   경제·주요 이슈: 최근 뉴스 조회 → RSS 기사 목록에서 슬롯별 후보 고르기 → 본문 근거 확인 → 경제 상식 큐레이션 → 작성·검토
- *   테크 상식:     학습 이력 → 그날 기술 글 발굴 → 큐레이션(서로 다른 개념 최대 TECH_CONCEPTS_PER_DAY개) → (아티클·트렌드면) 원문 근거 확인 → 작성·검토
+ *   테크 상식:     학습 이력 → 큐레이션(커리큘럼·아티클에서 서로 다른 개념 최대 TECH_CONCEPTS_PER_DAY개) → (아티클이면) 원문 근거 확인 → 작성·검토
  *
  * 두 흐름은 동시에 돈다. 경제·주요 이슈가 지면의 본체라 실패하면 발행하지 않는다.
  * 테크 상식의 빈 자리는 검증된 커리큘럼 개념(커리큘럼을 다 돌았으면 복습 개념)으로 채운다.
@@ -264,8 +263,8 @@ function errorMessage(error: unknown): string {
 }
 
 /**
- * 고른 상식 하나. evidence는 아티클·검색 후보의 원문이고, 각 원문에는 이 개념의 slug(knowledgeSlug)가 붙어 있다.
- * 원문을 확인한 상식(아티클·발굴 글)만 evidence가 있다. 커리큘럼 개념은 비어 있다.
+ * 고른 상식 하나. evidence는 아티클의 원문이고, 각 원문에는 이 개념의 slug(knowledgeSlug)가 붙어 있다.
+ * 원문을 확인한 상식(아티클)만 evidence가 있다. 커리큘럼 개념은 비어 있다.
  */
 type Choice = { concept: Concept; mode: "new" | "review"; evidence: GroundedCandidate[] };
 type ChosenEntry = NonNullable<CurationAudit["chosen"]>[number];
@@ -287,7 +286,7 @@ class SelectionAbortedError extends Error {
 
 /**
  * 같은 개념인지 가르는 열쇠. 첫 참고 URL을 정규화(sourceMatchKey)한 값이다. 참고 URL이 없으면 null.
- * 한쪽 이상이 원문을 확인하는 상식(아티클·발굴 글)일 때만 쓴다. 같은 글이 커리큘럼 개념과 아티클로 두 번 실리지 않게 한다.
+ * 한쪽 이상이 원문을 확인하는 상식(아티클)일 때만 쓴다. 같은 글이 커리큘럼 개념과 아티클로 두 번 실리지 않게 한다.
  * 커리큘럼 개념끼리는 참고 문서를 공유해도 서로 다른 개념이라 slug로만 가른다.
  */
 function referenceKey(url: string | undefined): string | null {
@@ -295,9 +294,9 @@ function referenceKey(url: string | undefined): string | null {
 }
 
 /**
- * 상식을 count개까지 고른다. 고른 상식은 서로 다른 개념이다(slug가 다르고, 아티클·발굴 글이면 첫 참고 URL도 다르다).
+ * 상식을 count개까지 고른다. 고른 상식은 서로 다른 개념이다(slug가 다르고, 아티클이면 첫 참고 URL도 다르다).
  *
- * 큐레이터가 추천한 순서대로 검증을 시도한다. 아티클·검색 후보는 원문 근거 확인을 통과해야만 쓴다.
+ * 큐레이터가 추천한 순서대로 검증을 시도한다. 아티클은 원문 근거 확인을 통과해야만 쓴다.
  * 이미 고른 것과 같은 개념인 후보는 원문을 읽기 전에 거른다.
  * 여러 개를 고를 때는 가능하면 서로 다른 분야(category)로 고른다.
  * 이미 고른 분야의 추천은 검증하지 않고 미뤄 둔다. 다른 분야 추천을 다 본 뒤에도 자리가 남을 때만 추천 순서대로 검증해 쓴다.
@@ -315,7 +314,6 @@ async function chooseKnowledge(
     candidates: KnowledgeCandidate[];
     curriculum: Concept[];
     newsTitles?: string[];
-    topics?: TechTopic[];
     date: DateString;
     services: BriefingServices;
     signal: AbortSignal;
@@ -334,8 +332,8 @@ async function chooseKnowledge(
   const takenCategories = () => new Set(taken.map(({ entry }) => entry.category));
   /**
    * 이미 고른 것과 같은 개념인가. slug가 같으면 같은 개념이다.
-   * 한쪽 이상이 원문을 확인하는 상식(sourced: 아티클·발굴 글)이면 첫 참고 URL(정규화)이 같아도 같은 개념이다.
-   * 같은 글이 커리큘럼 개념과 아티클로, 또는 발굴 글 두 개로 같은 날 두 번 실리지 않게 한다.
+   * 한쪽 이상이 원문을 확인하는 상식(sourced: 아티클)이면 첫 참고 URL(정규화)이 같아도 같은 개념이다.
+   * 같은 글이 커리큘럼 개념과 아티클로 같은 날 두 번 실리지 않게 한다.
    * 커리큘럼 개념끼리는 참고 문서가 같아도(도구 호출·구조화된 출력처럼) 다른 개념이므로 slug로만 비교한다.
    */
   const sameAs = (slug: string | undefined, url: string | undefined, sourced: boolean) => {
@@ -374,11 +372,11 @@ async function chooseKnowledge(
 
   const audit: CurationAudit = { status: "curated", rejected: [] };
 
-  /** 아티클·발굴 후보의 원문 정보. 근거 확인에 넘기는 후보다. 커리큘럼 개념은 원문 확인 없이 쓴다. */
+  /** 아티클 후보의 원문 정보. 근거 확인에 넘기는 후보다. 커리큘럼 개념은 원문 확인 없이 쓴다. */
   const sourceOf = (candidate: KnowledgeCandidate) => candidate.article
     ? { title: candidate.article.title, summary: candidate.article.takeaway, region: "GLOBAL" as const, category: candidate.category === "ai" ? "ai" as const : "software" as const, importance: 8,
         sources: [{ publisher: candidate.article.publisher, title: candidate.article.title, url: candidate.article.url }] }
-    : params.topics?.[Number(candidate.id.slice(2)) - 1]?.candidate;
+    : undefined;
 
   /**
    * 추천 하나를 검증한다. 쓸 수 없으면 사유를 남기고 null.
@@ -387,17 +385,17 @@ async function chooseKnowledge(
   const verify = async (pick: CuratorPick, candidate: KnowledgeCandidate): Promise<Choice | null> => {
     if (candidate.concept) return { concept: candidate.concept, mode: "new", evidence: [] };
 
-    // 아티클·검색 후보: 서버가 원문을 읽어 근거 문장을 확인한 뒤에만 쓴다.
+    // 아티클: 서버가 원문을 읽어 근거 문장을 확인한 뒤에만 쓴다.
+    const article = candidate.article;
     const source = sourceOf(candidate);
-    if (!source) {
+    if (!article || !source) {
       audit.rejected?.push(`${candidate.id}: 원문 정보 없음`);
       return null;
     }
     try {
       const grounded = await services.groundMarketNews(
-        [source], date, signal,
-        candidate.article ? undefined : TECH_DISCOVERY_MAX_AGE_DAYS * 24,
-        Boolean(candidate.article),
+        // 아티클은 오래됐어도 읽을 가치가 있는 글이라 게시일이 없어도 받는다.
+        [source], date, signal, undefined, true,
         // 상식 여러 개의 원문을 한 번에 넘기므로 원문 id가 겹치지 않게 후보 id를 접두어로 쓴다.
         `${candidate.id}:`,
         // 테크 상식은 원문을 한국어로 풀어 쓴다. 공식 블로그·릴리스 노트 같은 영문 원문도 근거로 받는다.
@@ -414,7 +412,7 @@ async function chooseKnowledge(
       }
       const url = evidence.documents[0]?.source.url ?? source.sources[0].url;
       const concept: Concept = {
-        slug: candidate.article?.slug ?? `d-${createHash("sha256").update(url).digest("hex").slice(0, 12)}`,
+        slug: article.slug,
         title: pick.title.trim() || candidate.title,
         level: candidate.level,
         category: candidate.category,
@@ -504,7 +502,7 @@ async function chooseKnowledge(
   taken.sort((a, b) => a.order - b.order);
   const fromPicks = taken.length;
 
-  // 모자란 자리는 검증된 커리큘럼 개념으로 채운다. 이미 고른 것과 같은 개념(slug, 아티클·발굴 글이면 첫 참고 URL)은 빼고, 가능하면 고르지 않은 분야에서 고른다.
+  // 모자란 자리는 검증된 커리큘럼 개념으로 채운다. 이미 고른 것과 같은 개념(slug, 아티클이면 첫 참고 URL)은 빼고, 가능하면 고르지 않은 분야에서 고른다.
   const pool = candidates.filter((candidate) => candidate.concept && !taken.some(({ entry }) => entry.id === candidate.id));
   while (taken.length < count) {
     const open = pool.filter((candidate) => !sameAs(candidate.concept?.slug, candidate.concept?.references?.[0]?.url, false));
@@ -586,57 +584,24 @@ async function createTechSection(
 
   try {
     const history = await services.getTechConceptHistory();
-    const base = techCandidates(history);
+    const candidates = techCandidates(history);
 
-    // 그날 검색으로 찾은 최근 기술 글. 실패해도 커리큘럼·아티클 후보만으로 고른다.
-    audit.stage = "search";
-    let topics: TechTopic[] = [];
-    let discoveryError: string | undefined;
-    try {
-      const discovered = await services.discoverTechTopics(date, signal, {
-        recentTitles: recentKnowledge(history, 14).map((entry) => entry.title),
-      });
-      usage.inputTokens += discovered.inputTokens;
-      usage.outputTokens += discovered.outputTokens;
-      usage.webSearchCalls += discovered.webSearchCalls;
-      audit.searchTrace = discovered.searchTrace;
-      audit.rejectedUrls = discovered.rejectedUrls;
-      topics = discovered.topics;
-    } catch (error) {
-      discoveryError = error instanceof Error ? error.message : String(error);
-    }
-    const candidates: KnowledgeCandidate[] = [
-      ...base,
-      ...topics.map((topic, index) => ({
-        id: `d-${index + 1}`,
-        format: topic.format,
-        category: topic.field,
-        level: 3,
-        title: topic.title,
-        note: `${topic.candidate.sources[0]?.publisher ?? ""} · ${topic.summary}`.slice(0, 220),
-      })),
-    ];
-
+    // 커리큘럼 개념과 사람이 고른 아티클에서만 고른다. 그날 웹 검색으로 글을 찾지 않는다(2026-10-20 비용 절감).
     audit.stage = "sources";
-    const withDiscovery = (curation: CurationAudit): CurationAudit => ({
-      ...curation,
-      discovered: topics.length,
-      ...(discoveryError ? { error: [curation.error, `발굴 실패: ${discoveryError}`].filter(Boolean).join(" / ") } : {}),
-    });
     let picked: Awaited<ReturnType<typeof chooseKnowledge>>;
     try {
-      picked = await chooseKnowledge("tech", { history, candidates, curriculum: TECH_CURRICULUM, topics, date, services, signal }, TECH_CONCEPTS_PER_DAY);
+      picked = await chooseKnowledge("tech", { history, candidates, curriculum: TECH_CURRICULUM, date, services, signal }, TECH_CONCEPTS_PER_DAY);
     } catch (error) {
       // 고르는 중 테크 기한·취소로 끊겼다. 그때까지의 큐레이션 기록·사용량은 남기고, 원래 오류로 테크를 생략한다.
       if (!(error instanceof SelectionAbortedError)) throw error;
       usage.inputTokens += error.usage.inputTokens;
       usage.outputTokens += error.usage.outputTokens;
-      audit.curation = withDiscovery(error.audit);
+      audit.curation = error.audit;
       throw error.reason;
     }
     usage.inputTokens += picked.usage.inputTokens;
     usage.outputTokens += picked.usage.outputTokens;
-    audit.curation = withDiscovery(picked.audit);
+    audit.curation = picked.audit;
     if (!picked.choices.length) throw new Error(`테크 상식 발행 보류: ${picked.audit.error ?? "검증된 후보 없음"}`);
 
     audit.stage = "generation";
@@ -749,7 +714,7 @@ async function createTechSection(
 }
 
 function emptyAudit(): GenerationAudit {
-  return { stage: "history", searchTrace: [], rejectedUrls: [], sourceRejections: [], evidence: [], reviews: [] };
+  return { stage: "history", sourceRejections: [], evidence: [], reviews: [] };
 }
 
 /** 복습으로 고른 상식이면 화면에도 남긴다. 항목마다 그 개념의 선택 모드를 따른다. AI 응답이 아니라 코드가 판단한 값이다. */
@@ -759,7 +724,7 @@ function markReview<T extends GroundedSection>(content: T, choices: Choice[]): T
   return { ...content, knowledgeItems: content.knowledgeItems.map((item) => (review.has(item.slug) ? { ...item, review: true } : item)) };
 }
 
-/** 실패 단계가 들고 나온 사용량·검색 기록·위반 내역을 로그 쪽으로 옮긴다. 갱신된 위반 목록을 돌려준다. */
+/** 실패 단계가 들고 나온 사용량·위반 내역을 로그 쪽으로 옮긴다. 갱신된 위반 목록을 돌려준다. */
 function recordFailure(
   error: unknown,
   audit: GenerationAudit,
@@ -770,8 +735,6 @@ function recordFailure(
     usage.inputTokens += error.usage.inputTokens;
     usage.outputTokens += error.usage.outputTokens;
     usage.webSearchCalls += error.usage.webSearchCalls;
-    audit.searchTrace = error.trace;
-    audit.rejectedUrls = error.rejectedUrls;
   }
   if (error instanceof GroundNewsError) audit.sourceRejections = error.rejected;
   if (error instanceof BriefingValidationError) {

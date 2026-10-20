@@ -1,13 +1,10 @@
 import type { GroundedCandidate, EvidenceRejection } from "@/lib/news/evidence-types";
 import type { FeedResult } from "@/lib/news/rss";
-import type { SearchTrace } from "@/lib/news/search-provenance";
 import type { ReviewRecord } from "@/lib/openai/generate-briefing";
 import type { BriefingViolation, NewsSlot } from "@/types/briefing";
 
 export type GenerationAudit = {
   stage: "history" | "search" | "sources" | "generation" | "save" | "complete";
-  searchTrace: SearchTrace[];
-  rejectedUrls: string[];
   sourceRejections: EvidenceRejection[];
   evidence: { candidateId: string; facts: GroundedCandidate["facts"]; documents: Omit<GroundedCandidate["documents"][number], "text">[] }[];
   reviews: ReviewRecord[];
@@ -65,7 +62,6 @@ export type CurationAudit = {
   chosen?: { id: string; title: string; format: string; category: string; reason?: string; fallback?: true; review?: true }[];
   /** 추천됐지만 쓰지 못한 후보와 그 이유 */
   rejected?: string[];
-  discovered?: number;
   error?: string;
 };
 
@@ -100,8 +96,6 @@ export function summarizeAudit(audit: Omit<GenerationAudit, "tech"> & { errorMes
     ...(audit.coverage ? { coverage: audit.coverage } : {}),
     ...(audit.curation ? { curation: audit.curation } : {}),
     stage: audit.stage,
-    searches: audit.searchTrace.filter((call) => call.action === "search").length,
-    rejectedUrls: audit.rejectedUrls.length,
     grounded: audit.evidence.length,
     sourceRejections: audit.sourceRejections.map((item) => `${item.candidateId}: ${item.reason}${item.url ? ` (${item.url})` : ""}`),
     reviews: audit.reviews.map((record) => record.review.news.filter((news) => !news.supported).map((news) => news.reason)).flat(),

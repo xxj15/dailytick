@@ -2,7 +2,7 @@ import { SOURCE_MAX_AGE_HOURS } from "@/config/app";
 import type { Concept } from "@/data/curriculum";
 import { isFreshSource, type DateString } from "@/lib/date";
 import type { GroundedCandidate } from "@/lib/news/evidence-types";
-import { sourceMatchKey } from "@/lib/news/search-provenance";
+import { sourceMatchKey } from "@/lib/news/url-key";
 import { SLOT_NAME, slotMismatch, slotOrder } from "@/lib/news/slots";
 import type {
   BriefingViolation,

@@ -6,7 +6,7 @@ import type { EvidenceRejection, SourceDocument } from "@/lib/news/evidence-type
 import { extractSource } from "@/lib/news/extract-source";
 import { fetchSource, type SourceResponse } from "@/lib/news/fetch-source";
 import { buildFactSelectionPrompt, factSelectionSchema, groundCandidates, isKoreanText, type CandidateDocuments, type FactSelection } from "@/lib/news/ground-candidates";
-import { sourceUrlKey } from "@/lib/news/search-provenance";
+import { sourceUrlKey } from "@/lib/news/url-key";
 import { fitsSlot } from "@/lib/news/slots";
 import { getModel, getOpenAI, LIGHT_REASONING } from "@/lib/openai/client";
 import type { NewsCandidate } from "@/types/briefing";

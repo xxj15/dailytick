@@ -70,7 +70,7 @@ export async function POST(request: NextRequest) {
       error: message,
       ...(audit && {
         diagnostics: {
-          economy: { ...summarizeAudit(audit), rejectedUrlSamples: audit.rejectedUrls.slice(0, 10) },
+          economy: summarizeAudit(audit),
           ...(audit.tech && { tech: summarizeAudit(audit.tech) }),
         },
       }),

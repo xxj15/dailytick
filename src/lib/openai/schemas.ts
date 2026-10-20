@@ -182,13 +182,6 @@ export const newsCandidateSchema = z.object({
  * AI 응답은 반드시 canonical 스키마를 통과한 뒤에만 저장된다.
  * ------------------------------------------------------------------ */
 
-const aiNewsSourceSchema = z.object({
-  publisher: z.string(),
-  title: z.string(),
-  url: z.string(),
-  publishedAt: z.string().nullable(),
-});
-
 const aiMarketImpactSchema = z.object({
   stocks: z.string().nullable(),
   rates: z.string().nullable(),
@@ -235,18 +228,6 @@ export const aiDailyBriefingSchema = z.object({
 /** 테크 상식 작성 응답. 테크 파트는 뉴스를 쓰지 않는다. */
 export const aiTechKnowledgeSchema = z.object({
   knowledgeItems: z.array(aiKnowledgeItemSchema),
-});
-
-/** 테크 상식 발굴 응답. 뉴스 후보와 같은 출처 감사를 거치도록 sources 모양을 맞춘다. */
-export const aiTechTopicListSchema = z.object({
-  topics: z.array(z.object({
-    title: z.string(),
-    summary: z.string(),
-    field: z.enum(["cs", "frontend", "backend", "ai"]),
-    format: z.enum(["article", "trend"]),
-    learning: z.number(),
-    sources: z.array(aiNewsSourceSchema),
-  })),
 });
 
 /** 상식 큐레이터 응답. id는 코드가 후보 목록과 다시 대조한다. */

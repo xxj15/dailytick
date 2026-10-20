@@ -8,7 +8,7 @@ import { techCandidates } from "@/lib/curation/candidates";
 import { dailyBriefingSchema, newsCandidateSchema, stripNulls } from "@/lib/openai/schemas";
 import { materializeBriefing } from "@/lib/briefing/materialize";
 import { CANDIDATE, DATE, DRAFT, candidate, draftNews } from "./fixtures/news";
-import { NewsCollectionError, type CollectNewsResult, type TechTopic } from "@/lib/openai/collect-news";
+import { NewsCollectionError, type CollectNewsResult } from "@/lib/openai/collect-news";
 import { buildCuratorPrompt } from "@/lib/openai/prompts";
 import type { NewsCandidate } from "@/types/briefing";
 import { CURRICULUM } from "@/data/curriculum";
@@ -43,7 +43,6 @@ function harness() {
     startGenerationLog: async () => "log-1",
     finishGenerationLog: async (_id, result) => { logs.push(structuredClone(result)); },
     collectMarketNews: async (...args) => { calls.collect.push(args[2]); return { ...searched, inputTokens: 10, outputTokens: 5, webSearchCalls: 0 }; },
-    discoverTechTopics: async () => ({ topics: [], searchTrace: [], rejectedUrls: [], inputTokens: 1, outputTokens: 1, webSearchCalls: 1 }),
     curateKnowledge: async (params) => { calls.curate.push(params); return { picks: [{ id: params.candidates[0].id, title: params.candidates[0].title, reason: "첫 후보" }], inputTokens: 2, outputTokens: 1 }; },
     groundMarketNews: async (candidates, _date, _signal, _maxAge, allowUndated) => {
       calls.ground.push({ titles: candidates.map((c) => c.title), allowUndated });
@@ -125,18 +124,17 @@ test("추천을 하나도 쓰지 못하면 검증된 커리큘럼 개념으로 �
 
 test("검증된 후보가 하나도 없고 커리큘럼도 다 돌았으면 검증 안 된 글은 싣지 않고 복습 개념으로 채운다", async () => {
   const run = harness();
-  const learnedAll = [{ briefingDate: "2026-10-08", items: [...TECH_CURRICULUM, ...TECH_ARTICLES].map((entry) => ({ slug: entry.slug, title: entry.title })) }];
-  const topic = { title: "검색 글", summary: "요약", field: "frontend" as const, format: "trend" as const, learning: 8,
-    candidate: { title: "검색 글", summary: "요약", region: "GLOBAL" as const, category: "software" as const, importance: 8, sources: CANDIDATE.sources } };
+  // 남은 후보는 아티클 하나뿐이고, 그 원문 근거 확인이 실패한다
+  const [article, ...read] = TECH_ARTICLES;
+  const learnedAll = [{ briefingDate: "2026-10-08", items: [...TECH_CURRICULUM, ...read].map((entry) => ({ slug: entry.slug, title: entry.title })) }];
   await createDailyBriefing(DATE, {}, { ...run.services,
     getTechConceptHistory: async () => learnedAll,
-    discoverTechTopics: async () => ({ topics: [topic], searchTrace: [], rejectedUrls: [], inputTokens: 0, outputTokens: 0, webSearchCalls: 0 }),
-    groundMarketNews: async (candidates, ...rest) => candidates[0].title === "검색 글"
+    groundMarketNews: async (candidates, ...rest) => candidates.length === 1 && candidates[0].title === article.title
       ? { candidates: [], rejected: [{ candidateId: "c1", reason: "게시일 없음" }], inputTokens: 0, outputTokens: 0 }
       : run.services.groundMarketNews(candidates, ...rest),
   });
   assert.equal(run.logs[0].status, "success");
-  // 원문 근거를 확인하지 못한 검색 글은 싣지 않는다. 빈 자리는 사람이 검증한 커리큘럼의 복습 개념이다
+  // 원문 근거를 확인하지 못한 아티클은 싣지 않는다. 빈 자리는 사람이 검증한 커리큘럼의 복습 개념이다
   const items = run.saved[0].tech?.knowledgeItems ?? [];
   assert.deepEqual(items.map((item) => [item.slug, item.review]), [[TECH_CURRICULUM[0].slug, true], [TECH_CURRICULUM[1].slug, true]]);
   assert.equal(run.calls.tech[0].mode, "review");
@@ -173,12 +171,6 @@ function curateTech(run: ReturnType<typeof harness>, ids: string[]): BriefingSer
 /** slugs를 하루에 모두 배운 학습 이력. */
 function learned(slugs: string[]) {
   return [{ briefingDate: "2026-10-08", items: slugs.map((slug) => ({ slug, title: slug })) }];
-}
-
-/** 그날 검색으로 찾은 기술 글(발굴 후보 d-) 하나. */
-function discovered(title: string, field: TechTopic["field"], url: string): TechTopic {
-  return { title, summary: "요약", field, format: "article", learning: 8,
-    candidate: { title, summary: "요약", region: "GLOBAL", category: "software", importance: 8, sources: [{ ...CANDIDATE.sources[0], url }] } };
 }
 
 /**
@@ -269,30 +261,29 @@ test("테크 상식 근거 실패: 추천 가운데 하나만 통과하면 그�
   assert.deepEqual(run.calls.tech[0].candidates.map((candidate) => candidate.knowledgeSlug), [FRONT_A.slug]);
 });
 
-test("테크 상식 대체 풀 바닥: 커리큘럼·아티클을 다 쓰고 발굴 글이 1개뿐이면 복습 개념으로 두 번째를 채우고 그 항목에만 복습 표시를 한다", async () => {
+test("테크 상식 대체 풀 바닥: 커리큘럼을 다 쓰고 남은 아티클이 1개뿐이면 복습 개념으로 두 번째를 채우고 그 항목에만 복습 표시를 한다", async () => {
   const run = harness();
-  // 최신순 이력. 가장 오래된 날에 커리큘럼 첫 개념이 있다
+  // 최신순 이력. 가장 오래된 날에 커리큘럼 첫 개념이 있다. 아티클은 FRONT_A만 남았다
   const all = TECH_CURRICULUM.map((concept) => concept.slug);
   const history = [
-    { briefingDate: "2026-10-08", items: [...all.slice(1), ...TECH_ARTICLES.map((article) => article.slug)].map((slug) => ({ slug, title: slug })) },
+    { briefingDate: "2026-10-08", items: [...all.slice(1), ...TECH_ARTICLES.filter((article) => article.slug !== FRONT_A.slug).map((article) => article.slug)].map((slug) => ({ slug, title: slug })) },
     { briefingDate: "2026-10-01", items: [{ slug: all[0], title: all[0] }] },
   ];
   await createDailyBriefing(DATE, {}, { ...run.services,
     getTechConceptHistory: async () => history,
-    discoverTechTopics: async () => ({ topics: [discovered("새 글", "frontend", "https://example.com/new-post")], searchTrace: [], rejectedUrls: [], inputTokens: 0, outputTokens: 0, webSearchCalls: 0 }),
-    curateKnowledge: curateTech(run, ["d-1"]),
+    curateKnowledge: curateTech(run, [FRONT_A.slug]),
     groundMarketNews: groundTech(run),
   });
   const items = run.saved[0].tech?.knowledgeItems ?? [];
   assert.equal(items.length, 2);
-  assert.ok(items[0].slug.startsWith("d-"));
+  assert.equal(items[0].slug, FRONT_A.slug);
   assert.equal(items[0].review, undefined);
   assert.deepEqual([items[1].slug, items[1].review], [all[0], true]);
-  // 새 글이 섞였으므로 작성 모드는 새 개념이다. 복습 표시는 항목마다 따로 단다
+  // 새 아티클이 섞였으므로 작성 모드는 새 개념이다. 복습 표시는 항목마다 따로 단다
   assert.equal(run.calls.tech[0].mode, "new");
   const curation = run.logs[0].audit?.tech?.curation;
   assert.equal(curation?.status, "curated");
-  assert.deepEqual(curation?.chosen?.map((entry) => [entry.id, entry.fallback ?? false, entry.review ?? false]), [["d-1", false, false], [`k-${all[0]}`, true, true]]);
+  assert.deepEqual(curation?.chosen?.map((entry) => [entry.id, entry.fallback ?? false, entry.review ?? false]), [[FRONT_A.slug, false, false], [`k-${all[0]}`, true, true]]);
 });
 
 test("테크 상식 같은 개념은 두 번 싣지 않는다: 같은 후보를 두 번 추천하면 한 번만 쓰고 나머지 자리는 다른 개념으로 채운다", async () => {
@@ -392,29 +383,6 @@ test("테크 후보가 하나도 없으면 가장 오래된 커리큘럼 개념 
   assert.deepEqual(curation?.chosen?.map((entry) => entry.id), [`k-${all[0]}`, `k-${all[1]}`]);
   // 경제 상식은 새 개념이라 복습 표시가 없다
   assert.ok(run.saved[0].content.knowledgeItems.every((item) => !item.review));
-});
-
-test("테크 상식 같은 원문: URL이 같은 발굴 글 두 개는 원문을 한 번만 읽어 한 번만 싣고, 두 번째에는 '이미 고른' 사유를 남긴다", async () => {
-  const run = harness();
-  const grounded: string[] = [];
-  await createDailyBriefing(DATE, {}, { ...run.services,
-    // 같은 글을 호스트(www)·끝 슬래시만 다르게 두 번 찾았다. 분야도 다르게 매겼다
-    discoverTechTopics: async () => ({
-      topics: [discovered("글 A", "frontend", "https://www.example.com/post/"), discovered("글 A 다시", "cs", "https://example.com/post")],
-      searchTrace: [], rejectedUrls: [], inputTokens: 0, outputTokens: 0, webSearchCalls: 0,
-    }),
-    curateKnowledge: curateTech(run, ["d-1", "d-2"]),
-    groundMarketNews: groundTech(run, [], grounded),
-  });
-  const items = run.saved[0].tech?.knowledgeItems ?? [];
-  assert.equal(items.length, 2);
-  assert.ok(items[0].slug.startsWith("d-"));
-  // 두 번째 자리는 다른 개념(커리큘럼 대체)이다. 같은 글의 원문은 다시 읽지 않는다
-  assert.equal(items[1].format, "concept");
-  assert.deepEqual(grounded, ["글 A"]);
-  const curation = run.logs[0].audit?.tech?.curation;
-  assert.ok(curation?.rejected?.some((reason) => reason.startsWith("d-2: 이미 고른 d-1와 같은 개념")));
-  assert.deepEqual(curation?.chosen?.map((entry) => entry.id), ["d-1", `k-${items[1].slug}`]);
 });
 
 test("테크 상식 같은 원문: 커리큘럼 개념과 아티클이 같은 글을 가리키면 추천에서도 대체에서도 한 번만 싣는다", async () => {
@@ -585,15 +553,14 @@ test("큐레이터 추천 수는 오늘 실을 개수보다 2개 많다(하나�
   assert.match(buildCuratorPrompt({ ...base, count: 2 }), /picks: 상위 4개/);
 });
 
-test("테크 상식 같은 원문: 원문 확인 뒤 리다이렉트로 같은 URL이 된 두 후보는 한 번만 싣는다", async () => {
+test("테크 상식 같은 원문: 원문 확인 뒤 리다이렉트로 같은 URL이 된 두 아티클은 한 번만 싣는다", async () => {
   const run = harness();
   const grounded: string[] = [];
-  // 발굴 글의 후보 URL은 아티클과 다르지만, 원문을 읽어 보니 같은 글로 리다이렉트됐다
-  const moved = discovered("옮겨진 글", "cs", "https://short.example.com/x");
+  // 두 번째 아티클의 주소는 첫 아티클과 다르지만, 원문을 읽어 보니 같은 글로 리다이렉트됐다
+  const moved = CS_A;
   const ground = groundTech(run, [], grounded);
   await createDailyBriefing(DATE, {}, { ...run.services,
-    discoverTechTopics: async () => ({ topics: [moved], searchTrace: [], rejectedUrls: [], inputTokens: 0, outputTokens: 0, webSearchCalls: 0 }),
-    curateKnowledge: curateTech(run, [FRONT_A.slug, "d-1"]),
+    curateKnowledge: curateTech(run, [FRONT_A.slug, moved.slug]),
     groundMarketNews: async (candidates, ...rest) => {
       const result = await ground(candidates, ...rest);
       if (candidates.length > 1 || candidates[0].title !== moved.title) return result;
@@ -612,7 +579,7 @@ test("테크 상식 같은 원문: 원문 확인 뒤 리다이렉트로 같은 U
   assert.equal(items[1].format, "concept");
   assert.deepEqual(grounded, [FRONT_A.title, moved.title]);
   const curation = run.logs[0].audit?.tech?.curation;
-  assert.ok(curation?.rejected?.some((reason) => reason.startsWith(`d-1: 이미 고른 ${FRONT_A.slug}와 같은 개념`)));
+  assert.ok(curation?.rejected?.some((reason) => reason.startsWith(`${moved.slug}: 이미 고른 ${FRONT_A.slug}와 같은 개념`)));
   assert.deepEqual(run.calls.tech[0].candidates.map((candidate) => candidate.knowledgeSlug), [FRONT_A.slug]);
 });
 
@@ -757,10 +724,10 @@ test("테크 상식: 남은 테크 시간이 처음부터 두 항목 호출 한 
   t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
   const run = harness();
   await createDailyBriefing(DATE, {}, { ...run.services,
-    // 발굴이 오래 걸려 테크 기한까지 80초 남았다. 최소 필요 시간으로 보는 호출 한 번의 제한 시간이 두 항목(90초)보다는 적고 한 항목(60초)보다는 많다
-    discoverTechTopics: async () => {
+    // 학습 이력 조회가 오래 걸려 테크 기한까지 80초 남았다. 최소 필요 시간으로 보는 호출 한 번의 제한 시간이 두 항목(90초)보다는 적고 한 항목(60초)보다는 많다
+    getTechConceptHistory: async () => {
       t.mock.timers.tick(160_000);
-      return { topics: [], searchTrace: [], rejectedUrls: [], inputTokens: 0, outputTokens: 0, webSearchCalls: 0 };
+      return [];
     },
     curateKnowledge: curateTech(run, [CS_A.slug, FRONT_A.slug]),
     groundMarketNews: groundTech(run),
@@ -777,10 +744,10 @@ test("테크 상식: 한 항목만 쓸 때도 남은 테크 시간이 호출 한
   t.mock.timers.enable({ apis: ["setTimeout", "Date"], now: 0 });
   const run = harness();
   await createDailyBriefing(DATE, {}, { ...run.services,
-    // 발굴이 오래 걸려 테크 기한까지 55초 남았다. 두 항목(90초)에도, 첫 항목만으로 줄여도(60초) 제한 시간보다 적다
-    discoverTechTopics: async () => {
+    // 학습 이력 조회가 오래 걸려 테크 기한까지 55초 남았다. 두 항목(90초)에도, 첫 항목만으로 줄여도(60초) 제한 시간보다 적다
+    getTechConceptHistory: async () => {
       t.mock.timers.tick(185_000);
-      return { topics: [], searchTrace: [], rejectedUrls: [], inputTokens: 0, outputTokens: 0, webSearchCalls: 0 };
+      return [];
     },
     curateKnowledge: curateTech(run, [CS_A.slug, FRONT_A.slug]),
     groundMarketNews: groundTech(run),
@@ -1086,7 +1053,7 @@ test("기존 브리핑이 있으면 검색·생성·덮어쓰기를 하지 않�
 test("후보 고르기가 실패해도 그때까지 쓴 사용량을 로그에 남긴다", async () => {
   const run = harness();
   await assert.rejects(() => createDailyBriefing(DATE, {}, { ...run.services,
-    collectMarketNews: async () => { throw new NewsCollectionError("뉴스 후보 고르기 실패", { inputTokens: 17, outputTokens: 6, webSearchCalls: 0 }, []); },
+    collectMarketNews: async () => { throw new NewsCollectionError("뉴스 후보 고르기 실패", { inputTokens: 17, outputTokens: 6, webSearchCalls: 0 }); },
   }), /뉴스 후보 고르기 실패/);
   assert.equal(run.saves(), 0);
   assert.equal(run.logs[0].audit?.stage, "search");

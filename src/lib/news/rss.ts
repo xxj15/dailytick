@@ -3,7 +3,7 @@ import { NEWS_FEED_ITEMS_PER_FEED, NEWS_FEED_MAX_AGE_HOURS, NEWS_FEEDS } from "@
 import { isFreshSource, type DateString } from "@/lib/date";
 import { normalizeEvidenceText } from "@/lib/news/extract-source";
 import { fetchSource, type SourceResponse } from "@/lib/news/fetch-source";
-import { sourceMatchKey } from "@/lib/news/search-provenance";
+import { sourceMatchKey } from "@/lib/news/url-key";
 import type { NewsCandidate, NewsCategory, NewsRegion } from "@/types/briefing";
 
 /**
