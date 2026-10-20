@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
-import { freshSourceWindowKST, getTodayKST, isFreshSource } from "@/lib/date";
+import { getTodayKST, isFreshSource } from "@/lib/date";
 
 /**
  * 서버는 대부분 UTC로 돈다. 날짜가 하루 어긋나면
@@ -47,17 +47,10 @@ test("파트별 발행 하한선을 넘기면 그 기준으로 판정한다", ()
   assert.equal(isFreshSource("2026-10-09T23:59:59+09:00", date, 168), false);
 });
 
-test("수집 프롬프트에 적는 게시 시각 범위는 서버 신선도 검사의 경계와 같다", () => {
+test("신선도 검사의 경계: 기준일 자정 72시간 전부터 기준일 23:59:59까지 받는다", () => {
   const date = "2026-10-19";
-  const range = freshSourceWindowKST(date);
-  assert.deepEqual(range, { from: "2026-10-16 00:00", to: "2026-10-19 23:59" });
-
-  // 적힌 범위의 양 끝은 통과하고, 그 바깥은 떨어진다
   assert.equal(isFreshSource("2026-10-16T00:00:00+09:00", date), true);
   assert.equal(isFreshSource("2026-10-15T23:59:59+09:00", date), false);
   assert.equal(isFreshSource("2026-10-19T23:59:59+09:00", date), true);
   assert.equal(isFreshSource("2026-10-20T00:00:00+09:00", date), false);
-
-  // 파트별 하한선을 넘기면 그 기준으로 적는다. 월이 바뀌어도 KST 날짜로 적는다
-  assert.deepEqual(freshSourceWindowKST("2026-11-02", 168), { from: "2026-10-26 00:00", to: "2026-11-02 23:59" });
 });

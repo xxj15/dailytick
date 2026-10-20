@@ -34,8 +34,16 @@ export function validateSourceUrl(value: string): URL {
 
 export type SourceResponse = { url: string; body: string; contentType: string };
 
+/** 받는 응답 종류. page는 기사 본문(HTML), feed는 RSS·Atom(XML)이다. */
+export type SourceKind = "page" | "feed";
+
+const ACCEPTED: Record<SourceKind, { header: string; type: RegExp }> = {
+  page: { header: "text/html, text/plain", type: /^(text\/html|application\/xhtml\+xml|text\/plain)\b/i },
+  feed: { header: "application/rss+xml, application/atom+xml, application/xml, text/xml", type: /^(application\/(rss\+|atom\+)?xml|text\/xml)\b/i },
+};
+
 /** DNS 결과를 검사한 뒤 같은 주소로 연결한다. redirect마다 다시 검사한다. */
-export async function fetchSource(value: string, parentSignal?: AbortSignal): Promise<SourceResponse> {
+export async function fetchSource(value: string, parentSignal?: AbortSignal, kind: SourceKind = "page"): Promise<SourceResponse> {
   const timeout = AbortSignal.timeout(TIMEOUT_MS);
   const signal = parentSignal ? AbortSignal.any([timeout, parentSignal]) : timeout;
   let url = validateSourceUrl(value);
@@ -55,7 +63,7 @@ export async function fetchSource(value: string, parentSignal?: AbortSignal): Pr
       const req = request(url, {
         signal,
         agent: false,
-        headers: { "User-Agent": "DailyTick/1.0 (financial briefing source reader)", Accept: "text/html, text/plain", "Accept-Encoding": "identity" },
+        headers: { "User-Agent": "DailyTick/1.0 (financial briefing source reader)", Accept: ACCEPTED[kind].header, "Accept-Encoding": "identity" },
         lookup: (_hostname, options, callback) => {
           if (options.all) callback(null, addresses);
           else callback(null, addresses[0].address, 4);
@@ -68,7 +76,7 @@ export async function fetchSource(value: string, parentSignal?: AbortSignal): Pr
           return;
         }
         const contentType = res.headers["content-type"] ?? "";
-        if (status !== 200 || !/^(text\/html|application\/xhtml\+xml|text\/plain)\b/i.test(contentType) ||
+        if (status !== 200 || !ACCEPTED[kind].type.test(contentType) ||
             (res.headers["content-encoding"] && res.headers["content-encoding"] !== "identity")) {
           res.destroy();
           reject(new Error(`본문을 읽을 수 없습니다 (HTTP ${status}, ${contentType}).`));
@@ -88,8 +96,10 @@ export async function fetchSource(value: string, parentSignal?: AbortSignal): Pr
         res.on("end", () => {
           try {
             const buffer = Buffer.concat(chunks);
+            const head = buffer.subarray(0, 4096).toString("ascii");
+            // XML은 <?xml encoding="..."?>에 문자 집합을 적는다.
             const charset = /charset=["']?([^\s;"']+)/i.exec(contentType)?.[1] ??
-              /charset\s*=\s*["']?([^\s"'/>;]+)/i.exec(buffer.subarray(0, 4096).toString("ascii"))?.[1] ?? "utf-8";
+              /charset\s*=\s*["']?([^\s"'/>;]+)/i.exec(head)?.[1] ?? /<\?xml[^>]*encoding=["']([^"']+)/i.exec(head)?.[1] ?? "utf-8";
             resolve({ body: new TextDecoder(charset, { fatal: true }).decode(buffer), contentType });
           } catch {
             reject(new Error("출처 문자 인코딩을 읽을 수 없습니다."));

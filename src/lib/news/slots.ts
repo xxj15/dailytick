@@ -4,7 +4,7 @@ import type { NewsCategory, NewsRegion, NewsSlot, StoredNewsSlot } from "@/types
 /**
  * 주요 이슈 슬롯 규칙. (config/app.ts의 NEWS_SLOTS)
  *
- * 발행 검증(verify.ts), 근거 확인 자리 확보(ground-news.ts), 재수집 판단과 작성 프롬프트가 같은 규칙을 쓴다.
+ * 발행 검증(verify.ts), 근거 확인 자리 확보(ground-news.ts), 빈 슬롯 판단과 작성 프롬프트가 같은 규칙을 쓴다.
  * 서버 전용 코드를 두지 않는다. 테스트에서 부를 수 있어야 한다.
  */
 

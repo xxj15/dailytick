@@ -40,13 +40,6 @@ export const ECONOMY_NEWS_CATEGORIES = [
   "rates", "stocks", "fx", "macro", "industry", "commodities", "policy",
 ] as const;
 
-/** 슬롯에 맞는 후보를 본문으로 확인하지 못했을 때 다시 훑을 수집 섹션. */
-export const NEWS_SLOT_SECTIONS = {
-  top: ["politics", "world", "society", "economy", "tech"],
-  economy: ["economy"],
-  it: ["tech"],
-} as const;
-
 /**
  * 하루 뉴스 분량. 슬롯 수가 최대다. 근거가 없으면 슬롯을 비우고, 하나도 없으면 발행 자체를 중단한다.
  * 최대 건수는 슬롯 고유성 검사(verify.ts)가 지킨다. 저장 스키마의 상한은 트림을 위해 더 넉넉하다.
@@ -87,41 +80,54 @@ export const SOURCE_MAX_AGE_HOURS = 72;
  */
 export const TECH_SOURCE_MAX_AGE_HOURS = 72;
 
-/** 전체 모드(세 슬롯을 한 호출로 수집) 후보 개수. 지금 파이프라인은 슬롯별 1차 수집(NEWS_SLOT_CANDIDATE_COUNT)을 쓴다. */
-export const NEWS_CANDIDATE_COUNT = { min: 10, max: 15 } as const;
+/**
+ * 주요 이슈 후보를 모으는 국내 언론 RSS. (2026-10-20 웹 검색을 대신한다. 웹 검색 비용이 지면 생성 비용의 대부분이었다)
+ * 서버가 기사 본문과 게시 시각을 실제로 읽을 수 있는 매체만 둔다(2026-10-20 로컬 점검).
+ * 조선일보 본지는 본문을 못 읽어, 한겨레는 피드에 게시 시각이 없고 AI 활용 금지를 밝혀 뺐다.
+ * section은 고르기 프롬프트에 붙이는 참고 표시다. 들어갈 슬롯은 고른 후보의 category로 정한다.
+ */
+export const NEWS_FEEDS = [
+  { publisher: "연합뉴스", section: "종합", url: "https://www.yna.co.kr/rss/news.xml" },
+  { publisher: "동아일보", section: "종합", url: "https://rss.donga.com/total.xml" },
+  { publisher: "경향신문", section: "종합", url: "https://www.khan.co.kr/rss/rssdata/total_news.xml" },
+  { publisher: "뉴데일리", section: "종합", url: "https://www.newdaily.co.kr/rss/rss.xml" },
+  { publisher: "연합뉴스", section: "경제", url: "https://www.yna.co.kr/rss/economy.xml" },
+  { publisher: "매일경제", section: "경제", url: "https://www.mk.co.kr/rss/30000001/" },
+  { publisher: "서울경제", section: "경제", url: "https://www.sedaily.com/rss/newsall" },
+  { publisher: "머니투데이", section: "경제", url: "https://rss.mt.co.kr/mt_news.xml" },
+  { publisher: "조선비즈", section: "경제", url: "https://biz.chosun.com/arc/outboundfeeds/rss/?outputType=xml" },
+  { publisher: "전자신문", section: "IT", url: "https://rss.etnews.com/Section901.xml" },
+  { publisher: "ZDNet Korea", section: "IT", url: "https://feeds.feedburner.com/zdkorea" },
+  { publisher: "아이뉴스24", section: "IT", url: "https://www.inews24.com/rss/news_it.xml" },
+  { publisher: "블로터", section: "IT", url: "https://www.bloter.net/rss/allArticle.xml" },
+] as const;
 
 /**
- * 1차 슬롯 수집 호출 하나가 찾는 후보 수.
- * top은 '많이 본 뉴스' 순위에서 빠르게 고른다. economy·it은 사건마다 다시 검색해 개별 기사를 찾느라 검색이 많아,
- * 하나 적게 찾게 해 호출 제한 시간 안에 끝나게 한다.
+ * 피드 하나에서 고르기에 넘기는 최신 기사 수. 제목 한 줄이 입력 토큰 수십 개라
+ * 피드 13개 × 25건이면 고르기 입력이 2만 토큰 안팎이다(웹 검색 수집은 한 번에 30만 토큰을 넘었다).
  */
-export const NEWS_SLOT_CANDIDATE_COUNT = {
-  top: { min: 4, max: 5 },
-  economy: { min: 3, max: 4 },
-  it: { min: 3, max: 4 },
-} as const;
+export const NEWS_FEED_ITEMS_PER_FEED = 25;
+
+/** 고르기에 넘기는 기사의 게시 시각 범위. 기준일 전날 0시부터다(isFreshSource 기준). 아침 발행이면 약 32시간이다. */
+export const NEWS_FEED_MAX_AGE_HOURS = 24;
+
+/** 고르기에서 슬롯마다 받는 후보 수. 근거 확인은 그중 앞의 NEWS_GROUND_PER_SLOT개를 읽는다. */
+export const NEWS_PICKS_PER_SLOT = 3;
+
+/** 기사 고르기 호출의 제한 시간. 웹 검색 없이 제목 목록만 보므로 짧다. */
+export const NEWS_SELECT_TIMEOUT_MS = 60_000;
 
 /**
- * 주요 이슈 수집 호출 하나의 OpenAI 제한 시간.
- * 1차 슬롯 수집은 세 호출이 테크 상식 발굴과 함께 동시에 돌아 느려지기 쉬워 더 길게 준다
- * (2026-10-19 dryRun 4회 중 2회에서 90초에 걸려 슬롯이 비었다).
- * 실측으로는 1차 수집 뒤 근거 확인·큐레이션·작성·검토가 약 40~60초라 120초를 다 써도 실행 기한(260초) 안에 들어간다.
- * 다만 이후 단계가 모두 제한 시간까지 걸리는 최악의 경우(근거 확인 70초 + 큐레이션 45초 + 작성·검토 120초 이상)는
- * 들어가지 않는다. 그런 날은 실행 기한에 걸려 그날 지면이 실패한다. 슬롯이 비는 쪽과 맞바꾼 위험이다.
- * 셋 다 시간 초과일 때의 1차 재시도(RETRY_AFTER_TIMEOUT_MIN_LEFT_MS 150초)는 120초 뒤에는 남은 시간이 모자라 사실상 돌지 않는다.
- * 재수집은 자기 시간 예산이 따로 있고, 전체 모드는 지금 파이프라인이 쓰지 않는다.
+ * 본문을 직접 읽어 근거를 확인할 후보 수 상한. 싣는 기사는 최대 3건이라 슬롯마다 예비 하나씩이면 된다.
+ * 읽는 본문이 곧 근거 문장 고르기의 입력 토큰이다. (2026-10-20 비용 절감으로 12 → 6)
  */
-export const NEWS_COLLECT_TIMEOUT_MS = 90_000;
-export const NEWS_SLOT_COLLECT_TIMEOUT_MS = 120_000;
-
-/** 본문을 직접 읽어 근거를 확인할 후보 수 상한. 수집 시간과 비용의 균형점이다. */
-export const NEWS_GROUND_LIMIT = 12;
+export const NEWS_GROUND_LIMIT = 6;
 
 /**
  * 근거 확인 자리를 슬롯마다 먼저 이만큼 잡은 뒤 나머지를 중요도 순으로 채운다.
  * 중요도로만 자르면 경제·IT 후보가 통째로 빠질 수 있다. 본문 접근 실패에 대비해 하나보다 넉넉히 둔다.
  */
-export const NEWS_GROUND_PER_SLOT = 3;
+export const NEWS_GROUND_PER_SLOT = 2;
 
 /** 테크 상식 발굴: 그날 검색으로 찾는 최근 기술 글 후보 수와 허용 기간. 커리큘럼·아티클 후보와 함께 큐레이터가 본다. */
 export const TECH_DISCOVERY_COUNT = { min: 4, max: 8 } as const;

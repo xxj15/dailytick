@@ -1,16 +1,16 @@
 import "server-only";
-import { NEWS_COLLECT_TIMEOUT_MS, NEWS_SLOT_COLLECT_TIMEOUT_MS } from "@/config/app";
-import { getModel, getOpenAI } from "@/lib/openai/client";
-import { buildNewsCollectionPrompt, buildTechDiscoveryPrompt } from "@/lib/openai/prompts";
+import { NEWS_SELECT_TIMEOUT_MS } from "@/config/app";
+import { getModel, getOpenAI, LIGHT_REASONING } from "@/lib/openai/client";
+import { buildNewsSelectionPrompt, buildTechDiscoveryPrompt } from "@/lib/openai/prompts";
 import {
-  aiNewsCandidateListSchema,
+  aiNewsSelectionSchema,
   aiTechTopicListSchema,
-  newsCandidateListSchema,
   newsCandidateSchema,
   stripNulls,
 } from "@/lib/openai/schemas";
 import type { DateString } from "@/lib/date";
-import type { NewsCandidate, NewsCoverage } from "@/types/briefing";
+import { candidatesFromPicks, collectFeedItems, type FeedItem, type FeedResult } from "@/lib/news/rss";
+import type { NewsCandidate, RecentNewsEntry } from "@/types/briefing";
 import { zodTextFormat } from "openai/helpers/zod";
 import { auditSearchResults, searchTraceFromCalls, SearchAuditError, type SearchTrace } from "@/lib/news/search-provenance";
 
@@ -22,100 +22,67 @@ export class NewsCollectionError extends Error {
 
 export type CollectNewsResult = {
   candidates: NewsCandidate[];
-  /** 섹션별 검색 여부. 주요 이슈 데스크만 채운다. */
-  coverage?: NewsCoverage;
+  /** 피드별 결과. 실패한 피드와 이유가 남는다. */
+  feeds: FeedResult[];
+  /** 고르기에 넘긴 기사 수 */
+  pool: number;
   inputTokens: number;
   outputTokens: number;
   webSearchCalls: number;
-  searchTrace: SearchTrace[];
-  rejectedUrls: string[];
 };
 
-/**
- * STEP 1 — 최신 뉴스 수집.
- *
- * OpenAI Responses API의 web_search tool로 최근 24시간 주요 경제 이슈 후보를 찾는다.
- * 이 단계는 후보를 모으기만 한다. 긴 설명은 STEP 2에서 작성한다.
- *
- * 별도 뉴스 API를 쓰지 않지만, 나중에 교체할 수 있도록 이 함수만 바꾸면 되게 분리해 둔다.
- */
-export function collectMarketNews(
-  date: DateString,
-  signal?: AbortSignal,
-  options: Parameters<typeof buildNewsCollectionPrompt>[1] = {},
-) {
-  return collectNews(buildNewsCollectionPrompt(date, options), signal, newsCollectTimeout(options));
-}
+type CollectDependencies = {
+  feeds: (date: DateString, signal?: AbortSignal) => Promise<{ items: FeedItem[]; feeds: FeedResult[] }>;
+  select: (input: string, signal?: AbortSignal) => Promise<{ picks: unknown; inputTokens: number; outputTokens: number }>;
+};
 
-/**
- * 수집 호출의 제한 시간. 1차 슬롯 수집(slot, 재수집 아님)만 길게 준다. 근거는 config/app.ts의 NEWS_SLOT_COLLECT_TIMEOUT_MS.
- * buildNewsCollectionPrompt처럼 focusSlots가 있으면 재수집으로 본다.
- */
-export function newsCollectTimeout(options: Parameters<typeof buildNewsCollectionPrompt>[1] = {}): number {
-  return options.slot && !options.focusSlots?.length ? NEWS_SLOT_COLLECT_TIMEOUT_MS : NEWS_COLLECT_TIMEOUT_MS;
-}
-
-/**
- * 웹 검색을 여러 번 하는 단계라 다른 AI 호출보다 기한을 길게 준다(newsCollectTimeout).
- * 주요 이슈 1차 수집은 슬롯마다 한 번씩 세 호출이 테크 상식 발굴과 함께 동시에 돈다.
- * 그래서 1차 수집은 가장 느린 호출 하나만큼 걸리고, 전체 실행 기한(260초) 안에서 근거 확인·작성·검토 시간이 남는다.
- */
-async function collectNews(
-  input: string,
-  signal: AbortSignal | undefined,
-  timeout: number,
-): Promise<CollectNewsResult> {
+async function selectFromFeeds(input: string, signal?: AbortSignal) {
   const response = await getOpenAI().responses.parse({
     model: getModel(),
     input,
-    tools: [{ type: "web_search" }],
-    tool_choice: "required",
-    include: ["web_search_call.action.sources"],
-    text: {
-      format: zodTextFormat(aiNewsCandidateListSchema, "news_candidates"),
-    },
-  }, { timeout, maxRetries: 0, signal });
+    reasoning: LIGHT_REASONING,
+    text: { format: zodTextFormat(aiNewsSelectionSchema, "news_selection") },
+  }, { timeout: NEWS_SELECT_TIMEOUT_MS, maxRetries: 0, signal });
+  return { picks: response.output_parsed, inputTokens: response.usage?.input_tokens ?? 0, outputTokens: response.usage?.output_tokens ?? 0 };
+}
 
-  const calls = response.output.filter((item) => item.type === "web_search_call");
-  const usage = {
-    inputTokens: response.usage?.input_tokens ?? 0,
-    outputTokens: response.usage?.output_tokens ?? 0,
-    webSearchCalls: calls.filter((call) => call.action.type === "search").length,
-  };
-  const trace = searchTraceFromCalls(calls);
-
-  if (!response.output_parsed) {
-    throw new NewsCollectionError("뉴스 후보 수집 실패: 구조화된 응답을 받지 못했습니다.", usage, trace);
-  }
-
-  // AI 응답의 null을 걷어낸 뒤 canonical 스키마로 다시 검증한다.
-  const parsed = newsCandidateListSchema.safeParse(
-    stripNulls(response.output_parsed),
-  );
-
-  if (!parsed.success) {
+/**
+ * STEP 1 — 주요 이슈 후보 수집. (2026-10-20 웹 검색을 RSS로 바꿨다. 웹 검색이 지면 생성 비용의 대부분이었다)
+ *
+ * 국내 언론 RSS에서 최근 기사 제목을 모으고(rss.ts), 모델은 그 목록에서 슬롯별 후보를 고르기만 한다. 웹 검색은 하지 않는다.
+ * 후보의 출처는 서버가 모은 RSS 기사뿐이다(candidatesFromPicks). 모델이 URL을 만들 수 없다.
+ * 이 단계는 후보를 고르기만 한다. 사실 확인은 다음 단계가 기사 본문으로 한다.
+ */
+export async function collectMarketNews(
+  date: DateString,
+  signal?: AbortSignal,
+  options: { recentNews?: RecentNewsEntry[] } = {},
+  dependencies: CollectDependencies = { feeds: collectFeedItems, select: selectFromFeeds },
+): Promise<CollectNewsResult> {
+  const { items, feeds } = await dependencies.feeds(date, signal);
+  if (!items.length) {
+    const failed = feeds.filter((feed) => feed.error).map((feed) => `${feed.publisher}: ${feed.error}`);
     throw new NewsCollectionError(
-      `뉴스 후보 검증 실패: ${parsed.error.issues
-        .map((i) => `${i.path.join(".")}: ${i.message}`)
-        .join(", ")}`, usage, trace,
+      `RSS에서 기준일 기사를 하나도 모으지 못했습니다.${failed.length ? ` (${failed.join(" / ")})` : ""}`,
+      { inputTokens: 0, outputTokens: 0, webSearchCalls: 0 }, [],
     );
   }
 
-  let audited;
-  try {
-    audited = auditSearchResults(parsed.data.candidates, calls);
-  } catch (error) {
-    if (error instanceof SearchAuditError) throw new NewsCollectionError(error.message, usage, error.trace, error.rejectedUrls);
-    throw error;
+  const selected = await dependencies.select(buildNewsSelectionPrompt(date, items, options), signal);
+  const usage = { inputTokens: selected.inputTokens, outputTokens: selected.outputTokens, webSearchCalls: 0 };
+  const parsed = aiNewsSelectionSchema.safeParse(selected.picks);
+  if (!parsed.success) {
+    const reason = selected.picks
+      ? parsed.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join(", ")
+      : "구조화된 응답을 받지 못했습니다.";
+    throw new NewsCollectionError(`뉴스 후보 고르기 실패: ${reason}`, usage, []);
   }
-
-  return {
-    candidates: audited.candidates,
-    coverage: parsed.data.coverage,
-    searchTrace: audited.trace,
-    rejectedUrls: audited.rejectedUrls,
-    ...usage,
-  };
+  const candidates = candidatesFromPicks(parsed.data.candidates, items)
+    .flatMap((candidate) => {
+      const checked = newsCandidateSchema.safeParse(candidate);
+      return checked.success ? [checked.data] : [];
+    });
+  return { candidates, feeds, pool: items.length, ...usage };
 }
 
 /** 그날 검색으로 찾은 테크 상식 후보. candidate는 근거 확인 파이프라인에 그대로 넘길 수 있는 모양이다. */

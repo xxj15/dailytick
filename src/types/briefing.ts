@@ -5,7 +5,6 @@ import type {
   marketImpactSchema,
   newsCandidateSchema,
   newsCategorySchema,
-  newsCoverageSchema,
   newsIssueSchema,
   newsRegionSchema,
   newsSlotSchema,
@@ -25,7 +24,6 @@ export type MarketImpact = z.infer<typeof marketImpactSchema>;
 export type NewsIssue = z.infer<typeof newsIssueSchema>;
 export type KnowledgeItem = z.infer<typeof knowledgeItemSchema>;
 export type NewsCandidate = z.infer<typeof newsCandidateSchema>;
-export type NewsCoverage = z.infer<typeof newsCoverageSchema>;
 
 /** AI가 생성한 브리핑 본문 (DB 저장 전) */
 export type DailyBriefingContent = z.infer<typeof dailyBriefingSchema>;

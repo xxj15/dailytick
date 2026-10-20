@@ -1,9 +1,8 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
 import { groundCandidates, isKoreanText, type CandidateDocuments } from "@/lib/news/ground-candidates";
-import { boundForGrounding, groundMarketNews, unseenCandidates } from "@/lib/openai/ground-news";
+import { boundForGrounding, groundMarketNews } from "@/lib/openai/ground-news";
 import { NEWS_GROUND_LIMIT } from "@/config/app";
-import type { NewsCandidate } from "@/types/briefing";
 
 const quote = "위원회는 이번 회의에서 기준금리를 동결하기로 결정했다고 발표했다.";
 const input: CandidateDocuments = {
@@ -158,20 +157,4 @@ test("후보가 근거 확인 한도보다 많아도 중요도가 가장 낮은 
   assert.ok(fetched.includes("https://example.com/economy") && fetched.includes("https://example.com/it"));
   assert.ok(result.candidates.some((candidate) => candidate.title === "국내 정책"));
   assert.ok(result.candidates.some((candidate) => candidate.title === "AI 발표"));
-});
-
-test("재수집 후보는 앞선 후보와 겹치는 출처만 빼고 남은 출처로 살린다", () => {
-  const source = (url: string) => ({ ...input.candidate.sources[0], url });
-  const previous: NewsCandidate[] = [{ ...input.candidate, title: "1차 후보", sources: [source("https://www.example.com/read/?utm_source=x")] }];
-  const partly = { ...input.candidate, title: "새 후보", sources: [source("https://example.com/read"), source("https://example.com/new")] };
-  const overlapped = { ...input.candidate, title: "같은 기사만 있는 후보", sources: [source("https://m.example.com/read")] };
-  const sameTitle = { ...input.candidate, title: " 1차 후보 ", sources: [source("https://example.com/other")] };
-  const untouched = { ...input.candidate, title: "완전히 새 후보", sources: [source("https://example.com/fresh")] };
-  const result = unseenCandidates([partly, overlapped, sameTitle, untouched], previous);
-  assert.deepEqual(result.map((candidate) => [candidate.title, candidate.sources.map((s) => s.url)]), [
-    ["새 후보", ["https://example.com/new"]],
-    ["완전히 새 후보", ["https://example.com/fresh"]],
-  ]);
-  // 겹치는 출처가 없으면 후보를 그대로 둔다
-  assert.equal(result[1], untouched);
 });

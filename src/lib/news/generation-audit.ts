@@ -1,4 +1,5 @@
 import type { GroundedCandidate, EvidenceRejection } from "@/lib/news/evidence-types";
+import type { FeedResult } from "@/lib/news/rss";
 import type { SearchTrace } from "@/lib/news/search-provenance";
 import type { ReviewRecord } from "@/lib/openai/generate-briefing";
 import type { BriefingViolation, NewsSlot } from "@/types/briefing";
@@ -12,48 +13,28 @@ export type GenerationAudit = {
   reviews: ReviewRecord[];
   /** IT 파트는 경제 파트와 따로 성패가 갈리므로 위반·실패 사유를 자기 안에 둔다. */
   tech?: TechAudit;
-  /** 주요 이슈 수집이 다섯 섹션을 실제로 훑었는가. 건수가 적을 때 원인을 가른다. */
+  /** 주요 이슈를 어떤 피드에서 몇 건 모아 슬롯을 얼마나 채웠는가. 건수가 적을 때 원인을 가른다. */
   coverage?: CoverageAudit;
   /** 상식을 어떻게 골랐는가. 큐레이터 추천·채택·탈락·대체 사유를 남긴다. */
   curation?: CurationAudit;
 };
 
 export type CoverageAudit = {
-  sections: { section: string; searched: boolean; note: string }[];
+  /** RSS 피드별 결과. 실패한 피드와 이유가 남는다. */
+  feeds: FeedResult[];
+  /** 고르기에 넘긴 기사 수(중복·범위 밖 기사를 뺀 수) */
+  pool: number;
   /**
-   * 본문 근거 확인(재수집 포함)을 마친 뒤 세 슬롯을 채울 수 있는가. 빈 슬롯이 있으면 원인을 아래 순서로 가른다.
+   * 본문 근거 확인을 마친 뒤 세 슬롯을 채울 수 있는가. 빈 슬롯이 있으면 원인을 가른다.
    * ok = 세 슬롯 모두 근거 있는 후보가 있다
-   * sources_failed = 수집한 후보로는 채울 수 있던 빈 슬롯이 있다. 그 후보가 본문·게시일 확인에서 떨어졌다 (출처 품질 문제)
-   * narrow_search = 빈 슬롯에 맞는 후보 자체가 없었고, 섹션을 덜 훑었다 (검색 범위 문제)
-   * thin_day = 빈 슬롯에 맞는 후보 자체가 없었고, 섹션은 다 훑었다 (그날 사정)
+   * sources_failed = 고른 후보로는 채울 수 있던 빈 슬롯이 있다. 그 후보가 본문·게시일 확인에서 떨어졌다 (출처 품질 문제)
+   * thin_day = 빈 슬롯에 맞는 후보 자체가 없었다 (그날 사정이거나 피드가 실패했다. feeds를 본다)
    */
-  verdict: "ok" | "thin_day" | "narrow_search" | "sources_failed";
-  /** 빈 슬롯 때문에 재수집을 시도했는가. 실패했어도 true다. */
-  recollected: boolean;
-  /** 재수집을 겨냥한 슬롯. 재수집하지 않았으면 비어 있다. */
-  recollectedSlots: NewsSlot[];
-  /**
-   * 재수집(수집 또는 근거 확인)이 실패했거나 끝까지 하지 못한 이유. 재수집 시간 예산 초과, 근거 확인할 시간 부족도 여기 남는다.
-   * 실패해도 1차 결과로 발행한다. 성공했거나 재수집하지 않았으면 없다.
-   */
-  recollectError?: string;
-  /**
-   * 1차 수집의 슬롯별 호출 결과(슬롯 순서). 1차 수집은 슬롯마다 따로 돌고, 일부가 실패해도 나머지 슬롯 후보로 진행한다.
-   * 셋 다 실패하면 수집 실패로 멈추므로 이 기록까지 오지 않는다(이유는 오류 메시지에 남는다).
-   */
-  firstPass: SlotCollectAudit[];
+  verdict: "ok" | "thin_day" | "sources_failed";
   candidates: number;
   grounded: number;
   /** 슬롯별 결과. 어떤 슬롯이 왜 비었는지 여기서 본다. */
   slots: SlotAudit[];
-};
-
-export type SlotCollectAudit = {
-  slot: NewsSlot;
-  /** 그 호출이 낸 후보 수. 다른 슬롯 호출과 겹쳐 합칠 때 빠진 후보도 센다. 실패했으면 0이다. */
-  candidates: number;
-  /** 실패했다면 그 이유. 시간 초과로 다시 시도했으면 마지막 시도 기준이다. */
-  error?: string;
 };
 
 export type SlotAudit = {

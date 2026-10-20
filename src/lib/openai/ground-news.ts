@@ -6,7 +6,7 @@ import type { EvidenceRejection, SourceDocument } from "@/lib/news/evidence-type
 import { extractSource } from "@/lib/news/extract-source";
 import { fetchSource, type SourceResponse } from "@/lib/news/fetch-source";
 import { buildFactSelectionPrompt, factSelectionSchema, groundCandidates, isKoreanText, type CandidateDocuments, type FactSelection } from "@/lib/news/ground-candidates";
-import { sourceMatchKey, sourceUrlKey } from "@/lib/news/search-provenance";
+import { sourceUrlKey } from "@/lib/news/search-provenance";
 import { fitsSlot } from "@/lib/news/slots";
 import { getModel, getOpenAI, LIGHT_REASONING } from "@/lib/openai/client";
 import type { NewsCandidate } from "@/types/briefing";
@@ -52,23 +52,6 @@ export function boundForGrounding(candidates: NewsCandidate[]): NewsCandidate[] 
   return sorted.filter((candidate) => kept.has(candidate));
 }
 
-/**
- * 재수집 후보에서 앞선 후보(본문을 읽었거나 지금 읽을 후보)와 겹치는 부분을 걸러낸다.
- * 앞선 후보와 같은 출처 URL은 빼고 나머지 출처로 후보를 남긴다. 이미 본문을 확인했거나 확인에 실패한 기사를 다시 읽지 않기 위해서다.
- * 후보 전체를 빼는 것은 제목이 같거나(같은 후보) 남은 출처가 없을 때뿐이다. 새로 읽을 수 있는 출처까지 버리지 않는다.
- */
-export function unseenCandidates(candidates: NewsCandidate[], previous: NewsCandidate[]): NewsCandidate[] {
-  const titles = new Set(previous.map((candidate) => candidate.title.trim()));
-  const urlKey = (url: string) => sourceMatchKey(url) ?? url;
-  const urls = new Set(previous.flatMap((candidate) => candidate.sources.map((source) => urlKey(source.url))));
-  return candidates.flatMap((candidate) => {
-    if (titles.has(candidate.title.trim())) return [];
-    const sources = candidate.sources.filter((source) => !urls.has(urlKey(source.url)));
-    if (!sources.length) return [];
-    return [sources.length === candidate.sources.length ? candidate : { ...candidate, sources }];
-  });
-}
-
 /** 수집 실패는 후보별로 기록한다. 확보한 본문이 없으면 AI를 호출하지 않는다. */
 export async function groundMarketNews(
   candidates: NewsCandidate[],
@@ -80,7 +63,7 @@ export async function groundMarketNews(
   allowUndated = false,
   /**
    * 후보 id 접두어. id는 `${idPrefix}1`부터 매기고 근거 문장 id는 `${id}-f1`이다.
-   * 재수집 결과를 앞선 결과에 합칠 때 id가 겹치지 않도록 다른 접두어를 쓴다.
+   * 테크 상식처럼 여러 근거 확인 결과를 함께 넘길 때 id가 겹치지 않도록 다른 접두어를 쓴다.
    */
   idPrefix = "c",
   /**

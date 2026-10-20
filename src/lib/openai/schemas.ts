@@ -14,9 +14,6 @@ export const newsSlotSchema = z.enum(NEWS_SLOTS);
 /** 저장된 기사의 자리. 지금 슬롯에 더해 예전 슬롯(국내 정세)도 읽는다. */
 export const storedNewsSlotSchema = z.enum([...NEWS_SLOTS, ...LEGACY_NEWS_SLOTS]);
 
-/** 주요 이슈 수집에서 훑는 다섯 섹션. 실제로 어느 섹션을 훑었는지 보고하는 단위이고, 빈 슬롯을 다시 수집할 때 겨냥하는 범위다. */
-export const newsSectionSchema = z.enum(["politics", "world", "society", "economy", "tech"]);
-
 export const newsCategorySchema = z.enum([
   "rates",
   "stocks",
@@ -162,29 +159,15 @@ export const techSectionSchema = z.object({
   newsItems: z.array(newsIssueSchema).max(TECH_NEWS_PER_DAY.max),
 });
 
-/** STEP 1 — 뉴스 후보 수집 결과 */
+/** STEP 1 — 뉴스 후보. RSS에서 고른 기사(rss.ts candidatesFromPicks)와 테크 상식 원문이 이 모양이다. */
 export const newsCandidateSchema = z.object({
   title: z.string().min(1),
   summary: z.string().min(1),
   region: newsRegionSchema,
   category: newsCategorySchema,
-  section: newsSectionSchema.optional(),
-  // AI 출력 스키마는 정수·범위를 강제하지 못한다. 8.5·10.5 같은 값 하나로 슬롯 수집 전체를 버리지 않도록
-  // 반올림한 뒤 1~10으로 자른다. (테크 발굴의 discoverTechTopics와 같은 방식)
+  // AI 출력 스키마는 정수·범위를 강제하지 못한다. 8.5·10.5 같은 값 하나로 후보를 버리지 않도록 반올림한 뒤 1~10으로 자른다.
   importance: z.number().transform((value) => Math.min(10, Math.max(1, Math.round(value)))),
   sources: z.array(newsSourceSchema).min(1),
-});
-
-/** 섹션별로 실제로 검색했는가. '중요한 사건이 적은 날'과 '검색이 좁았던 날'을 가르는 근거다. */
-export const newsCoverageSchema = z.array(z.object({
-  section: newsSectionSchema,
-  searched: z.boolean(),
-  note: z.string(),
-}));
-
-export const newsCandidateListSchema = z.object({
-  candidates: z.array(newsCandidateSchema),
-  coverage: newsCoverageSchema.optional(),
 });
 
 /* ------------------------------------------------------------------
@@ -271,20 +254,16 @@ export const curatorSchema = z.object({
   picks: z.array(z.object({ id: z.string(), title: z.string(), reason: z.string() })),
 });
 
-/** STEP 1 응답 형식 */
-export const aiNewsCandidateListSchema = z.object({
-  coverage: newsCoverageSchema,
-  candidates: z.array(
-    z.object({
-      title: z.string(),
-      summary: z.string(),
-      region: newsRegionSchema,
-      category: newsCategorySchema,
-      section: newsSectionSchema,
-      importance: z.number(),
-      sources: z.array(aiNewsSourceSchema),
-    }),
-  ),
+/** STEP 1 응답 형식. RSS 기사 목록에서 고른 후보. 출처 URL은 서버가 itemIds로 붙인다. */
+export const aiNewsSelectionSchema = z.object({
+  candidates: z.array(z.object({
+    itemIds: z.array(z.string()),
+    title: z.string(),
+    summary: z.string(),
+    region: newsRegionSchema,
+    category: newsCategorySchema,
+    importance: z.number(),
+  })),
 });
 
 /**
