@@ -1133,9 +1133,9 @@ test("테크 상식: 프론트엔드 미학습 개념이 바닥나면 다른 분
   assert.equal(items[1].review, true);
 });
 
-test("경제 상식 후보: 경제 기초는 하나만 올리고, 금융·IT 산업 갈래를 함께 올린다", () => {
+test("경제 상식 후보: 경제 기초와 금융·IT 산업은 하나씩만 올리고, 금융시장 같은 중심 갈래는 셋씩 올린다", () => {
   const pool = economyCandidates([]);
   assert.equal(pool.filter((candidate) => candidate.category === "경제 기초").length, 1);
-  assert.equal(pool.filter((candidate) => candidate.category === "금융·IT 산업").length, 3);
+  assert.equal(pool.filter((candidate) => candidate.category === "금융·IT 산업").length, 1);
   assert.equal(pool.filter((candidate) => candidate.category === "금융시장").length, 3);
 });

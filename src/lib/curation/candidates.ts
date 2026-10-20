@@ -109,11 +109,14 @@ export const ECONOMY_GROUP: Record<string, string> = {
   "digital-finance": "금융·IT 산업",
 };
 
-/** 경제 상식 갈래별로 후보에 올리는 수. 경제 기초는 지나치게 기초적인 개념이 많아 하나만 올린다(2026-10-20 사용자 요청: 후순위). */
-const ECONOMY_PER_GROUP: Record<string, number> = { "경제 기초": 1 };
+/**
+ * 경제 상식 갈래별로 후보에 올리는 수(2026-10-20 사용자 결정).
+ * 경제 기초는 지나치게 기초적인 개념이 많아, 금융·IT 산업은 중심이 아니라 가산 요소라 하나씩만 올린다.
+ */
+const ECONOMY_PER_GROUP: Record<string, number> = { "경제 기초": 1, "금융·IT 산업": 1 };
 const ECONOMY_DEFAULT_PER_GROUP = 3;
 
-/** 경제 상식 후보: 미학습 개념을 일곱 갈래에서 3개씩(경제 기초는 1개). 갈래 안에서는 커리큘럼 순서(쉬운 것부터)를 따른다. */
+/** 경제 상식 후보: 미학습 개념을 일곱 갈래에서 3개씩(경제 기초·금융·IT 산업은 1개). 갈래 안에서는 커리큘럼 순서(쉬운 것부터)를 따른다. */
 export function economyCandidates(history: ConceptHistoryEntry[]): KnowledgeCandidate[] {
   const seen = learned(history);
   const unseen = CURRICULUM.filter((concept) => !seen.slugs.has(concept.slug))
