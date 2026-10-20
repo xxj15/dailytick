@@ -124,6 +124,19 @@ export const NEWS_GROUND_LIMIT = 6;
 export const NEWS_GROUND_PER_SLOT = 2;
 
 /**
+ * OpenAI 단가(USD). gpt-5.6-luna 공식 단가다(2026-10-20 developers.openai.com/api/docs/pricing 확인).
+ * OPENAI_MODEL을 바꾸면 함께 고친다. 웹 검색은 지금 쓰지 않지만 이전 생성 로그의 사용액을 셀 때 쓴다.
+ */
+export const OPENAI_PRICE_USD = { inputPer1M: 0.2, outputPer1M: 1.2, webSearchCall: 0.01 } as const;
+
+/**
+ * 수동 실행(force 재생성·dryRun 미리보기)의 월 예산(USD). 이번 달 추정 사용액이 이 값에 닿으면 서버가 수동 실행을 거절한다.
+ * 크레딧 $10로 최소 한 달을 버티기 위한 상한이다(2026-10-20 사용자 요청). 나머지는 매일 자동 발행 몫이다(하루 몇 센트).
+ * 매일 자동 발행은 막지 않는다.
+ */
+export const MANUAL_RUN_BUDGET_USD = 5;
+
+/**
  * 뉴스 출처 선호 매체. (명세 §17)
  * 독자가 한국 증권시장 기준으로 읽으므로 국내 경제지를 우선한다.
  * 화이트리스트가 아니라 '가급적 이 안에서 고르라'는 우선순위다.

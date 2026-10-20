@@ -40,6 +40,7 @@ function harness() {
     getBriefingByDate: async () => null,
     getConceptHistory: async () => [], getTechConceptHistory: async () => [], getRecentNews: async () => [],
     getModel: () => "test",
+    getUsageSince: async () => ({ inputTokens: 0, outputTokens: 0, webSearchCalls: 0 }),
     startGenerationLog: async () => "log-1",
     finishGenerationLog: async (_id, result) => { logs.push(structuredClone(result)); },
     collectMarketNews: async (...args) => { calls.collect.push(args[2]); return { ...searched, inputTokens: 10, outputTokens: 5, webSearchCalls: 0 }; },
@@ -999,21 +1000,47 @@ test("기사가 적은 날 키워드가 1~2개여도 지면 검증을 통과하�
   assert.equal(dailyBriefingSchema.safeParse({ ...content, todayKeywords: ["가", "나", "다", "라", "마", "바"] }).success, false);
 });
 
-test("미리보기(dryRun)는 같은 흐름을 돌리되 저장도 로그도 남기지 않는다", async () => {
+test("미리보기(dryRun)는 같은 흐름을 돌리되 브리핑은 저장하지 않고, 사용량을 세도록 생성 로그는 남긴다", async () => {
   const run = harness();
-  let started = false;
   const result = await createDailyBriefing(DATE, { dryRun: true }, { ...run.services,
     getBriefingByDate: async () => run.existing,
-    startGenerationLog: async () => { started = true; return "log"; },
   });
   assert.equal(result.dryRun, true);
   assert.equal(result.reused, false);
   assert.equal(run.saves(), 0);
-  assert.equal(started, false);
   assert.ok(result.briefing.newsItems.length);
-  // 로그를 남기지 않으므로 쓴 토큰은 결과로 돌려준다. 웹 검색은 쓰지 않는다
+  assert.equal(run.logs[0].status, "success");
+  assert.equal(run.logs[0].audit?.dryRun, true);
+  assert.ok((run.logs[0].inputTokens ?? 0) > 0);
+  // 쓴 토큰은 결과로도 돌려준다. 웹 검색은 쓰지 않는다
   assert.ok((result.usage?.inputTokens ?? 0) > 0);
   assert.equal(result.usage?.webSearchCalls, 0);
+});
+
+test("이번 달 사용액이 수동 실행 예산에 닿으면 재생성·미리보기는 아무것도 하지 않고 거절한다", async () => {
+  // gpt-5.6-luna 단가로 $5.20어치(입력 2,000만 토큰 $4 + 출력 100만 토큰 $1.2)
+  const spent = { inputTokens: 20_000_000, outputTokens: 1_000_000, webSearchCalls: 0 };
+  for (const options of [{ force: true }, { dryRun: true }]) {
+    const run = harness();
+    let since = "";
+    await assert.rejects(() => createDailyBriefing(DATE, options, { ...run.services,
+      getUsageSince: async (value) => { since = value; return spent; },
+    }), (error: Error) => error.name === "BudgetExceededError" && /\$5\.20.*수동 실행 예산 \$5/.test(error.message));
+    // 이번 달 1일 0시(KST)부터 센다
+    assert.match(since, /^\d{4}-\d{2}-01T00:00:00\+09:00$/);
+    assert.equal(run.calls.collect.length, 0);
+    assert.equal(run.logs.length, 0);
+  }
+});
+
+test("매일 자동 발행은 수동 실행 예산과 상관없이 돈다", async () => {
+  const run = harness();
+  let checked = false;
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    getUsageSince: async () => { checked = true; return { inputTokens: 1e9, outputTokens: 1e9, webSearchCalls: 0 }; },
+  });
+  assert.equal(checked, false);
+  assert.equal(run.saves(), 1);
 });
 
 test("본문을 하나도 확보하지 못하면 작성과 저장을 건너뛰고 탈락 이유를 남긴다", async () => {

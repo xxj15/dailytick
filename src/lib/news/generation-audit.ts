@@ -4,6 +4,8 @@ import type { ReviewRecord } from "@/lib/openai/generate-briefing";
 import type { BriefingViolation, NewsSlot } from "@/types/briefing";
 
 export type GenerationAudit = {
+  /** 저장하지 않은 미리보기 생성이다. 사용량을 세려고 로그만 남긴다. */
+  dryRun?: true;
   stage: "history" | "search" | "sources" | "generation" | "save" | "complete";
   sourceRejections: EvidenceRejection[];
   evidence: { candidateId: string; facts: GroundedCandidate["facts"]; documents: Omit<GroundedCandidate["documents"][number], "text">[] }[];

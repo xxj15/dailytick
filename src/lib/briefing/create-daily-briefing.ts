@@ -1,5 +1,5 @@
 import "server-only";
-import { ECONOMY_CONCEPTS_PER_DAY, NEWS_SLOTS, TECH_CONCEPTS_PER_DAY } from "@/config/app";
+import { ECONOMY_CONCEPTS_PER_DAY, MANUAL_RUN_BUDGET_USD, NEWS_SLOTS, TECH_CONCEPTS_PER_DAY } from "@/config/app";
 import { CURRICULUM, type Concept } from "@/data/curriculum";
 import { TECH_CURRICULUM } from "@/data/tech-curriculum";
 import {
@@ -14,7 +14,8 @@ import {
   collectLearnedTitles,
   selectTodayConcepts,
 } from "@/lib/curriculum/select-next-concepts";
-import type { DateString } from "@/lib/date";
+import { BudgetExceededError, estimateCostUsd, monthStartKST, type Usage } from "@/lib/cost";
+import { getTodayKST, type DateString } from "@/lib/date";
 import { collectMarketNews, NewsCollectionError } from "@/lib/openai/collect-news";
 import { curateKnowledge, type CuratorPick } from "@/lib/openai/curate";
 import { groundMarketNews, GroundNewsError } from "@/lib/openai/ground-news";
@@ -34,6 +35,7 @@ import {
 } from "@/lib/supabase/briefings";
 import {
   finishGenerationLog,
+  getUsageSince,
   startGenerationLog,
 } from "@/lib/supabase/generation-logs";
 import type { Briefing, ConceptHistoryEntry, GroundedSection, NewsCandidate, RecentNewsEntry, TechSection } from "@/types/briefing";
@@ -50,7 +52,7 @@ const defaultServices = {
     groundMarketNews(candidates, date, undefined, signal, maxAgeHours, allowUndated, idPrefix, koreanOnly),
   generateDailyBriefing: (params: Parameters<typeof generateDailyBriefing>[0]) => generateDailyBriefing(params),
   generateTechSection: (params: Parameters<typeof generateTechSection>[0]) => generateTechSection(params),
-  saveBriefing, getModel, startGenerationLog, finishGenerationLog,
+  saveBriefing, getModel, startGenerationLog, finishGenerationLog, getUsageSince,
 };
 export type BriefingServices = typeof defaultServices;
 
@@ -66,7 +68,6 @@ export type CreateBriefingResult = {
   usage?: Usage;
 };
 
-export type Usage = { inputTokens: number; outputTokens: number; webSearchCalls: number };
 
 /** 실행 기한. Vercel 실행 제한(300초) 전에 정리할 시간을 남긴다. */
 const DEADLINE_MS = 260_000;
@@ -89,7 +90,11 @@ const TECH_DEADLINE_MS = DEADLINE_MS - TECH_SAVE_RESERVE_MS;
  * 함께 쓴 항목이 작성·검토를 통과하지 못하면 한 항목으로 줄여 다시 쓴다.
  * 그래도 통과하지 못하거나, 자기 기한(TECH_DEADLINE_MS)을 넘기거나, 커리큘럼이 비어 고를 것이 없으면 그날만 테크 상식을 빼고 발행한다.
  *
- * dryRun이면 같은 흐름을 돌리되 DB에 아무것도 쓰지 않고 결과만 돌려준다. 발행 전 검증용이다.
+ * dryRun이면 같은 흐름을 돌리되 브리핑을 저장하지 않고 결과만 돌려준다. 발행 전 검증용이다.
+ * 다만 사용량을 세도록 생성 로그는 남긴다(audit.dryRun). 미리보기도 크레딧을 쓴다.
+ *
+ * 수동 실행(force 재생성·dryRun 미리보기)은 이번 달 추정 사용액이 MANUAL_RUN_BUDGET_USD에 닿으면 시작하지 않는다(BudgetExceededError).
+ * 매일 자동 발행(force·dryRun 없음)은 막지 않는다.
  */
 export async function createDailyBriefing(
   date: DateString,
@@ -104,11 +109,17 @@ export async function createDailyBriefing(
     if (existing) return { briefing: existing, reused: true };
   }
 
-  const logId = dryRun ? null : await services.startGenerationLog(date);
+  // 크레딧이 빠듯하다. 수동 실행은 이번 달 예산 안에서만 한다. 사용액을 읽지 못하면 그 오류로 멈춘다.
+  if (options.force || dryRun) {
+    const spent = estimateCostUsd(await services.getUsageSince(monthStartKST(getTodayKST())));
+    if (spent >= MANUAL_RUN_BUDGET_USD) throw new BudgetExceededError(spent);
+  }
+
+  const logId = await services.startGenerationLog(date);
   const startedAt = Date.now();
   const timeout = AbortSignal.timeout(DEADLINE_MS);
   const signal = options.signal ? AbortSignal.any([timeout, options.signal]) : timeout;
-  const audit: GenerationAudit = emptyAudit();
+  const audit: GenerationAudit = { ...emptyAudit(), ...(dryRun ? { dryRun: true as const } : {}) };
   const usage: Usage = { inputTokens: 0, outputTokens: 0, webSearchCalls: 0 };
   const addUsage = (part: Partial<Usage>) => {
     usage.inputTokens += part.inputTokens ?? 0;

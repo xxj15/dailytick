@@ -1,4 +1,5 @@
 import { createDailyBriefing } from "@/lib/briefing/create-daily-briefing";
+import { BudgetExceededError } from "@/lib/cost";
 import { summarizeAudit, type GenerationAudit } from "@/lib/news/generation-audit";
 import { getTodayKST, isDateString } from "@/lib/date";
 import { getServerEnv } from "@/lib/env";
@@ -61,6 +62,10 @@ export async function POST(request: NextRequest) {
       ...(dryRun && { dryRun: true, briefing }),
     });
   } catch (error) {
+    // 이번 달 수동 실행 예산을 다 썼다. 생성을 시작하지 않았으므로 기록할 것이 없다.
+    if (error instanceof BudgetExceededError) {
+      return Response.json({ ok: false, date, error: error.message, spentUsd: Number(error.spentUsd.toFixed(2)) }, { status: 429 });
+    }
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[cron] 브리핑 생성 실패(${date})`, error);
 

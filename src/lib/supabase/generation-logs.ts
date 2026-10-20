@@ -1,4 +1,5 @@
 import "server-only";
+import type { Usage } from "@/lib/cost";
 import { getSupabase } from "@/lib/supabase/client";
 import type { DateString } from "@/lib/date";
 import type { BriefingViolation, GenerationStatus } from "@/types/briefing";
@@ -71,4 +72,23 @@ export async function finishGenerationLog(
   } catch (error) {
     console.error("[generation-log] 종료 기록 실패", error);
   }
+}
+
+/**
+ * since 이후 시작한 생성(미리보기 포함)의 사용량 합계. 수동 실행 예산 가드가 쓴다.
+ * 다른 함수와 달리 실패를 던진다. 사용액을 모르면 수동 실행을 막는 쪽으로 실패해야 한다.
+ */
+export async function getUsageSince(since: string): Promise<Usage> {
+  const { data, error } = await getSupabase()
+    .from(TABLE)
+    .select("input_tokens, output_tokens, web_search_calls")
+    .gte("started_at", since)
+    .returns<{ input_tokens: number | null; output_tokens: number | null; web_search_calls: number | null }[]>();
+
+  if (error) throw new Error(`생성 로그 사용량을 읽지 못했습니다: ${error.message}`);
+  return (data ?? []).reduce<Usage>((sum, row) => ({
+    inputTokens: sum.inputTokens + (row.input_tokens ?? 0),
+    outputTokens: sum.outputTokens + (row.output_tokens ?? 0),
+    webSearchCalls: sum.webSearchCalls + (row.web_search_calls ?? 0),
+  }), { inputTokens: 0, outputTokens: 0, webSearchCalls: 0 });
 }
