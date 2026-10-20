@@ -4,7 +4,7 @@ import { rotateByCategory } from "@/lib/curriculum/rotate";
  * 경제 상식 Curriculum.
  *
  * AI가 매일 마음대로 주제를 고르지 않는다. 출제 순서는 코드가 정한다.
- * 경제(경제 기초·거시·금리·글로벌)와 증권(시장·기업가치·상품·재무 등) 두 갈래를 번갈아 낸다.
+ * 경제(경제 기초·거시·금리·글로벌), 증권(시장·기업가치·상품·재무 등), 경영(기업이 돈을 버는 방식·지배구조) 세 갈래를 번갈아 낸다.
  * 각 갈래 안에서는 아래 배열 순서(기초 → 중급)를 따른다.
  *
  * slug는 학습 이력으로 DB에 남는다. 이미 쓴 slug는 바꾸거나 지우지 않는다.
@@ -21,7 +21,8 @@ export type CurriculumCategory =
   | "risk"
   | "financial-statements"
   | "market-structure"
-  | "global-markets";
+  | "global-markets"
+  | "business";
 
 /** 경제·IT 커리큘럼이 공유하는 모양. 개념 선정·검증 코드는 이 타입만 안다. */
 export type Concept = {
@@ -43,9 +44,10 @@ export type KnowledgeFormat = "concept" | "article" | "trend" | "practice";
 export type CurriculumConcept = Concept & { category: CurriculumCategory };
 
 /** 지면에 표시하는 큰 갈래. 상식 카테고리 칩과 출제 순환의 기준이다. */
-export type EconomyField = "economy" | "securities";
+export type EconomyField = "economy" | "securities" | "business";
 
 export function economyField(category: string): EconomyField {
+  if (category === "business") return "business";
   return ["economy-basics", "macro", "rates-bonds", "global-markets"].includes(category) ? "economy" : "securities";
 }
 
@@ -181,6 +183,26 @@ const ALL: CurriculumConcept[] = [
   { slug: "diversification", title: "분산투자와 상관관계", level: 10, category: "global-markets" },
   { slug: "alpha-beta", title: "알파와 베타", level: 10, category: "global-markets" },
   { slug: "sharpe-ratio", title: "샤프지수", level: 10, category: "global-markets" },
+
+  // 경영 — 기업이 돈을 버는 방식과 기업을 움직이는 구조. 기업 뉴스를 읽고 면접에서 말하는 데 필요한 상식 (2026-10-20 추가)
+  { slug: "business-model", title: "비즈니스 모델: 회사는 어떻게 돈을 벌까 (구독·광고·수수료)", level: 1, category: "business" },
+  { slug: "fixed-variable-cost", title: "고정비와 변동비: 많이 팔수록 이익이 더 빨리 느는 이유", level: 1, category: "business" },
+  { slug: "break-even-point", title: "손익분기점: 얼마나 팔아야 본전일까", level: 1, category: "business" },
+  { slug: "economies-of-scale", title: "규모의 경제: 많이 만들수록 싸지는 이유", level: 1, category: "business" },
+  { slug: "profit-margin", title: "매출총이익률과 영업이익률: 남는 장사인지 보는 법", level: 2, category: "business" },
+  { slug: "network-effect", title: "플랫폼 기업은 왜 커질수록 강해질까 (네트워크 효과)", level: 2, category: "business" },
+  { slug: "economic-moat", title: "경제적 해자: 경쟁사가 쉽게 따라오지 못하는 이유", level: 2, category: "business" },
+  { slug: "value-chain", title: "공급망과 밸류체인: 제품 하나가 나오기까지", level: 2, category: "business" },
+  { slug: "monopoly-oligopoly", title: "독점과 과점: 경쟁이 줄면 생기는 일", level: 2, category: "business" },
+  { slug: "esg", title: "ESG 경영: 돈만 잘 벌면 되는 시대가 아닌 이유", level: 2, category: "business" },
+  { slug: "board-and-agm", title: "주주총회와 이사회는 무엇을 결정할까", level: 3, category: "business" },
+  { slug: "corporate-governance", title: "지배구조: 회사의 주인과 경영자는 누구일까", level: 3, category: "business" },
+  { slug: "holding-company", title: "지주회사와 계열사: 대기업 그룹은 어떻게 묶여 있을까", level: 3, category: "business" },
+  { slug: "mergers-acquisitions", title: "인수합병(M&A)은 왜 할까", level: 3, category: "business" },
+  { slug: "spin-off", title: "물적분할과 인적분할: 회사를 쪼갤 때 주주가 민감한 이유", level: 3, category: "business" },
+  { slug: "stock-option", title: "스톡옵션: 직원에게 주식을 주는 이유", level: 3, category: "business" },
+  { slug: "venture-funding", title: "스타트업 투자 단계: 시드부터 시리즈 C까지", level: 3, category: "business" },
+  { slug: "restructuring", title: "구조조정과 워크아웃: 어려운 회사를 살리는 방법", level: 4, category: "business" },
 ];
 
 export const CURRICULUM: CurriculumConcept[] = rotateByCategory(ALL, (concept) => economyField(concept.category));

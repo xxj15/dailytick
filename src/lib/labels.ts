@@ -52,12 +52,15 @@ const ECONOMY_CATEGORY_LABEL: Record<string, string> = {
   "financial-statements": "재무제표",
   "market-structure": "시장 구조",
   "global-markets": "글로벌 시장",
+  business: "기업 경영",
 };
+
+const ECONOMY_FIELD_LABEL = { economy: "경제", securities: "증권", business: "경영" } as const;
 
 export function knowledgeLabel(category: string): { field: string; detail?: string } {
   if (KNOWLEDGE_FIELD_LABEL[category]) return { field: KNOWLEDGE_FIELD_LABEL[category] };
   if (ECONOMY_CATEGORY_LABEL[category]) {
-    return { field: economyField(category) === "economy" ? "경제" : "증권", detail: ECONOMY_CATEGORY_LABEL[category] };
+    return { field: ECONOMY_FIELD_LABEL[economyField(category)], detail: ECONOMY_CATEGORY_LABEL[category] };
   }
   // 커리큘럼을 바꾸기 전에 저장된 테크 상식(browser, javascript 등)은 그대로 보여준다
   return { field: category };

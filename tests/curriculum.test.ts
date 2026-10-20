@@ -134,8 +134,11 @@ test("모든 테크 상식에 사람이 고른 '더 알아보기' 링크가 있�
   }
 });
 
-test("경제 상식은 경제·증권을 번갈아 내고, 이미 쓰던 slug는 그대로 남아 있다", () => {
-  assert.deepEqual(CURRICULUM.slice(0, 4).map((c) => economyField(c.category)), ["economy", "securities", "economy", "securities"]);
+test("경제 상식은 경제·증권·경영을 번갈아 내고, 이미 쓰던 slug는 그대로 남아 있다", () => {
+  assert.deepEqual(CURRICULUM.slice(0, 6).map((c) => economyField(c.category)), ["economy", "securities", "business", "economy", "securities", "business"]);
+  // 경영 갈래도 쉬운 것부터 나간다
+  const business = CURRICULUM.filter((c) => c.category === "business");
+  assert.ok(business.every((c, i) => i === 0 || business[i - 1].level <= c.level));
   for (const slug of ["stock-vs-bond", "per", "base-rate", "cpi", "sharpe-ratio"]) {
     assert.ok(CURRICULUM.some((c) => c.slug === slug), slug);
   }

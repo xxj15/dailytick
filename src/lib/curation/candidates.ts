@@ -75,8 +75,8 @@ export function techCandidates(history: ConceptHistoryEntry[]): KnowledgeCandida
 }
 
 /**
- * 경제 상식의 다섯 갈래. 커리큘럼 분류를 묶는다.
- * 큐레이터가 한쪽으로 쏠리지 않게 보는 기준이고, 지면에는 경제/증권 칩으로 보인다.
+ * 경제 상식의 여섯 갈래. 커리큘럼 분류를 묶는다.
+ * 큐레이터가 한쪽으로 쏠리지 않게 보는 기준이고, 지면에는 경제/증권/경영 칩으로 보인다.
  */
 export const ECONOMY_GROUP: Record<string, string> = {
   "economy-basics": "경제 기초",
@@ -90,9 +90,10 @@ export const ECONOMY_GROUP: Record<string, string> = {
   "corporate-value": "투자 지표·가치평가",
   "financial-statements": "투자 지표·가치평가",
   risk: "투자 지표·가치평가",
+  business: "경영",
 };
 
-/** 경제 상식 후보: 미학습 개념을 다섯 갈래에서 3개씩. 갈래 안에서는 커리큘럼 순서를 따른다. */
+/** 경제 상식 후보: 미학습 개념을 여섯 갈래에서 3개씩. 갈래 안에서는 커리큘럼 순서(쉬운 것부터)를 따른다. */
 export function economyCandidates(history: ConceptHistoryEntry[]): KnowledgeCandidate[] {
   const seen = learned(history);
   const unseen = CURRICULUM.filter((concept) => !seen.slugs.has(concept.slug))
