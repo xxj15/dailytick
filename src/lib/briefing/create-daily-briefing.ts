@@ -62,9 +62,11 @@ export type CreateBriefingResult = {
   audit?: GenerationAudit;
   /** 저장하지 않은 미리보기 생성인가. */
   dryRun?: boolean;
+  /** 새로 생성했을 때만 있다. 이번 생성에 쓴 토큰. 미리보기는 생성 로그를 남기지 않으므로 여기서만 볼 수 있다. */
+  usage?: Usage;
 };
 
-type Usage = { inputTokens: number; outputTokens: number; webSearchCalls: number };
+export type Usage = { inputTokens: number; outputTokens: number; webSearchCalls: number };
 
 /** 실행 기한. Vercel 실행 제한(300초) 전에 정리할 시간을 남긴다. */
 const DEADLINE_MS = 260_000;
@@ -228,7 +230,7 @@ export async function createDailyBriefing(
       audit,
     });
 
-    return { briefing, reused: false, audit, dryRun };
+    return { briefing, reused: false, audit, dryRun, usage };
   } catch (caught) {
     if (!audit.tech) {
       techStop.abort();

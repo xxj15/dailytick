@@ -1011,6 +1011,9 @@ test("미리보기(dryRun)는 같은 흐름을 돌리되 저장도 로그도 남
   assert.equal(run.saves(), 0);
   assert.equal(started, false);
   assert.ok(result.briefing.newsItems.length);
+  // 로그를 남기지 않으므로 쓴 토큰은 결과로 돌려준다. 웹 검색은 쓰지 않는다
+  assert.ok((result.usage?.inputTokens ?? 0) > 0);
+  assert.equal(result.usage?.webSearchCalls, 0);
 });
 
 test("본문을 하나도 확보하지 못하면 작성과 저장을 건너뛰고 탈락 이유를 남긴다", async () => {
