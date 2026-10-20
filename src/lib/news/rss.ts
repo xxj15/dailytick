@@ -151,6 +151,15 @@ export type FeedPick = {
 const SOURCES_PER_CANDIDATE = 4;
 
 /**
+ * 모델이 적은 기사 id를 목록 id(n12)로 맞춘다. "n12", " N12 ", "12", "n12 | 연합뉴스…"를 모두 n12로 읽는다.
+ * 형식이 조금 달라 고른 후보가 통째로 버려지지 않게 한다. 목록에 없는 번호는 여전히 버린다.
+ */
+export function normalizeItemId(id: string): string {
+  const match = /^\s*n?\s*(\d+)/i.exec(id);
+  return match ? `n${Number(match[1])}` : id.trim();
+}
+
+/**
  * 고른 결과를 뉴스 후보로 바꾼다. 출처는 목록에 실제로 있는 기사뿐이다.
  * 목록에 없는 id는 버리고, 한 기사는 먼저 고른 후보 하나에만 쓴다. 남은 출처가 없는 후보는 버린다.
  * importance에는 평가 점수의 가중합(selectionScore)을 1~10 정수로 반올림해 넣는다. 근거 확인 순서와 슬롯 채우기가 이 값을 쓴다.
@@ -161,7 +170,7 @@ export function candidatesFromPicks(picks: FeedPick[], items: FeedItem[]): NewsC
   return picks.flatMap((pick) => {
     const sources = [...new Set(pick.itemIds)]
       .flatMap((id) => {
-        const item = byId.get(id.trim());
+        const item = byId.get(normalizeItemId(id));
         if (!item || used.has(item.id)) return [];
         used.add(item.id);
         return [{ publisher: item.publisher, title: item.title, url: item.url, ...(item.publishedAt ? { publishedAt: item.publishedAt } : {}) }];

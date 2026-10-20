@@ -3,7 +3,7 @@ import test from "node:test";
 import { NEWS_FEEDS } from "@/config/app";
 import { collectMarketNews } from "@/lib/openai/collect-news";
 import { buildNewsSelectionPrompt, feedLine } from "@/lib/openai/prompts";
-import { candidatesFromPicks, collectFeedItems, parseFeed, parseFeedDate, selectionScore, type FeedItem } from "@/lib/news/rss";
+import { candidatesFromPicks, collectFeedItems, parseFeed, parseFeedDate, normalizeItemId, selectionScore, type FeedItem } from "@/lib/news/rss";
 
 const FEED = { publisher: "연합뉴스", section: "종합" } as const;
 
@@ -127,4 +127,17 @@ test("후보 점수는 평가 항목의 가중합이고, 항목마다 1~10으로
   assert.ok(selectionScore({ ...base, jobRelevance: 10 }) < selectionScore({ ...base, importance: 10 }));
   assert.ok(selectionScore({ ...base, jobRelevance: 10 }) < selectionScore({ ...base, explainability: 10 }));
   assert.equal(selectionScore({ importance: 99, learningValue: -3, jobRelevance: Number.NaN, explainability: 10 }), selectionScore({ importance: 10, learningValue: 1, jobRelevance: 1, explainability: 10 }));
+});
+
+test("모델이 적은 기사 id의 형식이 조금 달라도 목록 id로 맞춘다", () => {
+  for (const id of ["n3", " N3 ", "3", "n03", "n3 | 전자신문·IT | 10/20 08:10 | KT, AI 신기술 공개"]) {
+    assert.equal(normalizeItemId(id), "n3", id);
+  }
+  // 목록에 없는 번호는 여전히 버린다
+  const scores = { importance: 5, learningValue: 5, jobRelevance: 5, explainability: 5 };
+  const candidates = candidatesFromPicks([
+    { itemIds: [" N3 "], title: "KT AI 기술 공개", summary: "요약", region: "KR", category: "ai", scores, reason: "이유" },
+    { itemIds: ["n99", "기사"], title: "없는 기사", summary: "요약", region: "KR", category: "ai", scores, reason: "이유" },
+  ], ITEMS);
+  assert.deepEqual(candidates.map((candidate) => candidate.sources[0].url), ["https://www.etnews.com/1"]);
 });

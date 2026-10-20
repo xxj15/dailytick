@@ -4,7 +4,7 @@ import { getModel, getOpenAI, LIGHT_REASONING } from "@/lib/openai/client";
 import { buildNewsSelectionPrompt } from "@/lib/openai/prompts";
 import { aiNewsSelectionSchema, newsCandidateSchema } from "@/lib/openai/schemas";
 import type { DateString } from "@/lib/date";
-import { candidatesFromPicks, collectFeedItems, selectionScore, type FeedItem, type FeedResult, type SelectionScores } from "@/lib/news/rss";
+import { candidatesFromPicks, collectFeedItems, normalizeItemId, selectionScore, type FeedItem, type FeedResult, type SelectionScores } from "@/lib/news/rss";
 import type { NewsCandidate, RecentNewsEntry } from "@/types/briefing";
 import { zodTextFormat } from "openai/helpers/zod";
 
@@ -34,8 +34,11 @@ type CollectDependencies = {
 };
 
 export type NewsSelectionAudit = {
-  picked: { title: string; category: string; score: number; scores: SelectionScores; reason: string }[];
+  /** unmatchedIds는 목록에 없어 버린 기사 id다. 후보가 적을 때 원인을 가른다. */
+  picked: { title: string; category: string; score: number; scores: SelectionScores; reason: string; itemIds: string[]; unmatchedIds?: string[] }[];
   rejected: { title: string; reason: string }[];
+  /** 후보 모양 검사(newsCandidateSchema)에서 떨어진 후보와 첫 이유 */
+  invalid?: string[];
 };
 
 async function selectFromFeeds(input: string, signal?: AbortSignal) {
@@ -79,16 +82,24 @@ export async function collectMarketNews(
       : "구조화된 응답을 받지 못했습니다.";
     throw new NewsCollectionError(`뉴스 후보 고르기 실패: ${reason}`, usage);
   }
+  const invalid: string[] = [];
   const candidates = candidatesFromPicks(parsed.data.candidates, items)
     .flatMap((candidate) => {
       const checked = newsCandidateSchema.safeParse(candidate);
+      if (!checked.success) invalid.push(`${candidate.title}: ${checked.error.issues[0]?.path.join(".")} ${checked.error.issues[0]?.message}`);
       return checked.success ? [checked.data] : [];
     });
+  const known = new Set(items.map((item) => item.id));
   const selection: NewsSelectionAudit = {
-    picked: parsed.data.candidates.map((pick) => ({
-      title: pick.title, category: pick.category, score: selectionScore(pick.scores), scores: pick.scores, reason: pick.reason,
-    })),
+    picked: parsed.data.candidates.map((pick) => {
+      const unmatchedIds = pick.itemIds.filter((id) => !known.has(normalizeItemId(id)));
+      return {
+        title: pick.title, category: pick.category, score: selectionScore(pick.scores), scores: pick.scores, reason: pick.reason,
+        itemIds: pick.itemIds, ...(unmatchedIds.length ? { unmatchedIds } : {}),
+      };
+    }),
     rejected: parsed.data.rejected,
+    ...(invalid.length ? { invalid } : {}),
   };
   return { candidates, feeds, pool: items.length, selection, ...usage };
 }
