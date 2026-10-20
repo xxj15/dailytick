@@ -23,12 +23,13 @@ test("다른 후보의 사실 ID나 없는 후보로 기사를 생성할 수 없
   ]) assert.throws(() => materializeBriefing({ ...DRAFT, newsItems: [item] }, [CANDIDATE]));
 });
 
-test("같은 후보를 두 슬롯에 쓰면 조합은 하되, 발행 검증이 뒤 슬롯의 rank를 가리켜 거른다", () => {
+test("같은 후보를 두 슬롯에 쓰면 조합은 하되, 발행 검증이 분류가 맞지 않는 슬롯의 rank를 가리켜 거른다", () => {
   const twice = { ...DRAFT, newsItems: [draftNews(1, "top", "c1"), draftNews(2, "economy", "c1")] };
   const content = dailyBriefingSchema.parse(stripNulls(materializeBriefing(twice, [CANDIDATE])));
   assert.deepEqual(content.newsItems.map((item) => item.slot), ["top", "economy"]);
   const violations = verifyBriefing(content, { date: DATE, concepts: [CONCEPT], candidates: [CANDIDATE] });
-  assert.deepEqual(violations.map((v) => [v.code, v.rank]), [["news.same_event", 2]]);
+  // CANDIDATE는 주요 시사(사회) 사건이라 경제 슬롯에 맞지 않는다
+  assert.deepEqual(violations.map((v) => [v.code, v.rank]), [["news.slot_mismatch", 2]]);
 });
 
 test("뉴스 한 건·단일 지역도 발행하고, slot이 없는 과거 브리핑도 읽되 뉴스 없는 지면은 거절한다", () => {

@@ -167,6 +167,7 @@ export async function createDailyBriefing(
     const coverageAudit: CoverageAudit = {
       feeds: news.feeds,
       pool: news.pool,
+      selection: news.selection,
       // 고른 후보로는 채울 수 있었는데 본문 확인에서 떨어졌다면 출처 문제, 맞는 후보 자체가 없었다면 그날 사정이다.
       verdict: emptyAfter.length === 0 ? "ok"
         : emptyAfter.some((slot) => collectable[slot]) ? "sources_failed"

@@ -18,9 +18,15 @@ test("경제 슬롯은 증시·금리·환율·경기·산업·기업·원자재
   assert.match(slotMismatch("economy", item("국내", "KR", "politics")) ?? "", /politics.*증시·금리·환율·경기·산업·기업·경제정책/);
 });
 
-test("오늘의 화제는 분야와 지역을 가리지 않고, IT 슬롯은 IT 분류만 받는다", () => {
-  assert.equal(fitsSlot("top", item("사회", "KR", "society")), true);
-  assert.equal(fitsSlot("top", item("국제", "GLOBAL", "world")), true);
+test("주요 시사는 경제·IT가 아닌 사건만 받고, IT 슬롯은 IT 분류만 받는다", () => {
+  for (const category of ["society", "world", "politics", "geopolitics", "science", "other"] as const) {
+    assert.equal(fitsSlot("top", item("시사", "KR", category)), true, category);
+  }
+  // 경제·IT 사건은 각자 슬롯이 있다. 주요 시사에 두지 않는다
+  for (const category of ["rates", "stocks", "policy", "industry", "ai", "security"] as const) {
+    assert.equal(fitsSlot("top", item("경제·IT", "KR", category)), false, category);
+  }
+  assert.match(slotMismatch("top", item("코스피", "KR", "stocks")) ?? "", /stocks.*사회·정책·국제 정세/);
   assert.equal(fitsSlot("it", item("반도체", "KR", "semiconductor")), true);
   assert.equal(fitsSlot("it", item("AI", "GLOBAL", "ai")), true);
   assert.equal(fitsSlot("it", item("과학", "GLOBAL", "science")), false);
@@ -28,32 +34,31 @@ test("오늘의 화제는 분야와 지역을 가리지 않고, IT 슬롯은 IT 
   assert.equal(fitsSlot("it", item("파두 실적", "KR", "industry")), false);
 });
 
-test("슬롯을 채울 때 경제·IT를 먼저 채우고, 화제는 남은 후보 가운데 가장 중요한 것으로 채운다", () => {
+test("슬롯마다 맞는 후보 가운데 점수가 가장 높은 것으로 채운다", () => {
   const rates = item("금리", "KR", "rates", 9);
   const ai = item("AI", "GLOBAL", "ai", 8);
   const war = item("분쟁", "GLOBAL", "world", 7);
   const matched = matchSlots([war, ai, rates]);
-  // 중요도만 보면 금리가 화제를 차지해 경제가 빈다. 경제를 먼저 채워야 세 슬롯이 다 찬다.
   assert.equal(matched.economy, rates);
   assert.equal(matched.it, ai);
   assert.equal(matched.top, war);
   assert.deepEqual(emptySlots([war, ai, rates]), []);
 });
 
-test("한 후보는 한 슬롯만 채운다. 경제·IT에 쓴 후보로 화제를 채우지 않는다", () => {
+test("한 후보는 한 슬롯만 채운다. 경제 후보가 여럿이어도 주요 시사를 채우지 않는다", () => {
   const rates = item("금리", "KR", "rates", 9);
   const ai = item("AI", "GLOBAL", "ai", 8);
   assert.deepEqual(emptySlots([rates, ai]), ["top"]);
   assert.deepEqual(emptySlots([rates]), ["top", "it"]);
-  // 같은 슬롯 후보가 둘이면 중요도가 높은 쪽이 그 슬롯, 남은 쪽이 화제다
+  // 같은 슬롯 후보가 둘이면 점수가 높은 쪽이 그 슬롯이고, 남은 쪽은 쓰지 않는다
   const policy = item("정책", "KR", "policy", 6);
   const matched = matchSlots([policy, rates]);
   assert.equal(matched.economy, rates);
-  assert.equal(matched.top, policy);
+  assert.equal(matched.top, undefined);
   assert.deepEqual(emptySlots([]), ["top", "economy", "it"]);
 });
 
-test("정치·사회 사건뿐이면 화제는 채우지만 경제는 빈다", () => {
+test("정치·사회 사건뿐이면 주요 시사는 채우지만 경제는 빈다", () => {
   assert.deepEqual(emptySlots([item("사회", "KR", "society", 9), item("AI", "GLOBAL", "ai")]), ["economy"]);
   assert.deepEqual(emptySlots([item("외교", "KR", "geopolitics", 9), item("AI", "GLOBAL", "ai")]), ["economy"]);
   assert.deepEqual(emptySlots([item("미국 증시", "GLOBAL", "stocks", 9), item("AI", "GLOBAL", "ai")]), ["top"]);

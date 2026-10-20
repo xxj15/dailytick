@@ -24,16 +24,17 @@ function harness() {
   };
   const content = dailyBriefingSchema.parse(stripNulls(materializeBriefing(DRAFT, [CANDIDATE])));
   const existing = { ...content, tech: null, id: "existing", briefingDate: DATE, generatedAt: "2026-10-09T08:00:00+09:00", model: "test", promptVersion: "v9" };
-  // 세 슬롯을 모두 채울 수 있는 후보: 화제(국내 금리)·국내(정책)·IT(해외 AI)
+  // 세 슬롯을 모두 채울 수 있는 후보: 주요 시사(국내 사회)·경제(국내 금리)·IT(해외 AI). 세 슬롯의 분류는 겹치지 않는다
   const kinds = [
+    { region: "KR", category: "society" },
     { region: "KR", category: "rates" },
-    { region: "KR", category: "policy" },
     { region: "GLOBAL", category: "ai" },
   ] as const;
-  const searched: Pick<CollectNewsResult, "candidates" | "feeds" | "pool"> = {
+  const searched: Pick<CollectNewsResult, "candidates" | "feeds" | "pool" | "selection"> = {
     candidates: kinds.map((kind, i) => ({ title: `뉴스${i + 1}`, summary: "RSS 요약", ...kind, importance: 9, sources: CANDIDATE.sources })),
     feeds: [{ publisher: "연합뉴스", url: "https://www.yna.co.kr/rss/news.xml", items: 3 }],
     pool: 3,
+    selection: { picked: [], rejected: [] },
   };
   const grounded3 = kinds.map((kind, i) => ({ ...CANDIDATE, ...kind, id: `c${i + 1}`, title: `뉴스${i + 1}` }));
   const services: BriefingServices = {
@@ -75,7 +76,7 @@ test("주요 이슈·경제 상식·테크 상식을 만들어 저장하고, 섹
   assert.equal(run.logs[0].audit?.coverage?.pool, 3);
   assert.deepEqual(run.logs[0].audit?.coverage?.feeds.map((feed) => feed.publisher), ["연합뉴스"]);
   assert.equal(run.logs[0].audit?.coverage?.candidates, 3);
-  assert.deepEqual(run.logs[0].audit?.coverage?.slots.map((entry) => [entry.slot, entry.grounded]), [["top", 3], ["economy", 2], ["it", 1]]);
+  assert.deepEqual(run.logs[0].audit?.coverage?.slots.map((entry) => [entry.slot, entry.grounded]), [["top", 1], ["economy", 1], ["it", 1]]);
   assert.equal(run.logs[0].audit?.curation?.status, "curated");
   assert.equal(run.logs[0].audit?.tech?.curation?.status, "curated");
   // 테크 상식은 추천 하나에 모자란 자리를 커리큘럼 개념으로 채워 두 개다
@@ -927,14 +928,14 @@ function collectOnly(batch: Partial<NewsCandidate>[]): BriefingServices["collect
       title: `후보${i}`, summary: "요약", region: "KR", category: "rates", importance: 9,
       sources: [{ ...CANDIDATE.sources[0], url: `https://example.com/rss/${i}` }], ...entry,
     } as NewsCandidate)),
-    feeds: [], pool: batch.length, inputTokens: 0, outputTokens: 0, webSearchCalls: 0,
+    feeds: [], pool: batch.length, selection: { picked: [], rejected: [] }, inputTokens: 0, outputTokens: 0, webSearchCalls: 0,
   });
 }
 
 test("빈 슬롯: 근거 있는 IT 후보가 없으면 다시 수집하지 않고 화제·경제만 발행하며 빈 슬롯을 남긴다", async () => {
   const run = harness();
   let collects = 0;
-  const collect = collectOnly([{ title: "국내 금리", category: "rates" }, { title: "국내 정책", category: "policy" }]);
+  const collect = collectOnly([{ title: "국내 사회", category: "society" }, { title: "국내 정책", category: "policy" }]);
   const seen = { ids: [] as string[] };
   const result = await createDailyBriefing(DATE, {}, { ...run.services,
     collectMarketNews: async (...args) => { collects++; return collect(...args); },

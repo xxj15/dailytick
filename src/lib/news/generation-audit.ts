@@ -1,5 +1,6 @@
 import type { GroundedCandidate, EvidenceRejection } from "@/lib/news/evidence-types";
 import type { FeedResult } from "@/lib/news/rss";
+import type { NewsSelectionAudit } from "@/lib/openai/collect-news";
 import type { ReviewRecord } from "@/lib/openai/generate-briefing";
 import type { BriefingViolation, NewsSlot } from "@/types/briefing";
 
@@ -23,6 +24,8 @@ export type CoverageAudit = {
   feeds: FeedResult[];
   /** 고르기에 넘긴 기사 수(중복·범위 밖 기사를 뺀 수) */
   pool: number;
+  /** 고르기 결과. 후보별 평가 점수·선정 이유와 고르지 않은 주요 기사. 이 기록 이전 로그에는 없다. */
+  selection?: NewsSelectionAudit;
   /**
    * 본문 근거 확인을 마친 뒤 세 슬롯을 채울 수 있는가. 빈 슬롯이 있으면 원인을 가른다.
    * ok = 세 슬롯 모두 근거 있는 후보가 있다

@@ -11,7 +11,7 @@ import type { NewsCategory, NewsRegion, NewsSlot, StoredNewsSlot } from "@/types
 type SlotFields = { region: NewsRegion; category: NewsCategory };
 
 export const SLOT_NAME: Record<StoredNewsSlot, string> = {
-  top: "top(오늘의 화제)",
+  top: "top(주요 시사)",
   economy: "economy(경제)",
   it: "it(IT)",
   domestic: "domestic(국내 정세)",
@@ -26,6 +26,10 @@ const ECONOMY_SCOPE = "증시·금리·환율·경기·산업·기업·경제정
  * 예전 슬롯(domestic)은 이미 저장된 기사에만 있다. 규칙을 다시 보지 않는다.
  */
 export function slotMismatch(slot: StoredNewsSlot, item: SlotFields): string | null {
+  // 주요 시사는 경제·IT가 아닌 사건이다. 세 영역이 서로 다른 분야여야 한다(2026-10-20 사용자 결정).
+  if (slot === "top" && (IT.has(item.category) || ECONOMY.has(item.category))) {
+    return `${SLOT_NAME.top} 슬롯에 경제·IT 분류(${item.category}) 기사를 넣었습니다. 경제·IT 기사는 economy·it 슬롯에 두고, 이 자리는 사회·정책·국제 정세 사건으로 바꾸세요.`;
+  }
   if (slot === "economy" && IT.has(item.category)) {
     return `${SLOT_NAME.economy} 슬롯에 IT 분류(${item.category}) 기사를 넣었습니다. IT 기사는 it 슬롯에 두고, 이 자리는 ${ECONOMY_SCOPE} 사건으로 바꾸세요.`;
   }
@@ -50,8 +54,7 @@ export function slotOrder(slot: StoredNewsSlot | undefined): number {
 
 /**
  * 후보로 세 슬롯을 서로 다른 사건으로 채워 본다. 채울 수 없는 슬롯은 비어 있다.
- * 조건이 있는 경제·IT를 먼저 채우고, 오늘의 화제는 남은 후보 가운데 가장 중요한 것으로 채운다.
- * 경제와 IT는 분류가 겹치지 않으므로 이 순서면 채울 수 있는 슬롯을 놓치지 않는다.
+ * 세 슬롯의 분류는 겹치지 않는다(주요 시사 = 경제·IT가 아닌 분류). 슬롯마다 맞는 후보 가운데 점수가 가장 높은 것으로 채운다.
  */
 export function matchSlots<T extends SlotFields & { importance: number }>(candidates: T[]): Partial<Record<NewsSlot, T>> {
   const sorted = [...candidates].sort((a, b) => b.importance - a.importance);

@@ -3,7 +3,7 @@ import test from "node:test";
 import { NEWS_FEEDS } from "@/config/app";
 import { collectMarketNews } from "@/lib/openai/collect-news";
 import { buildNewsSelectionPrompt, feedLine } from "@/lib/openai/prompts";
-import { candidatesFromPicks, collectFeedItems, parseFeed, parseFeedDate, type FeedItem } from "@/lib/news/rss";
+import { candidatesFromPicks, collectFeedItems, parseFeed, parseFeedDate, selectionScore, type FeedItem } from "@/lib/news/rss";
 
 const FEED = { publisher: "연합뉴스", section: "종합" } as const;
 
@@ -72,9 +72,9 @@ const ITEMS: FeedItem[] = [
 
 test("고른 결과는 목록에 있는 기사만 출처로 쓰고, 한 기사는 먼저 고른 후보 하나에만 쓴다", () => {
   const candidates = candidatesFromPicks([
-    { itemIds: ["n1", "n2", "n99"], title: "기준금리 동결", summary: "", region: "KR", category: "rates", importance: 9.6 },
-    { itemIds: ["n2"], title: "같은 기사를 다시 고른 후보", summary: "요약", region: "KR", category: "rates", importance: 5 },
-    { itemIds: ["n3"], title: "KT AI 기술 공개", summary: "요약", region: "KR", category: "ai", importance: 0 },
+    { itemIds: ["n1", "n2", "n99"], title: "기준금리 동결", summary: "", region: "KR", category: "rates", scores: { importance: 9.6, learningValue: 9.6, jobRelevance: 9.6, explainability: 9.6 }, reason: "읽을 가치" },
+    { itemIds: ["n2"], title: "같은 기사를 다시 고른 후보", summary: "요약", region: "KR", category: "rates", scores: { importance: 5, learningValue: 5, jobRelevance: 5, explainability: 5 }, reason: "읽을 가치" },
+    { itemIds: ["n3"], title: "KT AI 기술 공개", summary: "요약", region: "KR", category: "ai", scores: { importance: 0, learningValue: 0, jobRelevance: 0, explainability: 0 }, reason: "읽을 가치" },
   ], ITEMS);
   assert.deepEqual(candidates.map((candidate) => [candidate.title, candidate.sources.map((source) => source.url), candidate.importance]), [
     ["기준금리 동결", ["https://www.yna.co.kr/view/A1", "https://www.mk.co.kr/news/1"], 10],
@@ -90,7 +90,7 @@ test("고르기 프롬프트는 기사 목록을 한 줄씩 싣고, 최근에 �
   assert.match(prompt, /n1 \| 연합뉴스·경제 \| 10\/20 08:00 \| 한은 기준금리 동결/);
   assert.match(prompt, /n2 \| 매일경제·경제 \| - \| 한국은행, 금리 묶었다/);
   assert.match(prompt, /\[2026-10-19\] 어제 뉴스/);
-  assert.match(prompt, /economy — 경제/);
+  assert.match(prompt, /economy — 경제·금융/);
   assert.doesNotMatch(prompt, /검색/);
   // 제목 속 구분자(|)는 지우고, 태그는 이스케이프해 목록 밖으로 나가지 못하게 한다
   assert.equal(feedLine({ ...ITEMS[0], title: "금리 | 동결" }).split(" | ").length, 4);
@@ -103,16 +103,28 @@ test("수집은 RSS 목록에서 한 번 고르고, 목록이 비면 모델을 �
     feeds: async () => ({ items: ITEMS, feeds: [{ publisher: "연합뉴스", url: "https://www.yna.co.kr/rss/news.xml", items: 3 }] }),
     select: async () => {
       selects++;
-      return { picks: { candidates: [{ itemIds: ["n3"], title: "KT AI 기술 공개", summary: "요약", region: "KR", category: "ai", importance: 8 }] }, inputTokens: 100, outputTokens: 20 };
+      return { picks: { candidates: [{ itemIds: ["n3"], title: "KT AI 기술 공개", summary: "요약", region: "KR", category: "ai", scores: { importance: 8, learningValue: 8, jobRelevance: 8, explainability: 8 }, reason: "읽을 가치" }], rejected: [{ title: "코스피 장중 등락", reason: "시세 중계라 배경 설명이 없다" }] }, inputTokens: 100, outputTokens: 20 };
     },
   });
   assert.equal(selects, 1);
   assert.deepEqual(result.candidates.map((candidate) => candidate.sources[0].url), ["https://www.etnews.com/1"]);
   assert.equal(result.pool, 3);
   assert.equal(result.webSearchCalls, 0);
+  // 평가 점수·선정 이유·고르지 않은 기사는 생성 로그로 넘긴다
+  assert.deepEqual(result.selection.picked.map((pick) => [pick.title, pick.score, pick.reason]), [["KT AI 기술 공개", 8, "읽을 가치"]]);
+  assert.deepEqual(result.selection.rejected, [{ title: "코스피 장중 등락", reason: "시세 중계라 배경 설명이 없다" }]);
 
   await assert.rejects(() => collectMarketNews("2026-10-20", undefined, {}, {
     feeds: async () => ({ items: [], feeds: [{ publisher: "연합뉴스", url: "https://www.yna.co.kr/rss/news.xml", items: 0, error: "HTTP 403" }] }),
     select: async () => { throw new Error("호출하면 안 됨"); },
   }), /RSS에서 기준일 기사를 하나도 모으지 못했습니다\. \(연합뉴스: HTTP 403\)/);
+});
+
+test("후보 점수는 평가 항목의 가중합이고, 항목마다 1~10으로 자른다", () => {
+  const base = { importance: 5, learningValue: 5, jobRelevance: 5, explainability: 5 };
+  assert.equal(selectionScore(base), 5);
+  // 직무 관련성은 가산점 정도다. 같은 폭이면 중요도·학습 가치·설명 가능성이 더 크게 움직인다
+  assert.ok(selectionScore({ ...base, jobRelevance: 10 }) < selectionScore({ ...base, importance: 10 }));
+  assert.ok(selectionScore({ ...base, jobRelevance: 10 }) < selectionScore({ ...base, explainability: 10 }));
+  assert.equal(selectionScore({ importance: 99, learningValue: -3, jobRelevance: Number.NaN, explainability: 10 }), selectionScore({ importance: 10, learningValue: 1, jobRelevance: 1, explainability: 10 }));
 });

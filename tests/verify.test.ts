@@ -216,21 +216,22 @@ test("세 슬롯이 서로 다른 사건이고 속성이 맞으면 통과한다"
   ]), []);
 });
 
-test("화제가 국내 사건일 때 국내 슬롯에 같은 사건을 다시 쓰면 국내 쪽 rank를 가리킨다", () => {
+test("경제 사건을 주요 시사와 경제 두 슬롯에 쓰면 주요 시사 쪽이 분류 불일치로 걸린다", () => {
+  // 세 슬롯의 분류는 겹치지 않는다. 같은 사건은 한 슬롯에만 맞으므로 다른 슬롯에 쓴 쪽이 걸린다
   assert.deepEqual(slotCodes([
     news({ rank: 2, slot: "economy", evidence: fromCandidate("c1") }),
     news({ rank: 1, slot: "top", evidence: fromCandidate("c1") }),
-  ]), [["news.same_event", 2]]);
-  // 다른 국내 사건이면 통과한다
+  ]), [["news.slot_mismatch", 1]]);
+  // 주요 시사에 시사 사건을 두면 통과한다
   assert.deepEqual(slotCodes([
-    news({ rank: 1, slot: "top", evidence: fromCandidate("c1") }),
+    news({ rank: 1, slot: "top", category: "society", evidence: fromCandidate("c1") }),
     news({ rank: 2, slot: "economy", evidence: fromCandidate("c2") }),
   ]), []);
 });
 
 test("같은 슬롯을 두 번 쓰면 뒤 rank를 가리킨다", () => {
   assert.deepEqual(slotCodes([
-    news({ rank: 1, slot: "top" }),
+    news({ rank: 1, slot: "top", category: "world" }),
     news({ rank: 2, slot: "it", category: "ai", region: "GLOBAL" }),
     news({ rank: 3, slot: "it", category: "software", region: "GLOBAL" }),
   ]), [["news.slot_duplicate", 3]]);

@@ -7,7 +7,7 @@ export const DATE = "2026-10-09";
 export const CONCEPT: CurriculumConcept = { slug: "base-rate", title: "기준금리", level: 3, category: "rates-bonds" };
 export const QUOTE = "위원회는 이번 회의에서 기준금리를 동결하기로 결정했다고 발표했다.";
 export const CANDIDATE: GroundedCandidate = {
-  id: "c1", title: "기준금리 동결", region: "KR", category: "rates", importance: 9,
+  id: "c1", title: "기준금리 동결", region: "KR", category: "society", importance: 9,
   sources: [{ publisher: "공식 기관", title: "통화정책 결정", url: "https://example.com/release", publishedAt: "2026-10-09T07:00:00+09:00" }],
   facts: [{ id: "c1-f1", sourceId: "s1", quote: QUOTE }],
   documents: [{
@@ -29,7 +29,7 @@ export function candidate(id: string, overrides: Partial<GroundedCandidate> = {}
   return { ...CANDIDATE, id, title: `후보 ${id}`, facts: [{ ...CANDIDATE.facts[0], id: `${id}-f1` }], ...overrides };
 }
 
-/** 국내(KR 정책)·IT(해외 AI) 후보. CANDIDATE(c1, KR 금리)와 함께 세 슬롯을 채운다. */
+/** 경제(KR 정책)·IT(해외 AI) 후보. CANDIDATE(c1, KR 사회 — 주요 시사)와 함께 세 슬롯을 채운다. */
 export const DOMESTIC = candidate("c2", { category: "policy" });
 export const IT = candidate("c3", { region: "GLOBAL", category: "ai" });
 

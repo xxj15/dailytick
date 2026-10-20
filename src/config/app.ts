@@ -18,8 +18,8 @@ export const PUBLISH_MINUTE_KST = 30;
 export const FIRST_ISSUE_DATE = "2026-08-25";
 
 /**
- * 오늘의 주요 이슈는 정해진 세 자리(슬롯)에 한 건씩 싣는다. 배열 순서가 곧 지면 순서(rank)다. (2026-10-20 사용자 결정)
- *   top      오늘의 화제. 분야와 상관없이 오늘 가장 많이 읽힌 사건. 포털·언론사의 '많이 본 뉴스' 순위로 찾는다
+ * 오늘의 주요 이슈는 정해진 세 자리(슬롯)에 한 건씩 싣는다. 배열 순서가 곧 지면 순서(rank)다. (2026-10-20 사용자 결정. 같은 날 화제 → 주요 시사로 바꿨다)
+ *   top      주요 시사. 사회·정책·국제 정세 가운데 파급력이 크고 알아둘 가치가 있는 사건. 경제·IT 분류는 들어갈 수 없다
  *   economy  경제. 분류가 ECONOMY_NEWS_CATEGORIES 중 하나(증시·금리·환율·경기·산업·기업·경제정책). 국내·해외 모두 된다
  *   it       IT. 분류가 IT_NEWS_CATEGORIES 중 하나. 기술·제품·서비스 소식이다. IT 기업이어도 실적·주가 기사는 경제다
  * 세 슬롯은 서로 다른 사건이어야 한다. 근거 있는 기사로 채우지 못한 슬롯은 비워 두고, 다른 분야로 대신 채우지 않는다.
@@ -34,7 +34,7 @@ export const IT_NEWS_CATEGORIES = ["ai", "semiconductor", "software", "platform"
 
 /**
  * economy 슬롯에 들어갈 수 있는 분류. 증시·금리·환율·경기·산업·기업·원자재·경제정책이다.
- * 정치(politics)·외교안보(geopolitics)·사회·과학·국제 일반·기타와 IT 분류는 들어갈 수 없다. 이런 사건은 화제(top)로만 싣는다.
+ * 정치(politics)·외교안보(geopolitics)·사회·과학·국제 일반·기타와 IT 분류는 들어갈 수 없다. 이런 사건은 주요 시사(top)로만 싣는다.
  */
 export const ECONOMY_NEWS_CATEGORIES = [
   "rates", "stocks", "fx", "macro", "industry", "commodities", "policy",

@@ -279,7 +279,7 @@ test("뉴스 검토 프롬프트에는 테크 상식 항목별 판단 문구를 
 });
 
 test("마지막 시도에서 특정 뉴스만 검토에 걸리면 그 뉴스만 빼고 발행한다", async () => {
-  const second = { ...CANDIDATE, id: "c2", title: "두 번째", facts: [{ ...CANDIDATE.facts[0], id: "c2-f1" }] };
+  const second = { ...CANDIDATE, id: "c2", title: "두 번째", category: "rates" as const, facts: [{ ...CANDIDATE.facts[0], id: "c2-f1" }] };
   const twoNews = { ...DRAFT, newsItems: [DRAFT.newsItems[0], { ...DRAFT.newsItems[0], rank: 2, slot: "economy" as const, candidateId: "c2", factIds: ["c2-f1"], title: "두 번째 뉴스" }] };
   const result = await generateDailyBriefing({ ...params, candidates: [CANDIDATE, second] }, {
     write: async () => ({ draft: twoNews, inputTokens: 1, outputTokens: 1 }),
@@ -312,7 +312,7 @@ test("실제 기사 제목에 있는 숫자(버전 등)는 근거로 인정하�
 });
 
 test("마지막 시도에서 숫자 검증에 걸린 뉴스만 빼고, 나머지는 검토를 거쳐 발행한다", async () => {
-  const second = { ...CANDIDATE, id: "c2", title: "두 번째", facts: [{ ...CANDIDATE.facts[0], id: "c2-f1" }] };
+  const second = { ...CANDIDATE, id: "c2", title: "두 번째", category: "rates" as const, facts: [{ ...CANDIDATE.facts[0], id: "c2-f1" }] };
   const twoNews = { ...DRAFT, newsItems: [DRAFT.newsItems[0], { ...DRAFT.newsItems[0], rank: 2, slot: "economy" as const, candidateId: "c2", factIds: ["c2-f1"], title: "두 번째 뉴스", whyImportant: "근거에 없는 77%가 있다." }] };
   let reviewedTitles: string[] = [];
   const result = await generateDailyBriefing({ ...params, candidates: [CANDIDATE, second] }, {
@@ -336,7 +336,7 @@ test("두 번 모두 키워드·한 줄(framing)만 걸리면 그 부분만 고�
 });
 
 test("두 번째 시도에서 뉴스 한 건과 framing이 함께 걸리면, 그 뉴스는 빼고 framing만 고칠 기회를 준다", async () => {
-  const second = { ...CANDIDATE, id: "c2", title: "두 번째", facts: [{ ...CANDIDATE.facts[0], id: "c2-f1" }] };
+  const second = { ...CANDIDATE, id: "c2", title: "두 번째", category: "rates" as const, facts: [{ ...CANDIDATE.facts[0], id: "c2-f1" }] };
   const twoNews = { ...DRAFT, newsItems: [DRAFT.newsItems[0], { ...DRAFT.newsItems[0], rank: 2, slot: "economy" as const, candidateId: "c2", factIds: ["c2-f1"], title: "두 번째 뉴스" }] };
   let reviews = 0;
   let lastPrompt = "";
@@ -381,42 +381,38 @@ test("정상: 세 슬롯을 채우면 화제 → 경제 → IT 순서로 rank 1~
 test("작성 프롬프트에 슬롯별로 들어갈 수 있는 후보를 알려 주고, 맞는 후보가 없는 슬롯은 비우라고 한다", async () => {
   const { write, prompts } = drafts([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]);
   await generateDailyBriefing({ ...params, candidates: [CANDIDATE, DOMESTIC] }, { write, review: passAll });
-  assert.match(prompts[0], /economy\(경제\): c1, c2/);
+  assert.match(prompts[0], /top\(주요 시사\): c1\n/);
+  assert.match(prompts[0], /economy\(경제\): c2\n/);
   assert.match(prompts[0], /it\(IT\): 맞는 후보 없음/);
 });
 
-test("작성 프롬프트는 서버의 빈 슬롯 판정처럼 경제·IT를 먼저 배정하고, 하나뿐인 경제·IT 후보는 화제에 쓰지 않게 한다", async () => {
-  // A(국내 금리)·B(해외 AI)·C(국제 분쟁): 국내·IT 후보가 하나씩뿐이다. A를 화제에 쓰면 국내가 빈다.
+test("작성 프롬프트는 분류가 겹치지 않는 세 슬롯에 후보를 나눠 알려 준다", async () => {
+  // c1(국내 사회)·c4(국제 분쟁)는 주요 시사, c2(국내 정책)는 경제, c3(해외 AI)는 IT에만 맞는다
   const world = candidate("c4", { region: "GLOBAL", category: "world", importance: 7 });
-  const { write, prompts } = drafts([draftNews(1, "top", "c4"), draftNews(2, "economy", "c1"), draftNews(3, "it", "c3", { region: "GLOBAL" })]);
-  await generateDailyBriefing({ ...params, candidates: [CANDIDATE, IT, world] }, { write, review: passAll });
+  const { write, prompts } = drafts([draftNews(1, "top", "c4"), draftNews(2, "economy", "c2"), draftNews(3, "it", "c3", { region: "GLOBAL" })]);
+  await generateDailyBriefing({ ...params, candidates: [CANDIDATE, DOMESTIC, IT, world] }, { write, review: passAll });
   const prompt = prompts[0];
-  assert.match(prompt, /배정 순서: economy와 it을 먼저 정하고, top은 남은 후보에서 고른다/);
-  assert.match(prompt, /economy·it에 맞는 후보가 하나뿐이면 그 후보는 그 슬롯에 쓰고 top에 쓰지 않는다/);
-  assert.match(prompt, /- top\(오늘의 화제\): c4\n/);
-  assert.match(prompt, /- economy\(경제\): c1 \(이 슬롯에 맞는 후보는 이것뿐이다/);
-  assert.match(prompt, /- it\(IT\): c3 \(이 슬롯에 맞는 후보는 이것뿐이다/);
-  // 후보 JSON의 slots에서도 top이 빠진다
-  assert.match(prompt, /"id": "c1",[\s\S]*?"slots": \[\s*"economy"\s*\]/);
-  // 국내·IT 후보만 하나씩 있으면 화제는 비운다 (matchSlots와 같다)
-  const pair = drafts([draftNews(1, "economy", "c1"), draftNews(2, "it", "c3", { region: "GLOBAL" })]);
-  await generateDailyBriefing({ ...params, candidates: [CANDIDATE, IT] }, { write: pair.write, review: passAll });
-  assert.match(pair.prompts[0], /- top\(오늘의 화제\): 맞는 후보 없음/);
-  // 국내 후보가 둘이면 어느 쪽이든 화제에 쓸 수 있다
-  const two = drafts([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]);
-  await generateDailyBriefing({ ...params, candidates: [CANDIDATE, DOMESTIC] }, { write: two.write, review: passAll });
-  assert.match(two.prompts[0], /- top\(오늘의 화제\): c1, c2\n/);
+  assert.match(prompt, /- top\(주요 시사\): c1, c4\n/);
+  assert.match(prompt, /- economy\(경제\): c2\n/);
+  assert.match(prompt, /- it\(IT\): c3\n/);
+  // 후보 JSON의 slots도 슬롯 하나뿐이다
+  assert.match(prompt, /"id": "c2",[\s\S]*?"slots": \[\s*"economy"\s*\]/);
+  assert.doesNotMatch(prompt, /배정 순서/);
+  // 경제·IT 후보만 있으면 주요 시사는 비운다 (matchSlots와 같다)
+  const pair = drafts([draftNews(1, "economy", "c2"), draftNews(2, "it", "c3", { region: "GLOBAL" })]);
+  await generateDailyBriefing({ ...params, candidates: [DOMESTIC, IT] }, { write: pair.write, review: passAll });
+  assert.match(pair.prompts[0], /- top\(주요 시사\): 맞는 후보 없음/);
 });
 
-test("화제가 국내 사건일 때 국내 슬롯에 같은 사건을 쓰면 재시도로 다른 국내 사건으로 고친다", async () => {
+test("주요 시사 후보를 경제 슬롯에 다시 쓰면 분류 불일치로 걸리고 재시도로 다른 경제 사건으로 고친다", async () => {
   const { write, prompts } = drafts(
     [draftNews(1, "top", "c1"), draftNews(2, "economy", "c1")],
     [draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")],
   );
   const result = await generateDailyBriefing(slotParams, { write, review: passAll });
   assert.equal(result.attempts, 2);
-  assert.deepEqual(result.violations.map((item) => [item.code, item.rank]), [["news.same_event", 2]]);
-  assert.match(prompts[1], /같은 후보\(c1\)/);
+  assert.deepEqual(result.violations.map((item) => [item.code, item.rank]), [["news.slot_mismatch", 2]]);
+  assert.match(prompts[1], /후보 c1/);
   assert.deepEqual(result.content.newsItems.map((item) => item.evidence?.candidateId), ["c1", "c2"]);
 });
 

@@ -116,6 +116,26 @@ export async function collectFeedItems(
   return { items, feeds };
 }
 
+/**
+ * 고르기 평가 항목(각 1~10). 2026-10-20 사용자 요청: 최신·화제성이 아니라 읽을 가치로 고른다.
+ *   importance      중요도. 파급 범위·새 변화·여러 매체 보도
+ *   learningValue   학습 가치. 읽고 나면 경제·산업·기술을 이해하는 틀이 남는가
+ *   jobRelevance    직무 관련성. 금융 IT·커머스 IT·DX/AX 실무와 닿는가
+ *   explainability  설명 가능성. 원인·배경·영향까지 기사로 설명할 수 있을 것으로 보이는가
+ */
+export type SelectionScores = { importance: number; learningValue: number; jobRelevance: number; explainability: number };
+
+/** 평가 가중치. 직무 관련성은 가산점 정도로만 둔다. 모든 기사를 직무에 억지로 잇지 않기 위해서다. */
+export const SELECTION_WEIGHTS: SelectionScores = { importance: 0.35, learningValue: 0.25, explainability: 0.25, jobRelevance: 0.15 };
+
+/** 후보 점수. 항목마다 1~10으로 자른 뒤 가중합한다. 소수 첫째 자리까지. */
+export function selectionScore(scores: SelectionScores): number {
+  const clamp = (value: number) => Math.min(10, Math.max(1, Number.isFinite(value) ? value : 1));
+  const total = (Object.keys(SELECTION_WEIGHTS) as (keyof SelectionScores)[])
+    .reduce((sum, key) => sum + clamp(scores[key]) * SELECTION_WEIGHTS[key], 0);
+  return Math.round(total * 10) / 10;
+}
+
 /** 모델이 고른 후보 한 건. 같은 사건을 다룬 기사 id를 itemIds로 묶는다. */
 export type FeedPick = {
   itemIds: string[];
@@ -123,7 +143,8 @@ export type FeedPick = {
   summary: string;
   region: NewsRegion;
   category: NewsCategory;
-  importance: number;
+  scores: SelectionScores;
+  reason: string;
 };
 
 /** 후보 한 건에 붙이는 출처 수 상한. 근거 확인은 그중 앞의 몇 건만 읽는다. */
@@ -132,7 +153,7 @@ const SOURCES_PER_CANDIDATE = 4;
 /**
  * 고른 결과를 뉴스 후보로 바꾼다. 출처는 목록에 실제로 있는 기사뿐이다.
  * 목록에 없는 id는 버리고, 한 기사는 먼저 고른 후보 하나에만 쓴다. 남은 출처가 없는 후보는 버린다.
- * 중요도는 1~10 정수로 자른다.
+ * importance에는 평가 점수의 가중합(selectionScore)을 1~10 정수로 반올림해 넣는다. 근거 확인 순서와 슬롯 채우기가 이 값을 쓴다.
  */
 export function candidatesFromPicks(picks: FeedPick[], items: FeedItem[]): NewsCandidate[] {
   const byId = new Map(items.map((item) => [item.id, item]));
@@ -152,7 +173,7 @@ export function candidatesFromPicks(picks: FeedPick[], items: FeedItem[]): NewsC
       summary: pick.summary.trim() || pick.title.trim(),
       region: pick.region,
       category: pick.category,
-      importance: Math.min(10, Math.max(1, Math.round(pick.importance))),
+      importance: Math.min(10, Math.max(1, Math.round(selectionScore(pick.scores)))),
       sources,
     }];
   });

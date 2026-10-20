@@ -30,7 +30,7 @@ export const NEWS_REGION_LABEL: Record<NewsRegion, string> = {
 
 /** 주요 이슈의 자리. 2026-10-19 이후 기사에만 있다. 국내(domestic)는 2026-10-19~20 기사의 예전 자리다. */
 export const NEWS_SLOT_LABEL: Record<StoredNewsSlot, string> = {
-  top: "오늘의 화제",
+  top: "주요 시사",
   economy: "경제",
   it: "IT",
   domestic: "국내",

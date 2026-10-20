@@ -4,7 +4,7 @@ import { getModel, getOpenAI, LIGHT_REASONING } from "@/lib/openai/client";
 import { buildNewsSelectionPrompt } from "@/lib/openai/prompts";
 import { aiNewsSelectionSchema, newsCandidateSchema } from "@/lib/openai/schemas";
 import type { DateString } from "@/lib/date";
-import { candidatesFromPicks, collectFeedItems, type FeedItem, type FeedResult } from "@/lib/news/rss";
+import { candidatesFromPicks, collectFeedItems, selectionScore, type FeedItem, type FeedResult, type SelectionScores } from "@/lib/news/rss";
 import type { NewsCandidate, RecentNewsEntry } from "@/types/briefing";
 import { zodTextFormat } from "openai/helpers/zod";
 
@@ -21,6 +21,8 @@ export type CollectNewsResult = {
   feeds: FeedResult[];
   /** 고르기에 넘긴 기사 수 */
   pool: number;
+  /** 고르기 결과. 후보마다 평가 점수·선정 이유, 그리고 고르지 않은 주요 기사와 그 이유. 생성 로그에 남긴다. */
+  selection: NewsSelectionAudit;
   inputTokens: number;
   outputTokens: number;
   webSearchCalls: number;
@@ -29,6 +31,11 @@ export type CollectNewsResult = {
 type CollectDependencies = {
   feeds: (date: DateString, signal?: AbortSignal) => Promise<{ items: FeedItem[]; feeds: FeedResult[] }>;
   select: (input: string, signal?: AbortSignal) => Promise<{ picks: unknown; inputTokens: number; outputTokens: number }>;
+};
+
+export type NewsSelectionAudit = {
+  picked: { title: string; category: string; score: number; scores: SelectionScores; reason: string }[];
+  rejected: { title: string; reason: string }[];
 };
 
 async function selectFromFeeds(input: string, signal?: AbortSignal) {
@@ -77,5 +84,11 @@ export async function collectMarketNews(
       const checked = newsCandidateSchema.safeParse(candidate);
       return checked.success ? [checked.data] : [];
     });
-  return { candidates, feeds, pool: items.length, ...usage };
+  const selection: NewsSelectionAudit = {
+    picked: parsed.data.candidates.map((pick) => ({
+      title: pick.title, category: pick.category, score: selectionScore(pick.scores), scores: pick.scores, reason: pick.reason,
+    })),
+    rejected: parsed.data.rejected,
+  };
+  return { candidates, feeds, pool: items.length, selection, ...usage };
 }

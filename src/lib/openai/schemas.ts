@@ -235,7 +235,11 @@ export const curatorSchema = z.object({
   picks: z.array(z.object({ id: z.string(), title: z.string(), reason: z.string() })),
 });
 
-/** STEP 1 응답 형식. RSS 기사 목록에서 고른 후보. 출처 URL은 서버가 itemIds로 붙인다. */
+/**
+ * STEP 1 응답 형식. RSS 기사 목록에서 고른 후보. 출처 URL은 서버가 itemIds로 붙인다.
+ * 후보마다 평가 점수(1~10)와 선정 이유를 받는다. 서버가 점수를 가중합해 후보 순서를 정한다(rss.ts selectionScore).
+ * rejected는 눈에 띄지만 고르지 않은 기사와 그 이유다. 생성 로그에만 남는다.
+ */
 export const aiNewsSelectionSchema = z.object({
   candidates: z.array(z.object({
     itemIds: z.array(z.string()),
@@ -243,8 +247,15 @@ export const aiNewsSelectionSchema = z.object({
     summary: z.string(),
     region: newsRegionSchema,
     category: newsCategorySchema,
-    importance: z.number(),
+    scores: z.object({
+      importance: z.number(),
+      learningValue: z.number(),
+      jobRelevance: z.number(),
+      explainability: z.number(),
+    }),
+    reason: z.string(),
   })),
+  rejected: z.array(z.object({ title: z.string(), reason: z.string() })),
 });
 
 /**
