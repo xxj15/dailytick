@@ -1,6 +1,6 @@
 import "server-only";
 import { zodTextFormat } from "openai/helpers/zod";
-import { getModel, getOpenAI, timeoutForItems } from "@/lib/openai/client";
+import { getModel, getOpenAI, LIGHT_REASONING, timeoutForItems } from "@/lib/openai/client";
 import { buildGroundingReviewPrompt, groundingReviewSchema } from "@/lib/news/review";
 import type { GroundedCandidate } from "@/lib/news/evidence-types";
 import type { GroundedSection, RecentNewsEntry } from "@/types/briefing";
@@ -13,6 +13,7 @@ export async function reviewBriefing(content: GroundedSection, candidates: Groun
   const response = await getOpenAI().responses.parse({
     model: getModel(),
     input: buildGroundingReviewPrompt(content, candidates, date, recentNews),
+    reasoning: LIGHT_REASONING,
     text: { format: zodTextFormat(groundingReviewSchema, "grounding_review") },
   }, { timeout: timeoutForItems(content.knowledgeItems.length), maxRetries: 0, signal });
   if (!response.output_parsed) throw new Error("발행 전 근거 검토 결과가 없습니다.");

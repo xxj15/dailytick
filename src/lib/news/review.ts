@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { GroundedCandidate } from "@/lib/news/evidence-types";
+import { FACT_TEXT_LIMIT } from "@/lib/news/ground-candidates";
 import type { GroundedSection, RecentNewsEntry } from "@/types/briefing";
 
 export const groundingReviewSchema = z.object({
@@ -85,6 +86,7 @@ knowledgeItems의 교육용 설명·예시·코드는 명백히 틀린 내용일
   candidateId: candidate.id,
   ...(candidate.knowledgeSlug ? { knowledgeSlug: candidate.knowledgeSlug } : {}),
   facts: candidate.facts,
-  documents: candidate.documents.map((doc) => ({ sourceId: doc.id, ...doc.source, text: doc.text.slice(0, 12_000) })),
+  // 근거 문장을 고를 때 본 길이까지만 보여 준다. 고른 문장은 이 범위 안에 있다.
+  documents: candidate.documents.map((doc) => ({ sourceId: doc.id, ...doc.source, text: doc.text.slice(0, FACT_TEXT_LIMIT) })),
 })))}</evidence>`;
 }

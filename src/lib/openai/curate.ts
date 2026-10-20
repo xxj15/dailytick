@@ -1,6 +1,6 @@
 import "server-only";
 import { zodTextFormat } from "openai/helpers/zod";
-import { getModel, getOpenAI } from "@/lib/openai/client";
+import { getModel, getOpenAI, LIGHT_REASONING } from "@/lib/openai/client";
 import { buildCuratorPrompt, curatorPickCount } from "@/lib/openai/prompts";
 import { curatorSchema } from "@/lib/openai/schemas";
 
@@ -14,6 +14,7 @@ export async function curateKnowledge(params: Parameters<typeof buildCuratorProm
   const response = await getOpenAI().responses.parse({
     model: getModel(),
     input: buildCuratorPrompt(params),
+    reasoning: LIGHT_REASONING,
     text: { format: zodTextFormat(curatorSchema, "curation") },
   }, { timeout: 45_000, maxRetries: 0, signal });
   if (!response.output_parsed) throw new Error("큐레이터 응답이 없습니다.");

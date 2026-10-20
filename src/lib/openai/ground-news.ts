@@ -8,11 +8,11 @@ import { fetchSource, type SourceResponse } from "@/lib/news/fetch-source";
 import { buildFactSelectionPrompt, factSelectionSchema, groundCandidates, isKoreanText, type CandidateDocuments, type FactSelection } from "@/lib/news/ground-candidates";
 import { sourceMatchKey, sourceUrlKey } from "@/lib/news/search-provenance";
 import { fitsSlot } from "@/lib/news/slots";
-import { getModel, getOpenAI } from "@/lib/openai/client";
+import { getModel, getOpenAI, LIGHT_REASONING } from "@/lib/openai/client";
 import type { NewsCandidate } from "@/types/briefing";
 
 type SelectionResult = { selection: FactSelection; inputTokens: number; outputTokens: number };
-/** 근거 문장 선택 한 번에 넘기는 후보 수. 후보마다 본문 최대 12,000자가 함께 간다. */
+/** 근거 문장 선택 한 번에 넘기는 후보 수. 후보마다 본문 최대 FACT_TEXT_LIMIT자가 함께 간다. */
 const SELECT_BATCH = 4;
 export class GroundNewsError extends Error {
   constructor(message: string, readonly rejected: EvidenceRejection[]) { super(message); }
@@ -26,6 +26,7 @@ async function selectFacts(inputs: CandidateDocuments[], date: DateString, signa
   const response = await getOpenAI().responses.parse({
     model: getModel(),
     input: buildFactSelectionPrompt(inputs, date),
+    reasoning: LIGHT_REASONING,
     text: { format: zodTextFormat(factSelectionSchema, "evidence_selection") },
   }, { timeout: 60_000, maxRetries: 0, signal });
   if (!response.output_parsed) throw new Error("근거 문장 선택 결과가 없습니다.");

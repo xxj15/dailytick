@@ -71,6 +71,12 @@ export function groundCandidates(inputs: CandidateDocuments[], selected: FactSel
   return { candidates, rejected };
 }
 
+/**
+ * 근거 문장을 고를 때 모델에 보여주는 본문 길이. 국내 기사는 대부분 3천 자 안쪽이고 핵심 사실은 앞에 있다.
+ * 영문 아티클처럼 긴 글은 앞부분만 본다. 입력 토큰이 본문 길이에 비례한다.
+ */
+export const FACT_TEXT_LIMIT = 6_000;
+
 /** 긴 원문은 선택 단계에서만 사용한다. 작성 단계에는 선택된 짧은 근거만 전달한다. */
 export function buildFactSelectionPrompt(inputs: CandidateDocuments[], date: DateString): string {
   return `당신은 뉴스 근거를 선택하는 편집자다. 기준일은 ${date}, Asia/Seoul이다.
@@ -89,7 +95,7 @@ quote는 원문 언어 그대로 복사한다. 영어 기사는 영어 문장을
 ${JSON.stringify(inputs.map((input) => ({
   candidateId: input.id,
   searchHint: { title: input.candidate.title, summary: input.candidate.summary },
-  documents: input.documents.map((doc) => ({ sourceId: doc.id, ...doc.source, text: doc.text.slice(0, 12_000) })),
+  documents: input.documents.map((doc) => ({ sourceId: doc.id, ...doc.source, text: doc.text.slice(0, FACT_TEXT_LIMIT) })),
 })))}
 </source_documents>`;
 }
