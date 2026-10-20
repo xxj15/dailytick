@@ -213,3 +213,13 @@ test("첫 기사에 원인이 없으면 같은 사건의 두 번째 한국어 �
   assert.deepEqual(result.candidates[0].facts.map((fact) => fact.role), ["event", "background"]);
   assert.deepEqual(result.candidates[0].sources.map((source) => source.url), ["https://example.com/first", "https://example.com/second"]);
 });
+
+test("테크 아티클 원문은 역할별 개수를 보지 않는다. 주요 이슈는 무슨 일 문장이 3개면 거른다", () => {
+  const three = ["첫 번째 핵심 문장으로 원문에 그대로 들어 있는 설명이다.", "두 번째 핵심 문장으로 원문에 그대로 들어 있는 설명이다.", "세 번째 핵심 문장으로 원문에 그대로 들어 있는 설명이다."];
+  const doc = { ...input, documents: [{ ...input.documents[0], text: three.join(" ") }] };
+  const picked = { candidates: [{ candidateId: "c1", facts: three.map((quote) => ({ sourceId: "s1", quote, role: "event" as const })) }] };
+  // 테크 상식(원인 문장을 요구하지 않는 근거 확인)
+  assert.equal(groundCandidates([doc], picked, "2026-10-09", undefined, false, false, false).candidates.length, 1);
+  // 주요 이슈는 원인 문장도 없고 무슨 일 문장이 상한을 넘는다
+  assert.equal(groundCandidates([doc], picked, "2026-10-09", undefined, false, true, true).candidates.length, 0);
+});

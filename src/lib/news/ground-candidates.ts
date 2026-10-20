@@ -60,7 +60,9 @@ export function groundCandidates(inputs: CandidateDocuments[], selected: FactSel
       rejected.push({ candidateId: input.id, reason: "본문에서 원인·배경 문장을 확인할 수 없습니다." });
       continue;
     }
-    const valid = facts.length >= 1 && facts.length <= MAX_FACTS && events >= 1 && events <= MAX_PER_ROLE && backgrounds <= MAX_PER_ROLE && facts.every((fact) => {
+    // 역할별 개수(무슨 일 1~2·원인 0~2)는 주요 이슈에만 본다. 테크 아티클 원문은 역할과 상관없이 문장 1~MAX_FACTS개를 받는다.
+    const rolesOk = !requireBackground || (events >= 1 && events <= MAX_PER_ROLE && backgrounds <= MAX_PER_ROLE);
+    const valid = facts.length >= 1 && facts.length <= MAX_FACTS && rolesOk && facts.every((fact) => {
       const doc = input.documents.find((source) => source.id === fact.sourceId);
       return doc && fact.quote.length >= 25 && fact.quote.length <= 400 && doc.text.includes(fact.quote);
     });
