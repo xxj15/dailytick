@@ -108,13 +108,13 @@ test("영문 표기가 많이 섞인 한국어 문장도 한국어로 본다", (
 test("본문을 읽을 후보를 줄일 때 중요도가 낮아도 국내·IT 후보 자리를 먼저 잡는다", () => {
   const base = input.candidate;
   const global = Array.from({ length: 14 }, (_, i) => ({ ...base, title: `해외 ${i}`, region: "GLOBAL" as const, category: "world" as const, importance: 9 }));
-  const domestic = { ...base, title: "국내 정책", category: "policy" as const, importance: 5 };
+  const economy = { ...base, title: "국내 정책", category: "policy" as const, importance: 5 };
   const it = { ...base, title: "AI 발표", region: "GLOBAL" as const, category: "ai" as const, importance: 4 };
-  const bounded = boundForGrounding([...global, domestic, it]);
+  const bounded = boundForGrounding([...global, economy, it]);
   assert.equal(bounded.length, NEWS_GROUND_LIMIT);
-  assert.ok(bounded.includes(domestic) && bounded.includes(it));
+  assert.ok(bounded.includes(economy) && bounded.includes(it));
   // 중요도 순서는 그대로다
-  assert.deepEqual(bounded.slice(-2), [domestic, it]);
+  assert.deepEqual(bounded.slice(-2), [economy, it]);
 });
 
 /** 본문 HTML. 게시일이 기준일 안이고, 근거 문장이 들어 있다. */
@@ -144,10 +144,10 @@ test("idPrefix를 주면 후보 id·근거 문장 id·거부 기록이 모두 �
 test("후보가 근거 확인 한도보다 많아도 중요도가 가장 낮은 국내·IT 후보의 본문을 읽는다", async () => {
   const source = (url: string) => [{ ...input.candidate.sources[0], url }];
   const global = Array.from({ length: 14 }, (_, i) => ({ ...input.candidate, title: `해외 ${i}`, region: "GLOBAL" as const, category: "world" as const, importance: 9, sources: source(`https://example.com/global/${i}`) }));
-  const domestic = { ...input.candidate, title: "국내 정책", category: "policy" as const, importance: 2, sources: source("https://example.com/domestic") };
+  const economy = { ...input.candidate, title: "국내 정책", category: "policy" as const, importance: 2, sources: source("https://example.com/economy") };
   const it = { ...input.candidate, title: "AI 발표", region: "GLOBAL" as const, category: "ai" as const, importance: 1, sources: source("https://example.com/it") };
   const fetched: string[] = [];
-  const result = await groundMarketNews([...global, domestic, it], "2026-10-09", {
+  const result = await groundMarketNews([...global, economy, it], "2026-10-09", {
     fetch: async (url) => {
       fetched.push(url);
       return article(url);
@@ -155,7 +155,7 @@ test("후보가 근거 확인 한도보다 많아도 중요도가 가장 낮은 
     select: selectAll,
   });
   assert.equal(fetched.length, NEWS_GROUND_LIMIT);
-  assert.ok(fetched.includes("https://example.com/domestic") && fetched.includes("https://example.com/it"));
+  assert.ok(fetched.includes("https://example.com/economy") && fetched.includes("https://example.com/it"));
   assert.ok(result.candidates.some((candidate) => candidate.title === "국내 정책"));
   assert.ok(result.candidates.some((candidate) => candidate.title === "AI 발표"));
 });

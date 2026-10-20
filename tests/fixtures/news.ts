@@ -35,6 +35,6 @@ export const IT = candidate("c3", { region: "GLOBAL", category: "ai" });
 
 /** 슬롯 기사 초안. 제목에 숫자를 넣지 않는다(근거 없는 숫자 검사에 걸린다). */
 export function draftNews(rank: number, slot: DraftNews["slot"], candidateId: string, overrides: Partial<DraftNews> = {}): DraftNews {
-  const title = { top: "화제 기사", domestic: "국내 기사", it: "IT 기사" }[slot];
+  const title = { top: "화제 기사", economy: "경제 기사", it: "IT 기사" }[slot];
   return { ...DRAFT.newsItems[0], rank, slot, candidateId, factIds: [`${candidateId}-f1`], title, ...overrides };
 }

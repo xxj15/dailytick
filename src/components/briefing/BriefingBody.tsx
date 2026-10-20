@@ -25,7 +25,7 @@ export function BriefingBody({
   /** 로그인한 지면 주인만 완료 표시와 메모를 쓸 수 있다. */
   canEdit: boolean;
 }) {
-  // 주요 이슈는 슬롯 순서(오늘의 화제 → 국내 → IT)로 저장돼 있다. 2026-10-19 이전 지면은 IT 데스크 뉴스가 따로 있어 뒤에 붙인다.
+  // 주요 이슈는 슬롯 순서(오늘의 화제 → 경제 → IT)로 저장돼 있다. 2026-10-19 이전 지면은 IT 데스크 뉴스가 따로 있어 뒤에 붙인다.
   const news = [...briefing.newsItems, ...(briefing.tech?.newsItems ?? [])]
     .map((issue) => ({ issue, field: newsField(issue.category) }));
   // 슬롯이 있는 지면은 세 자리로 이미 나뉘어 있어 분야 칩을 숨긴다. 슬롯 도입 전 지면은 분야 칩을 그대로 보여준다.

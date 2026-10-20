@@ -75,12 +75,12 @@ test("주요 이슈·경제 상식·테크 상식을 만들어 저장하고, 섹
   assert.equal(run.logs[0].audit?.stage, "complete");
   assert.equal(run.logs[0].audit?.coverage?.verdict, "ok");
   // 1차 수집은 슬롯마다 한 번씩 세 번이다. 세 슬롯 모두 근거 있는 후보가 있으면 다시 수집하지 않는다
-  assert.deepEqual(run.calls.collect.map((option) => (option as CollectOption)?.slot), ["top", "domestic", "it"]);
+  assert.deepEqual(run.calls.collect.map((option) => (option as CollectOption)?.slot), ["top", "economy", "it"]);
   assert.ok(run.calls.collect.every((option) => !(option as CollectOption)?.focusSlots));
   // 세 호출이 같은 후보(같은 제목·같은 URL)를 냈어도 합친 후보에는 한 번씩만 남는다
-  assert.deepEqual(run.logs[0].audit?.coverage?.firstPass, [{ slot: "top", candidates: 3 }, { slot: "domestic", candidates: 3 }, { slot: "it", candidates: 3 }]);
+  assert.deepEqual(run.logs[0].audit?.coverage?.firstPass, [{ slot: "top", candidates: 3 }, { slot: "economy", candidates: 3 }, { slot: "it", candidates: 3 }]);
   assert.equal(run.logs[0].audit?.coverage?.candidates, 3);
-  assert.deepEqual(run.logs[0].audit?.coverage?.slots.map((entry) => [entry.slot, entry.grounded]), [["top", 3], ["domestic", 2], ["it", 1]]);
+  assert.deepEqual(run.logs[0].audit?.coverage?.slots.map((entry) => [entry.slot, entry.grounded]), [["top", 3], ["economy", 2], ["it", 1]]);
   assert.equal(run.logs[0].audit?.curation?.status, "curated");
   assert.equal(run.logs[0].audit?.tech?.curation?.status, "curated");
   // 테크 상식은 추천 하나에 모자란 자리를 커리큘럼 개념으로 채워 두 개다
@@ -1014,7 +1014,7 @@ test("빈 슬롯: 근거 있는 IT 후보가 없으면 IT만 겨냥해 다시 �
       return groundAs(candidates, ...rest);
     },
     // IT 슬롯은 맞는 후보가 없으니 화제·국내만 쓴다
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")], seen),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")], seen),
   });
   assert.equal(firstPass.length, 3);
   assert.equal(recollects.length, 1);
@@ -1022,7 +1022,7 @@ test("빈 슬롯: 근거 있는 IT 후보가 없으면 IT만 겨냥해 다시 �
   // 재수집 후보 가운데 빈 슬롯(IT)에 맞지 않는 국내 증시는 본문을 읽지 않는다
   assert.deepEqual(grounds, [["국내 금리", "국내 정책"]]);
   assert.deepEqual(seen.ids, ["c1", "c2"]);
-  assert.deepEqual(result.briefing.newsItems.map((item) => [item.rank, item.slot]), [[1, "top"], [2, "domestic"]]);
+  assert.deepEqual(result.briefing.newsItems.map((item) => [item.rank, item.slot]), [[1, "top"], [2, "economy"]]);
   const coverage = run.logs[0].audit?.coverage;
   assert.equal(coverage?.recollected, true);
   assert.deepEqual(coverage?.recollectedSlots, ["it"]);
@@ -1030,7 +1030,7 @@ test("빈 슬롯: 근거 있는 IT 후보가 없으면 IT만 겨냥해 다시 �
   assert.equal(coverage?.verdict, "thin_day");
   assert.deepEqual(coverage?.slots.map((entry) => [entry.slot, entry.status, entry.rank ?? entry.reason]), [
     ["top", "filled", 1],
-    ["domestic", "filled", 2],
+    ["economy", "filled", 2],
     ["it", "empty", "근거가 확인된 후보로 채울 수 없었다"],
   ]);
 });
@@ -1069,7 +1069,7 @@ test("재수집은 1차와 겹치지 않는 새 후보만 본문을 확인해 1�
       const result = await groundAs(ok, date, signal, maxAge, allowUndated, idPrefix);
       return { ...result, rejected: candidates.length === ok.length ? [] : [{ candidateId: "c3", url: "https://blocked.example.com/ai", reason: "HTTP 403" }] };
     },
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2"), draftNews(3, "it", "r1", { region: "GLOBAL" })], seen),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2"), draftNews(3, "it", "r1", { region: "GLOBAL" })], seen),
   });
   // 재수집 프롬프트에는 1차 후보 제목과 버려진 URL을 넘긴다
   assert.deepEqual(recollects[0]?.focusSlots, ["it"]);
@@ -1081,7 +1081,7 @@ test("재수집은 1차와 겹치지 않는 새 후보만 본문을 확인해 1�
   assert.deepEqual(seen.ids, ["c1", "c2", "r1"]);
   const factIds = run.logs[0].audit?.evidence.flatMap((entry) => entry.facts.map((fact) => fact.id)) ?? [];
   assert.equal(new Set(factIds).size, factIds.length);
-  assert.deepEqual(result.briefing.newsItems.map((item) => [item.rank, item.slot, item.evidence?.candidateId]), [[1, "top", "c1"], [2, "domestic", "c2"], [3, "it", "r1"]]);
+  assert.deepEqual(result.briefing.newsItems.map((item) => [item.rank, item.slot, item.evidence?.candidateId]), [[1, "top", "c1"], [2, "economy", "c2"], [3, "it", "r1"]]);
   const coverage = run.logs[0].audit?.coverage;
   assert.equal(coverage?.verdict, "ok");
   assert.equal(coverage?.recollectError, undefined);
@@ -1098,11 +1098,11 @@ test("재수집이 예외를 던져도 1차에서 채운 슬롯으로 발행하�
   const result = await createDailyBriefing(DATE, {}, { ...run.services,
     collectMarketNews: collect,
     groundMarketNews: groundAs,
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]),
   });
   assert.equal(run.saves(), 1);
   assert.equal(run.logs[0].status, "success");
-  assert.deepEqual(result.briefing.newsItems.map((item) => [item.rank, item.slot]), [[1, "top"], [2, "domestic"]]);
+  assert.deepEqual(result.briefing.newsItems.map((item) => [item.rank, item.slot]), [[1, "top"], [2, "economy"]]);
   const coverage = run.logs[0].audit?.coverage;
   assert.equal(coverage?.recollected, true);
   assert.deepEqual(coverage?.recollectedSlots, ["it"]);
@@ -1126,9 +1126,9 @@ test("재수집 후보의 본문 확인이 실패해도 1차 결과로 발행한
       if (rest[4] === "r") throw new GroundNewsError("근거 문장 선택 실패", [{ candidateId: "r1", url: "https://example.com/2/0", reason: "HTTP 500" }]);
       return groundAs(candidates, ...rest);
     },
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]),
   });
-  assert.deepEqual(result.briefing.newsItems.map((item) => item.slot), ["top", "domestic"]);
+  assert.deepEqual(result.briefing.newsItems.map((item) => item.slot), ["top", "economy"]);
   const coverage = run.logs[0].audit?.coverage;
   assert.match(coverage?.recollectError ?? "", /근거 문장 선택 실패/);
   // 재수집으로 IT 후보를 찾았지만 본문 확인에서 떨어졌다
@@ -1146,7 +1146,7 @@ test("재수집이 자기 시간 예산을 넘기면 작성·검토 몫을 남�
   const first = collectBatches([KR_ONLY]);
   let generateSignal: AbortSignal | undefined;
   const aborted: (boolean | undefined)[] = [];
-  const writer = writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]);
+  const writer = writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]);
   const result = await createDailyBriefing(DATE, {}, { ...run.services,
     collectMarketNews: async (date, signal, option) => {
       if (!option?.focusSlots) return first.collect(date, signal, option);
@@ -1165,7 +1165,7 @@ test("재수집이 자기 시간 예산을 넘기면 작성·검토 몫을 남�
   assert.equal(generateSignal?.aborted, false);
   assert.equal(run.saves(), 1);
   assert.equal(run.logs[0].status, "success");
-  assert.deepEqual(result.briefing.newsItems.map((item) => [item.rank, item.slot]), [[1, "top"], [2, "domestic"]]);
+  assert.deepEqual(result.briefing.newsItems.map((item) => [item.rank, item.slot]), [[1, "top"], [2, "economy"]]);
   const coverage = run.logs[0].audit?.coverage;
   assert.equal(coverage?.recollected, true);
   assert.match(coverage?.recollectError ?? "", /재수집 시간 예산\(150초\)을 넘겨/);
@@ -1188,7 +1188,7 @@ test("재수집 뒤 근거 확인할 시간이 남지 않으면 본문을 읽지
       prefixes.push(rest[4]);
       return groundAs(candidates, ...rest);
     },
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]),
   });
   assert.deepEqual(prefixes, [undefined]);
   assert.equal(run.saves(), 1);
@@ -1252,7 +1252,7 @@ test("재수집 근거 확인은 빈 슬롯에 맞는 새 후보와 1차에서 �
       const ok = idPrefix === "r" ? read : read.filter((c) => c.category !== "ai");
       return groundAs(ok, date, signal, maxAge, allowUndated, idPrefix);
     },
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2"), draftNews(3, "it", "r1", { region: "GLOBAL" })], seen),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2"), draftNews(3, "it", "r1", { region: "GLOBAL" })], seen),
   });
   assert.deepEqual(recollects[0]?.focusSlots, ["it"]);
   assert.equal(grounds[0].length, 12);
@@ -1261,13 +1261,13 @@ test("재수집 근거 확인은 빈 슬롯에 맞는 새 후보와 1차에서 �
   assert.deepEqual(grounds[1], ["새 AI 모델", "IT d"]);
   // 1차 슬롯 호출 세 개와 1차 근거 확인은 실행 신호로 돈다.
   // 재수집의 수집과 근거 확인은 같은 재수집 전용 신호(자기 시간 예산)로 돈다. 1차와는 다르다.
-  const [top, domestic, it, recollect] = collectSignals;
+  const [top, economy, it, recollect] = collectSignals;
   const [firstGround, reground] = groundSignals;
-  assert.ok(top === firstGround && domestic === firstGround && it === firstGround);
+  assert.ok(top === firstGround && economy === firstGround && it === firstGround);
   assert.equal(recollect, reground);
   assert.notEqual(recollect, firstGround);
   assert.deepEqual(seen.ids.filter((id) => id.startsWith("r")), ["r1", "r2"]);
-  assert.deepEqual(result.briefing.newsItems.map((item) => item.slot), ["top", "domestic", "it"]);
+  assert.deepEqual(result.briefing.newsItems.map((item) => item.slot), ["top", "economy", "it"]);
   const coverage = run.logs[0].audit?.coverage;
   assert.equal(coverage?.verdict, "ok");
   assert.equal(coverage?.candidates, 16);
@@ -1281,7 +1281,7 @@ test("재수집이 1차에서 읽지 못한 후보를 다시 내도 재수집 �
   await createDailyBriefing(DATE, {}, { ...run.services,
     collectMarketNews: collect,
     groundMarketNews: groundCrowded(grounds),
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2"), draftNews(3, "it", "r1", { region: "GLOBAL" })]),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2"), draftNews(3, "it", "r1", { region: "GLOBAL" })]),
   });
   assert.deepEqual(grounds[1], ["IT d"]);
   assert.equal(run.logs[0].audit?.coverage?.candidates, 14);
@@ -1295,7 +1295,7 @@ test("재수집 후보가 1차에서 읽지 않은 다른 후보와 제목이 �
   await createDailyBriefing(DATE, {}, { ...run.services,
     collectMarketNews: collect,
     groundMarketNews: groundCrowded(grounds),
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2"), draftNews(3, "it", "r1", { region: "GLOBAL" })]),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2"), draftNews(3, "it", "r1", { region: "GLOBAL" })]),
   });
   assert.deepEqual(grounds[1], ["새 AI 모델", "IT d"]);
   // 1차 14건 + 새 AI 모델
@@ -1320,10 +1320,10 @@ test("재수집 근거 확인 중 예산이 끝나 본문을 하나도 읽지 �
         select: async () => { throw new Error("호출하면 안 됨"); },
       }, signal, maxAge, allowUndated, idPrefix);
     },
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]),
   });
   assert.equal(run.logs[0].status, "success");
-  assert.deepEqual(result.briefing.newsItems.map((item) => [item.rank, item.slot]), [[1, "top"], [2, "domestic"]]);
+  assert.deepEqual(result.briefing.newsItems.map((item) => [item.rank, item.slot]), [[1, "top"], [2, "economy"]]);
   const coverage = run.logs[0].audit?.coverage;
   assert.match(coverage?.recollectError ?? "", /재수집 시간 예산\(150초\)을 넘겨/);
   assert.ok(run.logs[0].audit?.sourceRejections.some((entry) => entry.candidateId === "r1"));
@@ -1339,7 +1339,7 @@ test("재수집에서 훑은 섹션은 1차 기록에 합치고, 다 훑었는�
       return { ...result, coverage: option?.focusSlots ? ALL_SECTIONS : ALL_SECTIONS.slice(0, 2) };
     },
     groundMarketNews: groundAs,
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]),
   });
   const coverage = run.logs[0].audit?.coverage;
   assert.equal(coverage?.sections.length, 5);
@@ -1352,7 +1352,7 @@ test("빈 슬롯 후보를 수집했지만 본문 확인에서 떨어졌다면 �
   await createDailyBriefing(DATE, {}, { ...run.services,
     collectMarketNews: collect,
     groundMarketNews: async (candidates, ...rest) => groundAs(candidates.filter((c) => c.category !== "ai"), ...rest),
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]),
   });
   // 출처 문제(sources_failed)가 검색 범위 문제(narrow_search)보다 먼저다
   assert.equal(run.logs[0].audit?.coverage?.verdict, "sources_failed");
@@ -1369,7 +1369,7 @@ test("1차 수집이 오래 걸려 남은 시간이 재수집 하한 이하이�
       return collect(date, signal, option);
     },
     groundMarketNews: groundAs,
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]),
   });
   assert.equal(firstPass.length, 3);
   assert.equal(recollects.length, 0);
@@ -1390,7 +1390,7 @@ test("1차 검색에서 거부된 URL과 본문 확인에서 버려진 URL을 �
       ...(await groundAs(candidates, ...rest)),
       rejected: [{ candidateId: "c3", url: "https://blocked.example.com/ai", reason: "HTTP 403" }],
     }),
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]),
   });
   assert.deepEqual(recollects[0]?.rejectedUrls, ["https://example.com/invented", "https://blocked.example.com/ai"]);
 });
@@ -1399,14 +1399,14 @@ test("근거 있는 후보로 채울 수 있었던 슬롯이 작성·검토에�
   const run = harness();
   await createDailyBriefing(DATE, {}, { ...run.services,
     groundMarketNews: groundAs,
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]),
   });
   const coverage = run.logs[0].audit?.coverage;
   assert.equal(coverage?.verdict, "ok");
   assert.equal(coverage?.recollected, false);
   assert.deepEqual(coverage?.slots.map((entry) => [entry.slot, entry.status, entry.rank ?? entry.reason]), [
     ["top", "filled", 1],
-    ["domestic", "filled", 2],
+    ["economy", "filled", 2],
     ["it", "empty", "작성·검토 단계에서 빠졌다"],
   ]);
 });
@@ -1420,7 +1420,7 @@ test("빈 슬롯에 맞는 후보가 없고 섹션도 덜 훑었으면 검색 �
   await createDailyBriefing(DATE, {}, { ...run.services,
     collectMarketNews: collect,
     groundMarketNews: groundAs,
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]),
   });
   const coverage = run.logs[0].audit?.coverage;
   assert.equal(coverage?.recollected, true);
@@ -1433,7 +1433,7 @@ const at = (path: string) => [{ ...CANDIDATE.sources[0], url: `https://example.c
 test("1차 슬롯 수집을 합칠 때 제목이 같거나 출처 URL이 겹치는 후보는 한 사건으로 묶어 새 출처만 붙이고, 국내·IT 호출의 후보를 남긴다", async () => {
   const run = harness();
   const { collect, firstPass } = collectBySlot({
-    domestic: [{ title: "국내 금리", category: "rates", sources: at("rate") }, { title: "국내 정책", category: "policy", sources: at("policy") }],
+    economy: [{ title: "국내 금리", category: "rates", sources: at("rate") }, { title: "국내 정책", category: "policy", sources: at("policy") }],
     it: [{ title: "AI 발표", region: "GLOBAL", category: "ai", sources: at("ai") }],
     top: [
       // 국내 호출과 같은 제목: 두 번째 후보가 되지 않고 새 출처만 국내 쪽 후보에 붙는다
@@ -1450,7 +1450,7 @@ test("1차 슬롯 수집을 합칠 때 제목이 같거나 출처 URL이 겹치�
       grounds.push(candidates);
       return groundAs(candidates, ...rest);
     },
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2"), draftNews(3, "it", "c3", { region: "GLOBAL" })]),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2"), draftNews(3, "it", "c3", { region: "GLOBAL" })]),
   });
   assert.equal(firstPass.length, 3);
   assert.deepEqual(grounds[0].map((c) => c.title), ["국내 금리", "국내 정책", "AI 발표", "태풍 상륙"]);
@@ -1460,7 +1460,7 @@ test("1차 슬롯 수집을 합칠 때 제목이 같거나 출처 URL이 겹치�
   const urls = grounds[0].flatMap((c) => c.sources.map((source) => source.url));
   assert.equal(new Set(urls).size, urls.length);
   // 호출별 기록은 낸 후보를 그대로 세고(지면 순서), 합친 후보 수는 묶은 것을 뺀 수다
-  assert.deepEqual(run.logs[0].audit?.coverage?.firstPass?.map((entry) => [entry.slot, entry.candidates]), [["top", 3], ["domestic", 2], ["it", 1]]);
+  assert.deepEqual(run.logs[0].audit?.coverage?.firstPass?.map((entry) => [entry.slot, entry.candidates]), [["top", 3], ["economy", 2], ["it", 1]]);
   assert.equal(run.logs[0].audit?.coverage?.candidates, 4);
 });
 
@@ -1469,22 +1469,22 @@ test("1차 슬롯 호출 하나가 실패해도 나머지 슬롯 후보로 발�
   const trace = [{ id: "search-it", action: "search" as const, status: "completed", urls: [], queries: ["AI"] }];
   const { collect, firstPass } = collectBySlot({
     top: [{ title: "국내 금리", category: "rates" }],
-    domestic: [{ title: "국내 정책", category: "policy" }],
+    economy: [{ title: "국내 정책", category: "policy" }],
     it: () => { throw new NewsCollectionError("확인할 수 없는 출처", { inputTokens: 7, outputTokens: 3, webSearchCalls: 4 }, trace, ["https://example.com/invented"]); },
   });
   const result = await createDailyBriefing(DATE, {}, { ...run.services,
     collectMarketNews: collect,
     groundMarketNews: groundAs,
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]),
   });
   assert.equal(firstPass.length, 3);
   assert.equal(run.saves(), 1);
   assert.equal(run.logs[0].status, "success");
-  assert.deepEqual(result.briefing.newsItems.map((item) => item.slot), ["top", "domestic"]);
+  assert.deepEqual(result.briefing.newsItems.map((item) => item.slot), ["top", "economy"]);
   const audit = run.logs[0].audit;
   assert.deepEqual(audit?.coverage?.firstPass, [
     { slot: "top", candidates: 1 },
-    { slot: "domestic", candidates: 1 },
+    { slot: "economy", candidates: 1 },
     { slot: "it", candidates: 0, error: "확인할 수 없는 출처" },
   ]);
   assert.deepEqual(audit?.rejectedUrls, ["https://example.com/invented"]);
@@ -1499,10 +1499,10 @@ test("1차 슬롯 호출이 모두 실패하면 수집 실패로 멈추고, 세 
   const fail = (slot: NewsSlot) => (): never => {
     throw new NewsCollectionError(`${slot} 출처 거절`, { inputTokens: 1, outputTokens: 1, webSearchCalls: 2 }, [], [`https://example.com/invented-${slot}`]);
   };
-  const { collect, firstPass } = collectBySlot({ top: fail("top"), domestic: fail("domestic"), it: fail("it") });
+  const { collect, firstPass } = collectBySlot({ top: fail("top"), economy: fail("economy"), it: fail("it") });
   await assert.rejects(
     () => createDailyBriefing(DATE, {}, { ...run.services, collectMarketNews: collect }),
-    /세 슬롯 모두\): top: top 출처 거절 \/ domestic: domestic 출처 거절 \/ it: it 출처 거절/,
+    /세 슬롯 모두\): top: top 출처 거절 \/ economy: economy 출처 거절 \/ it: it 출처 거절/,
   );
   // 시간 초과가 아니므로 다시 시도하지 않는다
   assert.equal(firstPass.length, 3);
@@ -1510,7 +1510,7 @@ test("1차 슬롯 호출이 모두 실패하면 수집 실패로 멈추고, 세 
   assert.equal(run.saves(), 0);
   assert.equal(run.logs[0].status, "failed");
   assert.equal(run.logs[0].audit?.stage, "search");
-  assert.deepEqual([...(run.logs[0].audit?.rejectedUrls ?? [])].sort(), ["https://example.com/invented-domestic", "https://example.com/invented-it", "https://example.com/invented-top"]);
+  assert.deepEqual([...(run.logs[0].audit?.rejectedUrls ?? [])].sort(), ["https://example.com/invented-economy", "https://example.com/invented-it", "https://example.com/invented-top"]);
   // 세 호출 6회 + 테크 상식 발굴 1회
   assert.equal(run.logs[0].webSearchCalls, 7);
 });
@@ -1518,7 +1518,7 @@ test("1차 슬롯 호출이 모두 실패하면 수집 실패로 멈추고, 세 
 test("1차 슬롯 호출이 모두 실패했고 시간 초과로 끝난 슬롯이 있으면, 시간이 남을 때 그 슬롯만 한 번 더 시도한다", async () => {
   const run = harness();
   const slots: (NewsSlot | undefined)[] = [];
-  const retry = collectBySlot({ domestic: [{ title: "국내 정책", category: "policy" }], it: [{ title: "AI 발표", region: "GLOBAL", category: "ai" }] });
+  const retry = collectBySlot({ economy: [{ title: "국내 정책", category: "policy" }], it: [{ title: "AI 발표", region: "GLOBAL", category: "ai" }] });
   const result = await createDailyBriefing(DATE, {}, { ...run.services,
     collectMarketNews: async (date, signal, option) => {
       if (option?.focusSlots) return retry.collect(date, signal, option);
@@ -1529,15 +1529,15 @@ test("1차 슬롯 호출이 모두 실패했고 시간 초과로 끝난 슬롯�
     },
     groundMarketNews: groundAs,
     // 화제에 쓸 후보가 남지 않아 국내·IT만 쓴다
-    generateDailyBriefing: writeNews([draftNews(1, "domestic", "c1"), draftNews(2, "it", "c2", { region: "GLOBAL" })]),
+    generateDailyBriefing: writeNews([draftNews(1, "economy", "c1"), draftNews(2, "it", "c2", { region: "GLOBAL" })]),
   });
   // 처음 세 호출 뒤 시간 초과로 끝난 국내·IT만 다시 부른다
-  assert.deepEqual(slots, ["top", "domestic", "it", "domestic", "it"]);
+  assert.deepEqual(slots, ["top", "economy", "it", "economy", "it"]);
   assert.equal(run.logs[0].status, "success");
-  assert.deepEqual(result.briefing.newsItems.map((item) => item.slot), ["domestic", "it"]);
+  assert.deepEqual(result.briefing.newsItems.map((item) => item.slot), ["economy", "it"]);
   assert.deepEqual(run.logs[0].audit?.coverage?.firstPass, [
     { slot: "top", candidates: 0, error: "뉴스 후보 수집 실패: 구조화된 응답을 받지 못했습니다." },
-    { slot: "domestic", candidates: 1 },
+    { slot: "economy", candidates: 1 },
     { slot: "it", candidates: 1 },
   ]);
 });
@@ -1554,7 +1554,7 @@ test("1차 슬롯 호출이 모두 시간 초과여도 남은 시간이 하한�
       throw new Error("Request timed out.");
     },
   }), /세 슬롯 모두\): top: Request timed out\./);
-  assert.deepEqual(slots, ["top", "domestic", "it"]);
+  assert.deepEqual(slots, ["top", "economy", "it"]);
   assert.equal(run.saves(), 0);
   assert.equal(run.logs[0].status, "failed");
 });
@@ -1563,7 +1563,7 @@ test("수집 프롬프트는 서버 신선도 검사와 같은 게시 시각 범
   const range = /2026-10-16 00:00 ~ 2026-10-19 23:59 \(KST\)/;
   for (const prompt of [
     buildNewsCollectionPrompt("2026-10-19"),
-    buildNewsCollectionPrompt("2026-10-19", { slot: "domestic" }),
+    buildNewsCollectionPrompt("2026-10-19", { slot: "economy" }),
     buildNewsCollectionPrompt("2026-10-19", { focusSlots: ["it"] }),
   ]) {
     assert.match(prompt, range);
@@ -1580,39 +1580,39 @@ test("수집 호출 제한 시간은 1차 슬롯 수집만 120초이고 재수�
   assert.equal(newsCollectTimeout(), 90_000);
 });
 
-test("1차 슬롯 수집 프롬프트는 맡은 슬롯 후보만 찾게 하고(국내·IT 3~4개, 화제 4~5개) 재수집 문구는 넣지 않는다", () => {
+test("1차 슬롯 수집 프롬프트는 맡은 슬롯 후보만 찾게 하고(경제·IT 3~4개, 화제 4~5개) 재수집 문구는 넣지 않는다", () => {
   const prompt = buildNewsCollectionPrompt(DATE, { slot: "it", recentNews: [{ briefingDate: "2026-10-08", title: "어제 뉴스", whatHappened: "…", urls: [] }] });
   assert.match(prompt, /it\(IT\) 슬롯의 오늘의 주요 이슈 후보를 3~4개 수집하라/);
   assert.match(prompt, /- it\(IT\): AI/);
   assert.match(prompt, /이번 수집이 맡는 섹션은 tech이다/);
   assert.match(prompt, /- it\(IT\) 후보를 3~4개 찾았는가\?/);
-  assert.match(buildNewsCollectionPrompt(DATE, { slot: "domestic" }), /domestic\(국내 정세\) 슬롯의 오늘의 주요 이슈 후보를 3~4개 수집하라/);
+  assert.match(buildNewsCollectionPrompt(DATE, { slot: "economy" }), /economy\(경제\) 슬롯의 오늘의 주요 이슈 후보를 3~4개 수집하라/);
   assert.match(buildNewsCollectionPrompt(DATE, { slot: "top" }), /top\(오늘의 화제\) 슬롯의 오늘의 주요 이슈 후보를 4~5개 수집하라/);
   // 재수집도 슬롯별 후보 수를 쓴다
-  const focus = buildNewsCollectionPrompt(DATE, { focusSlots: ["domestic", "it"] });
-  assert.match(focus, /슬롯마다 후보를 따로 찾는다\(domestic\(국내 정세\) 3~4개, it\(IT\) 3~4개\)/);
+  const focus = buildNewsCollectionPrompt(DATE, { focusSlots: ["economy", "it"] });
+  assert.match(focus, /슬롯마다 후보를 따로 찾는다\(economy\(경제\) 3~4개, it\(IT\) 3~4개\)/);
   assert.doesNotMatch(focus, /4~5개씩/);
   assert.match(prompt, /\[2026-10-08\] 어제 뉴스/);
-  assert.doesNotMatch(prompt, /- top\(오늘의 화제\): 오늘 주요 일간지|- domestic\(국내 정세\): 국회/);
+  assert.doesNotMatch(prompt, /- top\(오늘의 화제\): 네이버|- economy\(경제\): 국내외 증시/);
   assert.doesNotMatch(prompt, /앞선 수집|10~15개|세 슬롯의 후보를/);
-  assert.match(buildNewsCollectionPrompt(DATE, { slot: "domestic" }), /이번 수집이 맡는 섹션은 politics·world·economy이다/);
+  assert.match(buildNewsCollectionPrompt(DATE, { slot: "economy" }), /이번 수집이 맡는 섹션은 economy이다/);
 });
 
-test("1차 화제 수집 프롬프트는 섹션을 깊게 훑지 말고 주요 매체 헤드라인에서 빠르게 고르게 한다. 재수집·전체 수집의 화제 문구는 그대로다", () => {
+test("1차 화제 수집 프롬프트는 섹션을 깊게 훑지 말고 많이 본 뉴스 순위에서 빠르게 고르게 한다. 재수집·전체 수집의 화제 문구는 그대로다", () => {
   const top = buildNewsCollectionPrompt(DATE, { slot: "top" });
-  assert.match(top, /- top\(오늘의 화제\): 섹션마다 깊게 검색하지 않는다\. 주요 일간지·통신사·방송의 1면·메인 헤드라인에서[^\n]*4~5개를 빠르게 고른다/);
+  assert.match(top, /- top\(오늘의 화제\): 섹션마다 깊게 검색하지 않는다\. 네이버·다음 뉴스의 '많이 본 뉴스'와 주요 언론사의 '많이 본 기사' 순위에서[^\n]*4~5개를 빠르게 고른다/);
   assert.match(top, /sources에는 3번처럼 찾은 개별 기사 URL을 넣는다/);
   assert.match(top, /이번 수집은 섹션을 하나씩 깊게 훑지 않는다/);
-  assert.doesNotMatch(top, /분야를 가리지 않고 훑는다|이번 수집이 맡는 섹션은/);
-  // 화제는 분야를 가리지 않으므로 국내·IT 사건도 고르게 한다. 국내·IT 호출만 다른 슬롯 후보를 찾지 말라고 한다
-  assert.match(top, /이번 수집은 이 슬롯만 맡는다\. 분야와 상관없이 오늘 가장 크게 다룬 사건을 고른다\. 국내 정세·IT 사건이어도 된다\(서버가 다른 수집 결과와 합친다\)\./);
+  assert.doesNotMatch(top, /분야를 가리지 않는다.|이번 수집이 맡는 섹션은/);
+  // 화제는 분야를 가리지 않으므로 경제·IT 사건도 고르게 한다. 경제·IT 호출만 다른 슬롯 후보를 찾지 말라고 한다
+  assert.match(top, /이번 수집은 이 슬롯만 맡는다\. 분야와 상관없이 오늘 가장 많이 읽힌 사건을 고른다\. 경제·IT 사건이어도 된다\(서버가 다른 수집 결과와 합친다\)\./);
   assert.doesNotMatch(top, /그 후보는 찾지 않는다/);
-  for (const slot of ["domestic", "it"] as const) {
+  for (const slot of ["economy", "it"] as const) {
     assert.match(buildNewsCollectionPrompt(DATE, { slot }), /이번 수집은 이 슬롯만 맡는다\. 나머지 슬롯은 다른 수집이 따로 찾으므로 그 후보는 찾지 않는다\./);
   }
   for (const prompt of [buildNewsCollectionPrompt(DATE, { focusSlots: ["top"] }), buildNewsCollectionPrompt(DATE)]) {
-    assert.match(prompt, /- top\(오늘의 화제\): 오늘 주요 일간지·통신사·방송이 함께 크게 다룬 사건을 찾는다\. 분야를 가리지 않고 훑는다\./);
-    assert.doesNotMatch(prompt, /1면·메인 헤드라인/);
+    assert.match(prompt, /- top\(오늘의 화제\): 네이버·다음 뉴스의 '많이 본 뉴스'와 주요 언론사의 '많이 본 기사' 순위에서 오늘 상위에 오른 사건을 찾는다\. 분야를 가리지 않는다\./);
+    assert.doesNotMatch(prompt, /섹션마다 깊게 검색하지 않는다/);
   }
 });
 
@@ -1639,15 +1639,15 @@ test("1차 슬롯 호출마다 훑은 섹션이 달라도 합친 기록은 실�
   const sections = (searched: string[]) => ALL_SECTIONS.map((entry) => ({ ...entry, searched: searched.includes(entry.section), note: searched.includes(entry.section) ? "확인" : "맡지 않음" }));
   const bySlot: Record<NewsSlot, ReturnType<typeof sections>> = {
     top: sections(["politics"]),
-    domestic: sections(["politics", "world", "economy"]),
+    economy: sections(["politics", "world", "economy"]),
     it: sections(["tech"]),
   };
-  const { collect } = collectBySlot({ top: [{ title: "국내 금리", category: "rates" }], domestic: [{ title: "국내 정책", category: "policy" }], it: [] });
+  const { collect } = collectBySlot({ top: [{ title: "국내 금리", category: "rates" }], economy: [{ title: "국내 정책", category: "policy" }], it: [] });
   await createDailyBriefing(DATE, {}, { ...run.services,
     // 빈 IT 슬롯 재수집도 아무 섹션을 더 훑지 못했다
     collectMarketNews: async (date, signal, option) => ({ ...(await collect(date, signal, option)), coverage: option?.slot ? bySlot[option.slot] : sections([]) }),
     groundMarketNews: groundAs,
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]),
   });
   const coverage = run.logs[0].audit?.coverage;
   assert.equal(coverage?.sections.length, 5);
@@ -1659,16 +1659,16 @@ test("1차 슬롯 호출 하나만 시간 초과면 그 슬롯을 다시 부르�
   const run = harness();
   const { collect, firstPass } = collectBySlot({
     top: [{ title: "국내 금리", category: "rates" }],
-    domestic: [{ title: "국내 정책", category: "policy" }],
+    economy: [{ title: "국내 정책", category: "policy" }],
     it: () => { throw new Error("Request timed out."); },
   });
   await createDailyBriefing(DATE, {}, { ...run.services,
     collectMarketNews: collect,
     groundMarketNews: groundAs,
-    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]),
+    generateDailyBriefing: writeNews([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]),
   });
   // 1차 슬롯 호출은 세 번뿐이다. 빈 IT 슬롯은 뒤의 재수집(focusSlots)이 맡는다
-  assert.deepEqual(firstPass.map((option) => option?.slot), ["top", "domestic", "it"]);
+  assert.deepEqual(firstPass.map((option) => option?.slot), ["top", "economy", "it"]);
   assert.equal(run.logs[0].status, "success");
   assert.deepEqual(run.logs[0].audit?.coverage?.firstPass?.find((entry) => entry.slot === "it"), { slot: "it", candidates: 0, error: "Request timed out." });
 });
@@ -1685,8 +1685,8 @@ test("재수집 프롬프트에 겨냥할 슬롯, 앞선 후보 제목, 버려�
     focusSlots: ["it"], previousTitles: ["국내 금리 동결"], rejectedUrls: ["https://blocked.example.com/ai"],
   });
   assert.match(prompt, /it\(IT\): tech 섹션/);
-  // 국내 정세 재수집은 외교·안보가 들어가는 world 섹션도 훑는다
-  assert.match(buildNewsCollectionPrompt(DATE, { focusSlots: ["domestic"] }), /domestic\(국내 정세\): politics·world·economy 섹션/);
+  // 경제 재수집은 economy 섹션을 훑는다
+  assert.match(buildNewsCollectionPrompt(DATE, { focusSlots: ["economy"] }), /economy\(경제\): economy 섹션/);
   assert.match(prompt, /이미 낸 후보[^\n]*\n- 국내 금리 동결/);
   assert.match(prompt, /버려진 URL[^\n]*\n- https:\/\/blocked\.example\.com\/ai/);
   const first = buildNewsCollectionPrompt(DATE);
@@ -1694,9 +1694,9 @@ test("재수집 프롬프트에 겨냥할 슬롯, 앞선 후보 제목, 버려�
   assert.doesNotMatch(first, /blocked/);
   // 재수집은 비어 있는 슬롯 후보만 찾는다. 세 슬롯 10~15개를 다시 요구하지 않는다
   assert.match(prompt, /아래 슬롯의 오늘의 주요 이슈 후보만 수집하라: it\(IT\)/);
-  assert.doesNotMatch(prompt, /10~15개|세 슬롯의 후보를|- top\(오늘의 화제\): 오늘 주요 일간지/);
+  assert.doesNotMatch(prompt, /10~15개|세 슬롯의 후보를|- top\(오늘의 화제\): 네이버/);
   assert.match(first, /후보를 10~15개 수집하라/);
-  assert.match(first, /- top\(오늘의 화제\): 오늘 주요 일간지[\s\S]*- domestic\(국내 정세\): 국회[\s\S]*- it\(IT\): AI/);
+  assert.match(first, /- top\(오늘의 화제\): 네이버[\s\S]*- economy\(경제\): 국내외 증시[\s\S]*- it\(IT\): AI/);
 });
 
 test("미리보기(dryRun)는 같은 흐름을 돌리되 저장도 로그도 남기지 않는다", async () => {

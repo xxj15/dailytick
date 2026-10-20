@@ -9,8 +9,8 @@ import type {
   GroundedSection,
   KnowledgeItem,
   NewsIssue,
-  NewsSlot,
   RecentNewsEntry,
+  StoredNewsSlot,
 } from "@/types/briefing";
 
 /**
@@ -57,17 +57,17 @@ export function verifyBriefing(
 }
 
 /**
- * 기사는 슬롯(오늘의 화제·국내·IT)마다 한 건, 서로 다른 사건이어야 한다.
+ * 기사는 슬롯(오늘의 화제·경제·IT)마다 한 건, 서로 다른 사건이어야 한다.
  *
  * 걸린 뉴스는 rank로 가리킨다. 재시도로 고치고, 마지막 시도에서는 그 뉴스만 빼고 발행한다. 뺀 슬롯은 빈 슬롯이다.
- * 지면 순서대로 보며 앞 슬롯이 먼저 자리를 잡는다. 화제와 국내가 같은 사건이면 국내 쪽이 걸린다.
+ * 지면 순서대로 보며 앞 슬롯이 먼저 자리를 잡는다. 화제와 경제가 같은 사건이면 경제 쪽이 걸린다.
  * 슬롯에 맞지 않는 뉴스는 자리도 사건도 차지하지 않는다. 뒤에 오는 맞는 뉴스를 함께 버리지 않기 위해서다.
  * slot이 없는 뉴스(과거 row·테크 파트)는 슬롯 규칙을 보지 않는다.
  *
  * 재시도하는 모델은 직전 초안을 보지 못한다. 어느 기사인지 알 수 있도록 메시지에 후보 id와 제목을 함께 쓴다.
  */
 function slotViolations(items: NewsIssue[]): Violation[] {
-  const slots = new Map<NewsSlot, NewsIssue>();
+  const slots = new Map<StoredNewsSlot, NewsIssue>();
   const events = new Map<string, number>();
   return [...items].sort(bySlot).flatMap((item): Violation[] => {
     const mismatch = item.slot ? slotMismatch(item.slot, item) : null;
@@ -102,7 +102,7 @@ function newsLabel(item: NewsIssue): string {
   return `뉴스 ${item.rank}(${candidateId ? `후보 ${candidateId} ` : ""}"${item.title}")`;
 }
 
-/** 슬롯 순서(오늘의 화제 → 국내 → IT), 같은 슬롯 안에서는 AI가 매긴 rank 순서. */
+/** 슬롯 순서(오늘의 화제 → 경제 → IT), 같은 슬롯 안에서는 AI가 매긴 rank 순서. */
 function bySlot(a: NewsIssue, b: NewsIssue): number {
   return slotOrder(a.slot) - slotOrder(b.slot) || a.rank - b.rank;
 }
@@ -256,7 +256,7 @@ function applyConceptIdentity(
 }
 
 /**
- * 슬롯 순서(오늘의 화제 → 국내 → IT)대로 정렬하고 rank를 1부터 다시 매긴다.
+ * 슬롯 순서(오늘의 화제 → 경제 → IT)대로 정렬하고 rank를 1부터 다시 매긴다.
  * 빈 슬롯은 건너뛰고 번호를 잇는다. AI가 매긴 rank는 순서의 근거로 쓰지 않는다.
  * slot이 없는 뉴스는 지금처럼 rank 순서다.
  */

@@ -164,7 +164,7 @@ test("AI가 매긴 rank와 상관없이 슬롯 순서(화제 → 국내 → IT)�
       newsItems: [
         news({ rank: 1, slot: "it", title: "IT", region: "GLOBAL", category: "ai" }),
         news({ rank: 2, slot: "top", title: "화제", region: "GLOBAL" }),
-        news({ rank: 3, slot: "domestic", title: "국내" }),
+        news({ rank: 3, slot: "economy", title: "국내" }),
       ],
     }),
     { concepts: [CONCEPT] },
@@ -174,7 +174,7 @@ test("AI가 매긴 rank와 상관없이 슬롯 순서(화제 → 국내 → IT)�
     normalized.newsItems.map((n) => [n.rank, n.slot, n.title]),
     [
       [1, "top", "화제"],
-      [2, "domestic", "국내"],
+      [2, "economy", "국내"],
       [3, "it", "IT"],
     ],
   );
@@ -211,20 +211,20 @@ const slotCodes = (items: NewsIssue[]) =>
 test("세 슬롯이 서로 다른 사건이고 속성이 맞으면 통과한다", () => {
   assert.deepEqual(slotCodes([
     news({ rank: 1, slot: "top", region: "GLOBAL", category: "world", evidence: fromCandidate("c1") }),
-    news({ rank: 2, slot: "domestic", category: "policy", evidence: fromCandidate("c2") }),
+    news({ rank: 2, slot: "economy", category: "policy", evidence: fromCandidate("c2") }),
     news({ rank: 3, slot: "it", region: "KR", category: "semiconductor", evidence: fromCandidate("c3") }),
   ]), []);
 });
 
 test("화제가 국내 사건일 때 국내 슬롯에 같은 사건을 다시 쓰면 국내 쪽 rank를 가리킨다", () => {
   assert.deepEqual(slotCodes([
-    news({ rank: 2, slot: "domestic", evidence: fromCandidate("c1") }),
+    news({ rank: 2, slot: "economy", evidence: fromCandidate("c1") }),
     news({ rank: 1, slot: "top", evidence: fromCandidate("c1") }),
   ]), [["news.same_event", 2]]);
   // 다른 국내 사건이면 통과한다
   assert.deepEqual(slotCodes([
     news({ rank: 1, slot: "top", evidence: fromCandidate("c1") }),
-    news({ rank: 2, slot: "domestic", evidence: fromCandidate("c2") }),
+    news({ rank: 2, slot: "economy", evidence: fromCandidate("c2") }),
   ]), []);
 });
 
@@ -236,9 +236,11 @@ test("같은 슬롯을 두 번 쓰면 뒤 rank를 가리킨다", () => {
   ]), [["news.slot_duplicate", 3]]);
 });
 
-test("슬롯과 지역·분류가 맞지 않으면 그 rank를 가리키고, 맞지 않는 뉴스는 자리를 차지하지 않는다", () => {
-  assert.deepEqual(slotCodes([news({ rank: 2, slot: "domestic", region: "GLOBAL" })]), [["news.slot_mismatch", 2]]);
-  assert.deepEqual(slotCodes([news({ rank: 2, slot: "domestic", category: "ai" })]), [["news.slot_mismatch", 2]]);
+test("슬롯과 분류가 맞지 않으면 그 rank를 가리키고, 맞지 않는 뉴스는 자리를 차지하지 않는다", () => {
+  assert.deepEqual(slotCodes([news({ rank: 2, slot: "economy", category: "politics" })]), [["news.slot_mismatch", 2]]);
+  // 해외 경제 사건도 경제 슬롯에 들어간다
+  assert.deepEqual(slotCodes([news({ rank: 2, slot: "economy", region: "GLOBAL", category: "rates" })]), []);
+  assert.deepEqual(slotCodes([news({ rank: 2, slot: "economy", category: "ai" })]), [["news.slot_mismatch", 2]]);
   assert.deepEqual(slotCodes([news({ rank: 3, slot: "it", category: "rates" })]), [["news.slot_mismatch", 3]]);
   // 앞의 틀린 it이 자리를 잡지 않으므로 뒤의 맞는 it은 중복으로 걸리지 않는다
   assert.deepEqual(slotCodes([
@@ -257,8 +259,8 @@ test("슬롯 위반 메시지는 후보 id와 제목으로 어느 기사인지 �
     news({ rank: 3, slot: "it", category: "software", title: "오픈AI 새 모델", evidence: fromCandidate("r1") }),
   ]);
   assert.match(duplicate, /^뉴스 3\(후보 r1 "오픈AI 새 모델"\): .*뉴스 2\(후보 c3 "엔비디아 신형 칩"\)가 이미 차지/);
-  const [mismatch] = messages([news({ rank: 2, slot: "domestic", region: "GLOBAL", title: "미 연준 동결", evidence: fromCandidate("c4") })]);
-  assert.match(mismatch, /^뉴스 2\(후보 c4 "미 연준 동결"\): domestic/);
+  const [mismatch] = messages([news({ rank: 2, slot: "economy", category: "politics", title: "여야 예산 협상", evidence: fromCandidate("c4") })]);
+  assert.match(mismatch, /^뉴스 2\(후보 c4 "여야 예산 협상"\): economy/);
 });
 
 test("개념의 식별 정보는 커리큘럼 값으로 되돌린다", () => {

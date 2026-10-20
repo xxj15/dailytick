@@ -18,14 +18,14 @@ export function IssueCard({ issue, number }: { issue: NewsIssue; number: number 
         <span className="mr-0.5 text-[15px] font-bold tabular-nums text-ink">
           {String(number).padStart(2, "0")}
         </span>
-        {/* 슬롯(오늘의 화제·국내·IT)이 있으면 그 자리를 먼저 보여준다. 슬롯 도입 전 기사는 분야를 보여준다. */}
+        {/* 슬롯(오늘의 화제·경제·IT)이 있으면 그 자리를 먼저 보여준다. 슬롯 도입 전 기사는 분야를 보여준다. */}
         <span className="rounded-full bg-ink px-2.5 py-0.5 text-xs font-semibold text-paper">
           {issue.slot ? NEWS_SLOT_LABEL[issue.slot] : NEWS_FIELD_LABEL[newsField(issue.category)]}
         </span>
         <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-ink-soft">
           {NEWS_CATEGORY_LABEL[issue.category]}
         </span>
-        {/* 국내 슬롯은 라벨이 이미 지역을 말한다 */}
+        {/* 예전 국내 슬롯은 라벨이 이미 지역을 말한다 */}
         {issue.slot !== "domestic" && (
           <span className="text-xs font-medium text-ink-muted">{NEWS_REGION_LABEL[issue.region]}</span>
         )}

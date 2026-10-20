@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ECONOMY_CONCEPTS_PER_DAY, NEWS_PER_DAY, NEWS_SLOTS, TECH_CONCEPTS_PER_DAY, TECH_NEWS_PER_DAY, TODAY_KEYWORDS_PER_DAY } from "@/config/app";
+import { ECONOMY_CONCEPTS_PER_DAY, LEGACY_NEWS_SLOTS, NEWS_PER_DAY, NEWS_SLOTS, TECH_CONCEPTS_PER_DAY, TECH_NEWS_PER_DAY, TODAY_KEYWORDS_PER_DAY } from "@/config/app";
 
 /**
  * AI 응답 검증 스키마.
@@ -8,8 +8,11 @@ import { ECONOMY_CONCEPTS_PER_DAY, NEWS_PER_DAY, NEWS_SLOTS, TECH_CONCEPTS_PER_D
 
 export const newsRegionSchema = z.enum(["KR", "GLOBAL"]);
 
-/** 주요 이슈의 자리. 오늘의 화제·국내·IT. 규칙은 config/app.ts의 NEWS_SLOTS에 있다. */
+/** 주요 이슈의 자리. 오늘의 화제·경제·IT. 규칙은 config/app.ts의 NEWS_SLOTS에 있다. AI 응답은 이 슬롯만 쓴다. */
 export const newsSlotSchema = z.enum(NEWS_SLOTS);
+
+/** 저장된 기사의 자리. 지금 슬롯에 더해 예전 슬롯(국내 정세)도 읽는다. */
+export const storedNewsSlotSchema = z.enum([...NEWS_SLOTS, ...LEGACY_NEWS_SLOTS]);
 
 /** 주요 이슈 수집에서 훑는 다섯 섹션. 실제로 어느 섹션을 훑었는지 보고하는 단위이고, 빈 슬롯을 다시 수집할 때 겨냥하는 범위다. */
 export const newsSectionSchema = z.enum(["politics", "world", "society", "economy", "tech"]);
@@ -62,8 +65,8 @@ export const newsEvidenceSchema = z.object({
 
 export const newsIssueSchema = z.object({
   rank: z.number().int().positive(),
-  /** 2026-10-19 이전 row와 테크 파트 뉴스에는 없다. 없으면 지금처럼 rank 순서로만 보여준다. */
-  slot: newsSlotSchema.optional(),
+  /** 2026-10-19 이전 row와 테크 파트 뉴스에는 없다. 없으면 지금처럼 rank 순서로만 보여준다. 2026-10-19~20 row에는 domestic이 있다. */
+  slot: storedNewsSlotSchema.optional(),
   title: z.string().min(1),
   region: newsRegionSchema,
   category: newsCategorySchema,

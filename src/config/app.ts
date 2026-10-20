@@ -18,29 +18,32 @@ export const PUBLISH_MINUTE_KST = 30;
 export const FIRST_ISSUE_DATE = "2026-08-25";
 
 /**
- * 오늘의 주요 이슈는 정해진 세 자리(슬롯)에 한 건씩 싣는다. 배열 순서가 곧 지면 순서(rank)다.
- *   top      오늘의 화제. 분야와 상관없이 여러 매체가 같은 날 크게 다룬 사건
- *   domestic 국내 정세. region KR, 분류가 DOMESTIC_NEWS_CATEGORIES 중 하나(국내 정치·정책·외교·안보·경제·금융·기업)
- *   it       IT. 분류가 IT_NEWS_CATEGORIES 중 하나
+ * 오늘의 주요 이슈는 정해진 세 자리(슬롯)에 한 건씩 싣는다. 배열 순서가 곧 지면 순서(rank)다. (2026-10-20 사용자 결정)
+ *   top      오늘의 화제. 분야와 상관없이 오늘 가장 많이 읽힌 사건. 포털·언론사의 '많이 본 뉴스' 순위로 찾는다
+ *   economy  경제. 분류가 ECONOMY_NEWS_CATEGORIES 중 하나(증시·금리·환율·경기·산업·기업·경제정책). 국내·해외 모두 된다
+ *   it       IT. 분류가 IT_NEWS_CATEGORIES 중 하나. 기술·제품·서비스 소식이다. IT 기업이어도 실적·주가 기사는 경제다
  * 세 슬롯은 서로 다른 사건이어야 한다. 근거 있는 기사로 채우지 못한 슬롯은 비워 두고, 다른 분야로 대신 채우지 않는다.
  */
-export const NEWS_SLOTS = ["top", "domestic", "it"] as const;
+export const NEWS_SLOTS = ["top", "economy", "it"] as const;
 
-/** it 슬롯에 들어갈 수 있는 분류. domestic 슬롯에는 들어갈 수 없다. */
+/** 지금은 쓰지 않는 슬롯. 2026-10-19~20에 저장된 기사에 남아 있어 읽을 때만 받는다. domestic은 국내 정세였다. */
+export const LEGACY_NEWS_SLOTS = ["domestic"] as const;
+
+/** it 슬롯에 들어갈 수 있는 분류. economy 슬롯에는 들어갈 수 없다. */
 export const IT_NEWS_CATEGORIES = ["ai", "semiconductor", "software", "platform", "security"] as const;
 
 /**
- * domestic 슬롯에 들어갈 수 있는 분류. 정치·정책·외교·안보·경제·금융·기업이다.
- * 사회(society)·과학(science)·국제 일반(world)·기타(other)와 IT 분류는 들어갈 수 없다. 이런 사건은 화제(top)로만 싣는다.
+ * economy 슬롯에 들어갈 수 있는 분류. 증시·금리·환율·경기·산업·기업·원자재·경제정책이다.
+ * 정치(politics)·외교안보(geopolitics)·사회·과학·국제 일반·기타와 IT 분류는 들어갈 수 없다. 이런 사건은 화제(top)로만 싣는다.
  */
-export const DOMESTIC_NEWS_CATEGORIES = [
-  "politics", "policy", "geopolitics", "rates", "stocks", "fx", "macro", "industry", "commodities",
+export const ECONOMY_NEWS_CATEGORIES = [
+  "rates", "stocks", "fx", "macro", "industry", "commodities", "policy",
 ] as const;
 
-/** 슬롯에 맞는 후보를 본문으로 확인하지 못했을 때 다시 훑을 수집 섹션. 국내 정세의 외교·안보는 수집 프롬프트가 world 섹션으로 보낸다. */
+/** 슬롯에 맞는 후보를 본문으로 확인하지 못했을 때 다시 훑을 수집 섹션. */
 export const NEWS_SLOT_SECTIONS = {
   top: ["politics", "world", "society", "economy", "tech"],
-  domestic: ["politics", "world", "economy"],
+  economy: ["economy"],
   it: ["tech"],
 } as const;
 
@@ -89,12 +92,12 @@ export const NEWS_CANDIDATE_COUNT = { min: 10, max: 15 } as const;
 
 /**
  * 1차 슬롯 수집 호출 하나가 찾는 후보 수.
- * top은 주요 매체 헤드라인에서 빠르게 고른다. domestic·it은 사건마다 다시 검색해 개별 기사를 찾느라 검색이 많아,
+ * top은 '많이 본 뉴스' 순위에서 빠르게 고른다. economy·it은 사건마다 다시 검색해 개별 기사를 찾느라 검색이 많아,
  * 하나 적게 찾게 해 호출 제한 시간 안에 끝나게 한다.
  */
 export const NEWS_SLOT_CANDIDATE_COUNT = {
   top: { min: 4, max: 5 },
-  domestic: { min: 3, max: 4 },
+  economy: { min: 3, max: 4 },
   it: { min: 3, max: 4 },
 } as const;
 
@@ -116,7 +119,7 @@ export const NEWS_GROUND_LIMIT = 12;
 
 /**
  * 근거 확인 자리를 슬롯마다 먼저 이만큼 잡은 뒤 나머지를 중요도 순으로 채운다.
- * 중요도로만 자르면 국내·IT 후보가 통째로 빠질 수 있다. 본문 접근 실패에 대비해 하나보다 넉넉히 둔다.
+ * 중요도로만 자르면 경제·IT 후보가 통째로 빠질 수 있다. 본문 접근 실패에 대비해 하나보다 넉넉히 둔다.
  */
 export const NEWS_GROUND_PER_SLOT = 3;
 

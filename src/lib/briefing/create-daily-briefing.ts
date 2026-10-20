@@ -358,13 +358,13 @@ type FirstPassResult = CollectNewsResult & { coverage: NewsCoverage; slots: Slot
 type SlotOutcome = { slot: NewsSlot } & ({ ok: true; result: CollectNewsResult } | { ok: false; error: unknown });
 
 /**
- * 1차 수집. 슬롯(top·domestic·it)마다 그 슬롯 후보만 찾는 호출을 동시에 돌리고 결과를 합친다.
+ * 1차 수집. 슬롯(top·economy·it)마다 그 슬롯 후보만 찾는 호출을 동시에 돌리고 결과를 합친다.
  * 호출 하나가 세 슬롯을 다 훑느라 길어지면 늦게 도는 재수집에 기댈 수밖에 없다. 처음부터 슬롯마다 후보를 확보한다.
  *
  * 호출은 서로를 기다리지 않는다. 하나가 실패하면 나머지로 진행하고, 실패한 슬롯과 이유를 slots에 남긴다.
  * 셋 다 실패할 때만 수집 실패다. 그중 시간 초과로 끝난 슬롯은 시간이 남으면 한 번만 다시 시도한다.
  *
- * 합칠 때는 슬롯 전용 호출(국내·IT)을 먼저, 화제 호출을 나중에 합친다(mergeSlotCandidates).
+ * 합칠 때는 슬롯 전용 호출(경제·IT)을 먼저, 화제 호출을 나중에 합친다(mergeSlotCandidates).
  * 앞선 호출의 후보와 제목이 같거나 출처 URL이 하나라도 겹치면 같은 사건으로 보고 새 출처만 앞선 후보에 붙인다.
  * 사용량·검색 기록·거부 URL은 실패한 호출 것까지 모두 합치고, 섹션 기록(coverage)은 실제로 훑은 쪽을 남긴다.
  */
@@ -418,7 +418,7 @@ async function collectFirstPass(
     const last = tries[tries.length - 1];
     merged.slots.push(last.ok ? { slot, candidates: last.result.candidates.length } : { slot, candidates: 0, error: errorMessage(last.error) });
   }
-  // 기록은 지면 순서(top → domestic → it)로 남긴다.
+  // 기록은 지면 순서(top → economy → it)로 남긴다.
   merged.slots.sort((a, b) => NEWS_SLOTS.indexOf(a.slot) - NEWS_SLOTS.indexOf(b.slot));
   merged.rejectedUrls = [...new Set(merged.rejectedUrls)];
 
@@ -435,10 +435,10 @@ async function collectFirstPass(
 }
 
 /**
- * 1차 슬롯 호출을 합치는 순서. 슬롯 전용 호출(국내·IT)이 먼저다.
- * 화제 호출이 같은 사건을 국내·IT에 맞지 않는 분류로 냈어도 슬롯에 맞는 쪽이 후보로 남는다.
+ * 1차 슬롯 호출을 합치는 순서. 슬롯 전용 호출(경제·IT)이 먼저다.
+ * 화제 호출이 같은 사건을 경제·IT에 맞지 않는 분류로 냈어도 슬롯에 맞는 쪽이 후보로 남는다.
  */
-const FIRST_PASS_MERGE_ORDER: readonly NewsSlot[] = ["domestic", "it", "top"];
+const FIRST_PASS_MERGE_ORDER: readonly NewsSlot[] = ["economy", "it", "top"];
 
 /**
  * 한 슬롯 호출의 후보를 앞선 호출에서 합친 후보에 더한다.

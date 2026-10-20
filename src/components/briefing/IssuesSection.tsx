@@ -14,7 +14,7 @@ export function IssuesSection({
   filterable = true,
 }: {
   issues: { key: string; field: NewsField; card: ReactNode }[];
-  /** 슬롯(오늘의 화제·국내·IT)으로 실은 지면은 카드 라벨이 슬롯이라 분야 칩을 두지 않는다. */
+  /** 슬롯(오늘의 화제·경제·IT)으로 실은 지면은 카드 라벨이 슬롯이라 분야 칩을 두지 않는다. */
   filterable?: boolean;
 }) {
   const [field, setField] = useState<NewsField | "all">("all");

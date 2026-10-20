@@ -280,7 +280,7 @@ test("뉴스 검토 프롬프트에는 테크 상식 항목별 판단 문구를 
 
 test("마지막 시도에서 특정 뉴스만 검토에 걸리면 그 뉴스만 빼고 발행한다", async () => {
   const second = { ...CANDIDATE, id: "c2", title: "두 번째", facts: [{ ...CANDIDATE.facts[0], id: "c2-f1" }] };
-  const twoNews = { ...DRAFT, newsItems: [DRAFT.newsItems[0], { ...DRAFT.newsItems[0], rank: 2, slot: "domestic" as const, candidateId: "c2", factIds: ["c2-f1"], title: "두 번째 뉴스" }] };
+  const twoNews = { ...DRAFT, newsItems: [DRAFT.newsItems[0], { ...DRAFT.newsItems[0], rank: 2, slot: "economy" as const, candidateId: "c2", factIds: ["c2-f1"], title: "두 번째 뉴스" }] };
   const result = await generateDailyBriefing({ ...params, candidates: [CANDIDATE, second] }, {
     write: async () => ({ draft: twoNews, inputTokens: 1, outputTokens: 1 }),
     review: async () => ({ review: { news: [{ rank: 1, supported: true, reason: "일치" }, { rank: 2, supported: false, reason: "지역 오류" }], framing: passed.framing }, inputTokens: 1, outputTokens: 1 }),
@@ -313,7 +313,7 @@ test("실제 기사 제목에 있는 숫자(버전 등)는 근거로 인정하�
 
 test("마지막 시도에서 숫자 검증에 걸린 뉴스만 빼고, 나머지는 검토를 거쳐 발행한다", async () => {
   const second = { ...CANDIDATE, id: "c2", title: "두 번째", facts: [{ ...CANDIDATE.facts[0], id: "c2-f1" }] };
-  const twoNews = { ...DRAFT, newsItems: [DRAFT.newsItems[0], { ...DRAFT.newsItems[0], rank: 2, slot: "domestic" as const, candidateId: "c2", factIds: ["c2-f1"], title: "두 번째 뉴스", whyImportant: "근거에 없는 77%가 있다." }] };
+  const twoNews = { ...DRAFT, newsItems: [DRAFT.newsItems[0], { ...DRAFT.newsItems[0], rank: 2, slot: "economy" as const, candidateId: "c2", factIds: ["c2-f1"], title: "두 번째 뉴스", whyImportant: "근거에 없는 77%가 있다." }] };
   let reviewedTitles: string[] = [];
   const result = await generateDailyBriefing({ ...params, candidates: [CANDIDATE, second] }, {
     write: async () => ({ draft: twoNews, inputTokens: 1, outputTokens: 1 }),
@@ -337,7 +337,7 @@ test("두 번 모두 키워드·한 줄(framing)만 걸리면 그 부분만 고�
 
 test("두 번째 시도에서 뉴스 한 건과 framing이 함께 걸리면, 그 뉴스는 빼고 framing만 고칠 기회를 준다", async () => {
   const second = { ...CANDIDATE, id: "c2", title: "두 번째", facts: [{ ...CANDIDATE.facts[0], id: "c2-f1" }] };
-  const twoNews = { ...DRAFT, newsItems: [DRAFT.newsItems[0], { ...DRAFT.newsItems[0], rank: 2, slot: "domestic" as const, candidateId: "c2", factIds: ["c2-f1"], title: "두 번째 뉴스" }] };
+  const twoNews = { ...DRAFT, newsItems: [DRAFT.newsItems[0], { ...DRAFT.newsItems[0], rank: 2, slot: "economy" as const, candidateId: "c2", factIds: ["c2-f1"], title: "두 번째 뉴스" }] };
   let reviews = 0;
   let lastPrompt = "";
   const result = await generateDailyBriefing({ ...params, candidates: [CANDIDATE, second] }, {
@@ -352,7 +352,7 @@ test("두 번째 시도에서 뉴스 한 건과 framing이 함께 걸리면, 그
 });
 
 /* ------------------------------------------------------------------
- * 세 슬롯(오늘의 화제·국내·IT)
+ * 세 슬롯(오늘의 화제·경제·IT)
  * ------------------------------------------------------------------ */
 
 const slotParams: GenerateBriefingParams = { ...params, candidates: [CANDIDATE, DOMESTIC, IT] };
@@ -371,47 +371,47 @@ function drafts(...newsPerAttempt: ReturnType<typeof draftNews>[][]): { write: G
   };
 }
 
-test("정상: 세 슬롯을 채우면 화제 → 국내 → IT 순서로 rank 1~3을 매기고 slot을 저장한다", async () => {
-  const { write } = drafts([draftNews(3, "it", "c3", { region: "GLOBAL" }), draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]);
+test("정상: 세 슬롯을 채우면 화제 → 경제 → IT 순서로 rank 1~3을 매기고 slot을 저장한다", async () => {
+  const { write } = drafts([draftNews(3, "it", "c3", { region: "GLOBAL" }), draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]);
   const result = await generateDailyBriefing(slotParams, { write, review: passAll });
   assert.equal(result.attempts, 1);
-  assert.deepEqual(result.content.newsItems.map((item) => [item.rank, item.slot, item.evidence?.candidateId]), [[1, "top", "c1"], [2, "domestic", "c2"], [3, "it", "c3"]]);
+  assert.deepEqual(result.content.newsItems.map((item) => [item.rank, item.slot, item.evidence?.candidateId]), [[1, "top", "c1"], [2, "economy", "c2"], [3, "it", "c3"]]);
 });
 
 test("작성 프롬프트에 슬롯별로 들어갈 수 있는 후보를 알려 주고, 맞는 후보가 없는 슬롯은 비우라고 한다", async () => {
-  const { write, prompts } = drafts([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]);
+  const { write, prompts } = drafts([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]);
   await generateDailyBriefing({ ...params, candidates: [CANDIDATE, DOMESTIC] }, { write, review: passAll });
-  assert.match(prompts[0], /domestic\(국내 정세\): c1, c2/);
+  assert.match(prompts[0], /economy\(경제\): c1, c2/);
   assert.match(prompts[0], /it\(IT\): 맞는 후보 없음/);
 });
 
-test("작성 프롬프트는 서버의 빈 슬롯 판정처럼 국내·IT를 먼저 배정하고, 하나뿐인 국내·IT 후보는 화제에 쓰지 않게 한다", async () => {
+test("작성 프롬프트는 서버의 빈 슬롯 판정처럼 경제·IT를 먼저 배정하고, 하나뿐인 경제·IT 후보는 화제에 쓰지 않게 한다", async () => {
   // A(국내 금리)·B(해외 AI)·C(국제 분쟁): 국내·IT 후보가 하나씩뿐이다. A를 화제에 쓰면 국내가 빈다.
   const world = candidate("c4", { region: "GLOBAL", category: "world", importance: 7 });
-  const { write, prompts } = drafts([draftNews(1, "top", "c4"), draftNews(2, "domestic", "c1"), draftNews(3, "it", "c3", { region: "GLOBAL" })]);
+  const { write, prompts } = drafts([draftNews(1, "top", "c4"), draftNews(2, "economy", "c1"), draftNews(3, "it", "c3", { region: "GLOBAL" })]);
   await generateDailyBriefing({ ...params, candidates: [CANDIDATE, IT, world] }, { write, review: passAll });
   const prompt = prompts[0];
-  assert.match(prompt, /배정 순서: domestic과 it을 먼저 정하고, top은 남은 후보에서 고른다/);
-  assert.match(prompt, /domestic·it에 맞는 후보가 하나뿐이면 그 후보는 그 슬롯에 쓰고 top에 쓰지 않는다/);
+  assert.match(prompt, /배정 순서: economy와 it을 먼저 정하고, top은 남은 후보에서 고른다/);
+  assert.match(prompt, /economy·it에 맞는 후보가 하나뿐이면 그 후보는 그 슬롯에 쓰고 top에 쓰지 않는다/);
   assert.match(prompt, /- top\(오늘의 화제\): c4\n/);
-  assert.match(prompt, /- domestic\(국내 정세\): c1 \(이 슬롯에 맞는 후보는 이것뿐이다/);
+  assert.match(prompt, /- economy\(경제\): c1 \(이 슬롯에 맞는 후보는 이것뿐이다/);
   assert.match(prompt, /- it\(IT\): c3 \(이 슬롯에 맞는 후보는 이것뿐이다/);
   // 후보 JSON의 slots에서도 top이 빠진다
-  assert.match(prompt, /"id": "c1",[\s\S]*?"slots": \[\s*"domestic"\s*\]/);
+  assert.match(prompt, /"id": "c1",[\s\S]*?"slots": \[\s*"economy"\s*\]/);
   // 국내·IT 후보만 하나씩 있으면 화제는 비운다 (matchSlots와 같다)
-  const pair = drafts([draftNews(1, "domestic", "c1"), draftNews(2, "it", "c3", { region: "GLOBAL" })]);
+  const pair = drafts([draftNews(1, "economy", "c1"), draftNews(2, "it", "c3", { region: "GLOBAL" })]);
   await generateDailyBriefing({ ...params, candidates: [CANDIDATE, IT] }, { write: pair.write, review: passAll });
   assert.match(pair.prompts[0], /- top\(오늘의 화제\): 맞는 후보 없음/);
   // 국내 후보가 둘이면 어느 쪽이든 화제에 쓸 수 있다
-  const two = drafts([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")]);
+  const two = drafts([draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")]);
   await generateDailyBriefing({ ...params, candidates: [CANDIDATE, DOMESTIC] }, { write: two.write, review: passAll });
   assert.match(two.prompts[0], /- top\(오늘의 화제\): c1, c2\n/);
 });
 
 test("화제가 국내 사건일 때 국내 슬롯에 같은 사건을 쓰면 재시도로 다른 국내 사건으로 고친다", async () => {
   const { write, prompts } = drafts(
-    [draftNews(1, "top", "c1"), draftNews(2, "domestic", "c1")],
-    [draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2")],
+    [draftNews(1, "top", "c1"), draftNews(2, "economy", "c1")],
+    [draftNews(1, "top", "c1"), draftNews(2, "economy", "c2")],
   );
   const result = await generateDailyBriefing(slotParams, { write, review: passAll });
   assert.equal(result.attempts, 2);
@@ -424,19 +424,20 @@ test("슬롯 중복: it을 두 번 쓰면 발행 전에 걸리고 재시도한�
   const otherIt = candidate("c4", { region: "GLOBAL", category: "software" });
   const { write } = drafts(
     [draftNews(1, "top", "c1"), draftNews(2, "it", "c3"), draftNews(3, "it", "c4")],
-    [draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2"), draftNews(3, "it", "c3")],
+    [draftNews(1, "top", "c1"), draftNews(2, "economy", "c2"), draftNews(3, "it", "c3")],
   );
   const result = await generateDailyBriefing({ ...slotParams, candidates: [...slotParams.candidates, otherIt] }, { write, review: passAll });
   assert.equal(result.attempts, 2);
   assert.deepEqual(result.violations.map((item) => [item.code, item.rank]), [["news.slot_duplicate", 3]]);
-  assert.deepEqual(result.content.newsItems.map((item) => item.slot), ["top", "domestic", "it"]);
+  assert.deepEqual(result.content.newsItems.map((item) => item.slot), ["top", "economy", "it"]);
 });
 
 test("슬롯-속성 불일치가 마지막 시도까지 남으면 그 뉴스만 빼고, 빈 슬롯으로 발행한다", async () => {
-  // domestic에 해외 사건(region GLOBAL)을 넣었다
-  const { write } = drafts([draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2", { region: "GLOBAL" }), draftNews(3, "it", "c3")]);
+  // economy에 정치 사건(category politics)을 넣었다
+  const politics = candidate("c4", { category: "politics" });
+  const { write } = drafts([draftNews(1, "top", "c1"), draftNews(2, "economy", "c4"), draftNews(3, "it", "c3")]);
   let reviewed: (string | undefined)[] = [];
-  const result = await generateDailyBriefing(slotParams, {
+  const result = await generateDailyBriefing({ ...slotParams, candidates: [...slotParams.candidates, politics] }, {
     write,
     review: async (content, ...rest) => { reviewed = content.newsItems.map((item) => item.slot); return passAll(content, ...rest); },
   });
@@ -447,7 +448,7 @@ test("슬롯-속성 불일치가 마지막 시도까지 남으면 그 뉴스만 
 });
 
 test("AI가 모든 뉴스에 같은 rank를 적어도 기사마다 다른 번호로 검토해 한 번에 발행한다", async () => {
-  const { write } = drafts([draftNews(1, "it", "c3", { region: "GLOBAL" }), draftNews(1, "domestic", "c2"), draftNews(1, "top", "c1")]);
+  const { write } = drafts([draftNews(1, "it", "c3", { region: "GLOBAL" }), draftNews(1, "economy", "c2"), draftNews(1, "top", "c1")]);
   let reviewedRanks: number[] = [];
   const result = await generateDailyBriefing(slotParams, {
     write,
@@ -455,7 +456,7 @@ test("AI가 모든 뉴스에 같은 rank를 적어도 기사마다 다른 번호
   });
   assert.equal(result.attempts, 1);
   assert.deepEqual(reviewedRanks, [1, 2, 3]);
-  assert.deepEqual(result.content.newsItems.map((item) => [item.rank, item.slot]), [[1, "top"], [2, "domestic"], [3, "it"]]);
+  assert.deepEqual(result.content.newsItems.map((item) => [item.rank, item.slot]), [[1, "top"], [2, "economy"], [3, "it"]]);
 });
 
 test("같은 슬롯 두 건이 같은 AI rank여도 마지막 시도에서는 뒤 건만 빼고 발행한다", async () => {
@@ -476,10 +477,10 @@ test("같은 슬롯 두 건이 같은 AI rank여도 마지막 시도에서는 �
 
 test("초안이 4건이면 넘친 뉴스만 빼고 3건으로 발행한다", async () => {
   const otherIt = candidate("c4", { region: "GLOBAL", category: "software" });
-  const four = [draftNews(1, "top", "c1"), draftNews(2, "domestic", "c2"), draftNews(3, "it", "c3", { region: "GLOBAL" }), draftNews(4, "it", "c4", { region: "GLOBAL" })];
+  const four = [draftNews(1, "top", "c1"), draftNews(2, "economy", "c2"), draftNews(3, "it", "c3", { region: "GLOBAL" }), draftNews(4, "it", "c4", { region: "GLOBAL" })];
   const { write } = drafts(four, four);
   const result = await generateDailyBriefing({ ...slotParams, candidates: [...slotParams.candidates, otherIt] }, { write, review: passAll });
   assert.equal(result.attempts, 2);
   assert.ok(result.violations.every((item) => item.code === "news.slot_duplicate" && item.rank === 4));
-  assert.deepEqual(result.content.newsItems.map((item) => [item.rank, item.slot, item.evidence?.candidateId]), [[1, "top", "c1"], [2, "domestic", "c2"], [3, "it", "c3"]]);
+  assert.deepEqual(result.content.newsItems.map((item) => [item.rank, item.slot, item.evidence?.candidateId]), [[1, "top", "c1"], [2, "economy", "c2"], [3, "it", "c3"]]);
 });
