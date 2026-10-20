@@ -74,3 +74,31 @@ test("AI 출력에는 slot이 반드시 있어야 한다", () => {
   delete withoutSlot.slot;
   assert.equal(aiDailyBriefingSchema.safeParse({ ...DRAFT, newsItems: [withoutSlot] }).success, false);
 });
+
+/** 무슨 일 문장과 원인·배경 문장이 함께 있는 후보 */
+const CAUSE = "물가 상승세가 둔화되고 경기 하방 위험이 커졌다는 판단이 이번 결정의 배경이 됐다고 설명했다.";
+const WITH_CAUSE = {
+  ...CANDIDATE,
+  facts: [{ ...CANDIDATE.facts[0], role: "event" as const }, { id: "c1-f2", sourceId: "s1", quote: CAUSE, role: "background" as const }],
+  documents: [{ ...CANDIDATE.documents[0], text: `${QUOTE} ${CAUSE}` }],
+};
+
+test("무슨 일과 원인·배경 근거 문장을 따로 이어 '무슨 일이 있었나'·'왜 일어났나'를 채운다", () => {
+  const draft = { ...DRAFT, newsItems: [{ ...DRAFT.newsItems[0], factIds: ["c1-f2", "c1-f1"] }] };
+  const content = dailyBriefingSchema.parse(stripNulls(materializeBriefing(draft, [WITH_CAUSE])));
+  assert.equal(content.newsItems[0].whatHappened, QUOTE);
+  assert.equal(content.newsItems[0].background, CAUSE);
+  assert.equal(content.newsItems[0].takeaway, DRAFT.newsItems[0].takeaway);
+  assert.deepEqual(verifyBriefing(content, { date: DATE, concepts: [CONCEPT], candidates: [WITH_CAUSE] }), []);
+  // 모델이 '왜 일어났나'를 바꿔 쓰면 근거 불일치다
+  const edited = { ...content, newsItems: [{ ...content.newsItems[0], background: "추측한 원인" }] };
+  assert.deepEqual(verifyBriefing(edited, { date: DATE, concepts: [CONCEPT], candidates: [WITH_CAUSE] }).map((v) => v.code), ["news.evidence"]);
+});
+
+test("후보에 원인·배경 문장이 있는데 고르지 않으면 조합하지 않는다", () => {
+  const draft = { ...DRAFT, newsItems: [{ ...DRAFT.newsItems[0], factIds: ["c1-f1"] }] };
+  assert.throws(() => materializeBriefing(draft, [WITH_CAUSE]), /원인·배경\(background\) 근거 문장을 하나 이상/);
+  // 원인 문장만 고르고 무슨 일 문장을 빼도 안 된다
+  const onlyCause = { ...DRAFT, newsItems: [{ ...DRAFT.newsItems[0], factIds: ["c1-f2"] }] };
+  assert.throws(() => materializeBriefing(onlyCause, [WITH_CAUSE]), /무슨 일\(event\)/);
+});

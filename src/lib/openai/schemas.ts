@@ -54,7 +54,8 @@ export const marketImpactSchema = z.object({
 /** 과거 row에는 없으므로 newsIssueSchema의 evidence 필드만 optional이다. */
 export const newsEvidenceSchema = z.object({
   candidateId: z.string().min(1),
-  facts: z.array(z.object({ id: z.string(), sourceId: z.string(), quote: z.string().min(25).max(400) })).min(1).max(3),
+  /** role은 2026-10-20부터 있다. 그 이전 row는 사실 1~3개에 role이 없다. */
+  facts: z.array(z.object({ id: z.string(), sourceId: z.string(), quote: z.string().min(25).max(400), role: z.enum(["event", "background"]).optional() })).min(1).max(4),
   documents: z.array(z.object({
     id: z.string(), requestedUrl: z.url(), url: z.url(), fetchedAt: z.string(), contentHash: z.string(),
   })).min(1),
@@ -68,8 +69,10 @@ export const newsIssueSchema = z.object({
   region: newsRegionSchema,
   category: newsCategorySchema,
 
-  /** 사실: 실제로 발표되거나 보도된 내용 */
+  /** 사실: 실제로 발표되거나 보도된 내용. 근거 문장(무슨 일) 그대로다 */
   whatHappened: z.string().min(1),
+  /** 사실: 왜 일어났나(원인·배경). 근거 문장(원인·배경) 그대로다. 2026-10-20 이전 row에는 없다. */
+  background: z.string().optional(),
   whyImportant: z.string().min(1),
   /** 어떤 영향이 있을까: 산업·경제·사회에 미칠 수 있는 영향. 2026-10-18 이전 row에는 없다. */
   impact: z.string().optional(),
@@ -77,6 +80,9 @@ export const newsIssueSchema = z.object({
 
   /** 해석: 사실과 반드시 구분한다 */
   interpretation: z.string().optional(),
+
+  /** 알아둘 점: 이 뉴스를 이해하려면 기억해 둘 개념·관점 한두 문장. 2026-10-20 이전 row에는 없다. */
+  takeaway: z.string().optional(),
 
   sources: z.array(newsSourceSchema).min(1, "출처 없는 뉴스는 발행하지 않는다."),
   evidence: newsEvidenceSchema.optional(),
@@ -203,6 +209,7 @@ export const aiNewsIssueSchema = z.object({
   impact: z.string().nullable(),
   marketImpact: aiMarketImpactSchema,
   interpretation: z.string().nullable(),
+  takeaway: z.string(),
 });
 
 const aiKnowledgeItemSchema = z.object({

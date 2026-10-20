@@ -1,7 +1,7 @@
 import { SOURCE_MAX_AGE_HOURS } from "@/config/app";
 import type { Concept } from "@/data/curriculum";
 import { isFreshSource, type DateString } from "@/lib/date";
-import type { GroundedCandidate } from "@/lib/news/evidence-types";
+import { isBackground, type GroundedCandidate } from "@/lib/news/evidence-types";
 import { sourceMatchKey } from "@/lib/news/url-key";
 import { SLOT_NAME, slotMismatch, slotOrder } from "@/lib/news/slots";
 import type {
@@ -111,10 +111,12 @@ function evidenceViolations(items: NewsIssue[], candidates: GroundedCandidate[])
   return items.flatMap((item) => {
     const evidence = item.evidence;
     const candidate = candidates.find((entry) => entry.id === evidence?.candidateId);
+    // 무슨 일·왜 일어났나는 근거 문장을 역할대로 이은 값과 같아야 한다
+    const joined = (background: boolean) => evidence?.facts.filter((fact) => isBackground(fact) === background).map((fact) => fact.quote).join(" ") || undefined;
     if (!evidence || !candidate || evidence.facts.length === 0 || evidence.facts.some((fact) => {
       const original = candidate.facts.find((entry) => entry.id === fact.id);
-      return !original || original.quote !== fact.quote || original.sourceId !== fact.sourceId;
-    }) || item.whatHappened !== evidence.facts.map((fact) => fact.quote).join(" ")) {
+      return !original || original.quote !== fact.quote || original.sourceId !== fact.sourceId || isBackground(original) !== isBackground(fact);
+    }) || item.whatHappened !== joined(false) || item.background !== joined(true)) {
       return [{ code: "news.evidence", rank: item.rank, message: `뉴스 ${item.rank}: 검증된 사실과 본문이 일치하지 않습니다.` }];
     }
     const expected = candidate.documents.filter((doc) => evidence.facts.some((fact) => fact.sourceId === doc.id));
@@ -127,7 +129,7 @@ function evidenceViolations(items: NewsIssue[], candidates: GroundedCandidate[])
     // 실제로 수집한 기사 제목의 숫자(제품 버전, 연도 등)도 근거로 본다. 제목은 원문 페이지에서 읽은 값이다.
     const allowed = new Set([...evidence.facts.map((fact) => fact.quote), ...item.sources.map((source) => source.title)].flatMap(numbers));
     // 날짜 표현(2026년, 10월, 16일, 3분기)은 통계가 아니라서 검사에서 뺀다. 그 밖의 숫자는 근거에 있어야 한다.
-    const written = [item.title, item.whyImportant, item.impact, ...Object.values(item.marketImpact), item.interpretation]
+    const written = [item.title, item.whyImportant, item.impact, ...Object.values(item.marketImpact), item.interpretation, item.takeaway]
       .filter((text): text is string => !!text)
       .join(" ")
       .replace(/\d{1,4}\s*(년|월|일|분기)/g, "");

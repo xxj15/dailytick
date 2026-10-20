@@ -5,8 +5,8 @@ import { NEWS_CATEGORY_LABEL, NEWS_FIELD_LABEL, NEWS_REGION_LABEL, NEWS_SLOT_LAB
 import type { NewsIssue } from "@/types/briefing";
 
 /**
- * 주요 이슈 한 건. 훑어볼 때는 제목과 '무슨 일이 있었나'만 보이고,
- * 자세히 보기를 펼치면 왜 중요한가 → 어떤 영향 → 해석·전망 → 출처가 이어진다.
+ * 주요 이슈 한 건. 훑어볼 때는 제목과 '무슨 일이 있었나'·'왜 일어났나'(둘 다 원문 발췌)가 보이고,
+ * 자세히 보기를 펼치면 왜 중요한가 → 알아둘 점 → 어떤 영향 → 해석·전망 → 출처가 이어진다.
  * 펼침은 <details>로 둔다. 상태를 들고 있지 않아도 되고 키보드로도 열린다.
  */
 export function IssueCard({ issue, number }: { issue: NewsIssue; number: number }) {
@@ -36,6 +36,14 @@ export function IssueCard({ issue, number }: { issue: NewsIssue; number: number 
       {/* 무슨 일이 있었나. 원문 발췌라 해석을 섞지 않는다 */}
       <p className="article-body mt-2.5 text-[16px] leading-[1.75] text-ink-body">{issue.whatHappened}</p>
 
+      {/* 왜 일어났나. 원인·배경도 원문 발췌다. 2026-10-20 이전 기사에는 없다 */}
+      {issue.background && (
+        <div className="article-body mt-3">
+          <h4 className="text-[13px] font-semibold text-ink-muted">왜 일어났나</h4>
+          <p className="mt-1 text-[16px] leading-[1.75] text-ink-body">{issue.background}</p>
+        </div>
+      )}
+
       <details className="group article-body mt-3">
         <summary className="inline-flex cursor-pointer list-none items-center gap-1 text-sm font-semibold text-ink-soft hover:text-ink [&::-webkit-details-marker]:hidden">
           <span className="group-open:hidden">자세히 보기</span>
@@ -48,6 +56,13 @@ export function IssueCard({ issue, number }: { issue: NewsIssue; number: number 
             <h4 className="text-[15px] font-bold text-ink">왜 중요한가</h4>
             <RichText text={issue.whyImportant} className="mt-2 text-[15px] leading-[1.75] text-ink-body" />
           </section>
+
+          {issue.takeaway && (
+            <section className="rounded-[20px] bg-surface p-5">
+              <h4 className="text-[15px] font-bold text-ink">알아둘 점</h4>
+              <RichText text={issue.takeaway} className="mt-2 text-[15px] leading-[1.75] text-ink-body" />
+            </section>
+          )}
 
           {issue.impact && (
             <section className="rounded-[20px] bg-surface p-5">

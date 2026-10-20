@@ -12,7 +12,11 @@ const input: CandidateDocuments = {
   ] },
   documents: [{ id: "s1", requestedUrl: "https://example.com/a", source: { title: "실제 발표", publisher: "example.com", url: "https://example.com/a", publishedAt: "2026-10-09T07:00:00+09:00" }, fetchedAt: "2026-10-09T08:00:00+09:00", contentHash: "hash", text: quote }],
 };
-const selection = { candidates: [{ candidateId: "c1", facts: [{ sourceId: "s1", quote }] }] };
+const selection = { candidates: [{ candidateId: "c1", facts: [{ sourceId: "s1", quote, role: "event" as const }] }] };
+/** 원인·배경 문장. 주요 이슈는 무슨 일 문장과 이 문장이 함께 있어야 쓴다. */
+const background = "물가 상승세가 둔화되고 경기 하방 위험이 커졌다는 판단이 이번 결정의 배경이 됐다고 설명했다.";
+/** 한 기사 본문에서 무슨 일·원인 문장을 하나씩 고른 결과 */
+const factsFor = (sourceId: string, event = quote) => [{ sourceId, quote: event, role: "event" as const }, { sourceId, quote: background, role: "background" as const }];
 
 test("검색 요약은 버리고 실제 본문 문장과 실제 게시 정보만 전달한다", () => {
   const result = groundCandidates([input], selection, "2026-10-09");
@@ -23,7 +27,7 @@ test("검색 요약은 버리고 실제 본문 문장과 실제 게시 정보만
 });
 
 test("AI가 추가한 숫자·다른 후보의 sourceId·오래된 원문을 채택하지 않는다", () => {
-  for (const fact of [{ sourceId: "s1", quote: `${quote} 표결은 7대0이었다.` }, { sourceId: "other", quote }]) {
+  for (const fact of [{ sourceId: "s1", quote: `${quote} 표결은 7대0이었다.`, role: "event" as const }, { sourceId: "other", quote, role: "event" as const }]) {
     assert.equal(groundCandidates([input], { candidates: [{ candidateId: "c1", facts: [fact] }] }, "2026-10-09").candidates.length, 0);
   }
   const stale = { ...input, documents: [{ ...input.documents[0], source: { ...input.documents[0].source, publishedAt: "2025-10-09T07:00:00+09:00" } }] };
@@ -46,9 +50,9 @@ test("첫 기사 실패 시 후보에 이미 있던 공식 자료로 대체한�
   const result = await groundMarketNews([{ ...input.candidate, sources: [...input.candidate.sources, { ...input.candidate.sources[0], url: "https://official.example.com/release" }] }], "2026-10-09", {
     fetch: async (url) => {
       if (url.endsWith("/a")) throw new Error("접근 실패");
-      return { url, contentType: "text/html", body: `<title>공식 발표</title><meta property="article:published_time" content="2026-10-09T07:00:00+09:00"><article>${quote.repeat(8)}</article>` };
+      return { url, contentType: "text/html", body: `<title>공식 발표</title><meta property="article:published_time" content="2026-10-09T07:00:00+09:00"><article>${(quote + background).repeat(8)}</article>` };
     },
-    select: async (inputs) => ({ selection: { candidates: inputs.map((item) => ({ candidateId: item.id, facts: [{ sourceId: item.documents[0].id, quote }] })) }, inputTokens: 10, outputTokens: 5 }),
+    select: async (inputs) => ({ selection: { candidates: inputs.map((item) => ({ candidateId: item.id, facts: factsFor(item.documents[0].id) })) }, inputTokens: 10, outputTokens: 5 }),
   });
   assert.equal(result.candidates.length, 1);
   assert.equal(result.candidates[0].sources[0].url, "https://official.example.com/release");
@@ -66,9 +70,9 @@ test("영문 기사는 건너뛰고 한국어 기사 본문을 근거로 쓴다"
   ] }], "2026-10-09", {
     fetch: async (url) => {
       fetched.push(url);
-      return page(url, url.includes("etnews") ? quote : englishQuote);
+      return page(url, url.includes("etnews") ? quote + background : englishQuote);
     },
-    select: async (inputs) => ({ selection: { candidates: inputs.map((item) => ({ candidateId: item.id, facts: [{ sourceId: item.documents[0].id, quote: item.documents[0].text.includes(quote) ? quote : englishQuote }] })) }, inputTokens: 0, outputTokens: 0 }),
+    select: async (inputs) => ({ selection: { candidates: inputs.map((item) => ({ candidateId: item.id, facts: factsFor(item.documents[0].id, item.documents[0].text.includes(quote) ? quote : englishQuote) })) }, inputTokens: 0, outputTokens: 0 }),
   });
   // 한국어 제목의 출처를 먼저 읽고, 읽히면 영문 기사는 받지도 않는다
   assert.deepEqual(fetched, ["https://etnews.example.com/c"]);
@@ -88,13 +92,13 @@ test("한국어 기사가 하나도 없으면 후보를 버린다", async () => 
 
 test("한국어 기사 안의 영문 문장은 근거로 받지 않는다", () => {
   const mixed = { ...input, documents: [{ ...input.documents[0], text: `${quote} ${englishQuote}` }] };
-  const only = groundCandidates([mixed], { candidates: [{ candidateId: "c1", facts: [{ sourceId: "s1", quote: englishQuote }] }] }, "2026-10-09");
+  const only = groundCandidates([mixed], { candidates: [{ candidateId: "c1", facts: [{ sourceId: "s1", quote: englishQuote, role: "event" }] }] }, "2026-10-09");
   assert.equal(only.candidates.length, 0);
   assert.match(only.rejected[0].reason, /한국어 근거 문장이 없습니다/);
-  const both = groundCandidates([mixed], { candidates: [{ candidateId: "c1", facts: [{ sourceId: "s1", quote: englishQuote }, { sourceId: "s1", quote }] }] }, "2026-10-09");
+  const both = groundCandidates([mixed], { candidates: [{ candidateId: "c1", facts: [{ sourceId: "s1", quote: englishQuote, role: "event" }, { sourceId: "s1", quote, role: "event" }] }] }, "2026-10-09");
   assert.deepEqual(both.candidates[0].facts.map((fact) => [fact.id, fact.quote]), [["c1-f1", quote]]);
   // 테크 상식처럼 koreanOnly를 끄면 영문 문장도 받는다
-  assert.equal(groundCandidates([mixed], { candidates: [{ candidateId: "c1", facts: [{ sourceId: "s1", quote: englishQuote }] }] }, "2026-10-09", undefined, false, false).candidates.length, 1);
+  assert.equal(groundCandidates([mixed], { candidates: [{ candidateId: "c1", facts: [{ sourceId: "s1", quote: englishQuote, role: "event" }] }] }, "2026-10-09", undefined, false, false).candidates.length, 1);
 });
 
 test("영문 표기가 많이 섞인 한국어 문장도 한국어로 본다", () => {
@@ -117,9 +121,9 @@ test("본문을 읽을 후보를 줄일 때 중요도가 낮아도 국내·IT �
 });
 
 /** 본문 HTML. 게시일이 기준일 안이고, 근거 문장이 들어 있다. */
-const article = (url: string) => ({ url, contentType: "text/html", body: `<title>기사</title><meta property="article:published_time" content="2026-10-09T07:00:00+09:00"><article>${quote.repeat(8)}</article>` });
+const article = (url: string) => ({ url, contentType: "text/html", body: `<title>기사</title><meta property="article:published_time" content="2026-10-09T07:00:00+09:00"><article>${(quote + background).repeat(8)}</article>` });
 const selectAll = async (inputs: CandidateDocuments[]) => ({
-  selection: { candidates: inputs.map((item) => ({ candidateId: item.id, facts: [{ sourceId: item.documents[0].id, quote }] })) }, inputTokens: 0, outputTokens: 0,
+  selection: { candidates: inputs.map((item) => ({ candidateId: item.id, facts: factsFor(item.documents[0].id) })) }, inputTokens: 0, outputTokens: 0,
 });
 
 test("idPrefix를 주면 후보 id·근거 문장 id·거부 기록이 모두 그 접두어를 쓴다", async () => {
@@ -133,7 +137,7 @@ test("idPrefix를 주면 후보 id·근거 문장 id·거부 기록이 모두 �
     select: selectAll,
   }, undefined, undefined, false, "r");
   assert.deepEqual(result.candidates.map((candidate) => candidate.id), ["r1"]);
-  assert.deepEqual(result.candidates[0].facts.map((fact) => fact.id), ["r1-f1"]);
+  assert.deepEqual(result.candidates[0].facts.map((fact) => fact.id), ["r1-f1", "r1-f2"]);
   assert.deepEqual(result.rejected.map((entry) => entry.candidateId), ["r2"]);
   // 접두어를 주지 않으면 1차 수집과 같은 c다
   const first = await groundMarketNews([ok], "2026-10-09", { fetch: async (url) => article(url), select: selectAll });
@@ -162,12 +166,50 @@ test("후보가 근거 확인 한도보다 많아도 중요도가 가장 낮은 
 test("주요 이슈 출처는 페이지 메타데이터 대신 RSS의 매체명·제목을 쓴다", async () => {
   const rss = { title: "정보보호 공시 의무, 내년부터 全 상장사로 확대", publisher: "서울경제", url: "https://example.com/rss", publishedAt: "2026-10-09T08:00:00+09:00" };
   const result = await groundMarketNews([{ ...input.candidate, sources: [rss] }], "2026-10-09", {
-    fetch: async (url) => ({ url, contentType: "text/html", body: `<title>정보보호 공시 의무 확대 | 서울경제</title><meta property="og:site_name" content="미래를 보는 창 - 서울경제"><meta property="article:published_time" content="2026-10-09T07:00:00+09:00"><article>${quote.repeat(8)}</article>` }),
-    select: async (inputs) => ({ selection: { candidates: inputs.map((item) => ({ candidateId: item.id, facts: [{ sourceId: item.documents[0].id, quote }] })) }, inputTokens: 10, outputTokens: 5 }),
+    fetch: async (url) => ({ url, contentType: "text/html", body: `<title>정보보호 공시 의무 확대 | 서울경제</title><meta property="og:site_name" content="미래를 보는 창 - 서울경제"><meta property="article:published_time" content="2026-10-09T07:00:00+09:00"><article>${(quote + background).repeat(8)}</article>` }),
+    select: async (inputs) => ({ selection: { candidates: inputs.map((item) => ({ candidateId: item.id, facts: factsFor(item.documents[0].id) })) }, inputTokens: 10, outputTokens: 5 }),
   });
   assert.equal(result.candidates.length, 1);
   assert.equal(result.candidates[0].sources[0].publisher, "서울경제");
   assert.equal(result.candidates[0].sources[0].title, rss.title);
   // 게시 시각은 실제로 읽은 본문 값을 그대로 쓴다
   assert.equal(result.candidates[0].sources[0].publishedAt, "2026-10-08T22:00:00.000Z");
+});
+
+test("주요 이슈는 원인·배경 문장을 본문에서 확인하지 못하면 후보를 뺀다", async () => {
+  const result = await groundMarketNews([input.candidate], "2026-10-09", {
+    fetch: async (url) => article(url),
+    // 무슨 일 문장만 있다
+    select: async (inputs) => ({ selection: { candidates: inputs.map((item) => ({ candidateId: item.id, facts: [{ sourceId: item.documents[0].id, quote, role: "event" as const }] })) }, inputTokens: 1, outputTokens: 1 }),
+  });
+  assert.equal(result.candidates.length, 0);
+  assert.match(result.rejected[0].reason, /원인·배경 문장을 확인할 수 없습니다/);
+  // 테크 상식(원인 문장을 요구하지 않는 근거 확인)은 무슨 일 문장만으로 받는다
+  assert.equal(groundCandidates([input], selection, "2026-10-09", undefined, false, false, false).candidates.length, 1);
+});
+
+test("첫 기사에 원인이 없으면 같은 사건의 두 번째 한국어 기사 본문까지 읽어 원인 문장을 찾는다", async () => {
+  const sources = [
+    { ...input.candidate.sources[0], title: "코스피 장중 4% 급락", url: "https://example.com/first" },
+    { ...input.candidate.sources[0], title: "Kospi slides", url: "https://example.com/english" },
+    { ...input.candidate.sources[0], title: "코스피 급락 배경은", url: "https://example.com/second" },
+  ];
+  const fetched: string[] = [];
+  let documents = 0;
+  const result = await groundMarketNews([{ ...input.candidate, sources }], "2026-10-09", {
+    fetch: async (url) => {
+      fetched.push(url);
+      return page(url, url.endsWith("second") ? background : quote);
+    },
+    select: async (inputs) => {
+      documents = inputs[0].documents.length;
+      const [first, second] = inputs[0].documents;
+      return { selection: { candidates: [{ candidateId: inputs[0].id, facts: [{ sourceId: first.id, quote, role: "event" as const }, { sourceId: second.id, quote: background, role: "background" as const }] }] }, inputTokens: 1, outputTokens: 1 };
+    },
+  });
+  // 두 번째부터는 영문 제목 기사를 읽지 않는다
+  assert.deepEqual(fetched, ["https://example.com/first", "https://example.com/second"]);
+  assert.equal(documents, 2);
+  assert.deepEqual(result.candidates[0].facts.map((fact) => fact.role), ["event", "background"]);
+  assert.deepEqual(result.candidates[0].sources.map((source) => source.url), ["https://example.com/first", "https://example.com/second"]);
 });

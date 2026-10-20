@@ -1,10 +1,13 @@
 import type { z } from "zod";
 import type { aiNewsIssueSchema } from "@/lib/openai/schemas";
-import type { GroundedCandidate } from "@/lib/news/evidence-types";
+import { isBackground, type GroundedCandidate } from "@/lib/news/evidence-types";
+import { MAX_FACTS } from "@/lib/news/ground-candidates";
 import { slotOrder } from "@/lib/news/slots";
 
 /**
  * 사실 본문·출처·게시일은 모델이 작성하지 않는다. 서버가 검증된 자료에서 조합한다.
+ * '무슨 일이 있었나'는 무슨 일(event) 근거 문장, '왜 일어났나'는 원인·배경(background) 근거 문장을 그대로 잇는다.
+ * 후보에 원인·배경 문장이 있으면 그중 하나 이상을 골라야 한다. 원인 없이 수치만 전하는 기사를 만들지 않는다.
  * 같은 후보를 두 슬롯에 쓴 경우는 여기서 막지 않는다. verify.ts가 그 뉴스 rank를 가리켜 걸러야
  * 재시도와 마지막 시도의 트림(그 뉴스만 빼고 발행)을 탈 수 있다.
  *
@@ -22,8 +25,8 @@ export function materializeBriefing<D extends { newsItems: z.infer<typeof aiNews
     newsItems: ordered.map((item) => {
       const candidate = candidates.find((entry) => entry.id === item.candidateId);
       if (!candidate) throw new Error(`존재하지 않는 후보: ${item.candidateId}`);
-      if (!item.factIds.length || item.factIds.length > 3 || new Set(item.factIds).size !== item.factIds.length) {
-        throw new Error(`유효한 사실 ID를 1~3개 선택해야 합니다: ${item.candidateId}`);
+      if (!item.factIds.length || item.factIds.length > MAX_FACTS || new Set(item.factIds).size !== item.factIds.length) {
+        throw new Error(`유효한 사실 ID를 1~${MAX_FACTS}개 선택해야 합니다: ${item.candidateId}`);
       }
       const facts = item.factIds.map((id) => {
         const fact = candidate.facts.find((entry) => entry.id === id);
@@ -31,11 +34,18 @@ export function materializeBriefing<D extends { newsItems: z.infer<typeof aiNews
         if (!fact || !doc || !doc.text.includes(fact.quote)) throw new Error(`원문으로 확인할 수 없는 사실 ID: ${id}`);
         return fact;
       });
+      const events = facts.filter((fact) => !isBackground(fact));
+      const backgrounds = facts.filter(isBackground);
+      if (!events.length) throw new Error(`무슨 일(event) 근거 문장을 하나 이상 골라야 합니다: ${item.candidateId}`);
+      if (!backgrounds.length && candidate.facts.some(isBackground)) {
+        throw new Error(`원인·배경(background) 근거 문장을 하나 이상 골라야 합니다: ${item.candidateId}`);
+      }
       const documents = candidate.documents.filter((doc) => facts.some((fact) => fact.sourceId === doc.id));
       return {
         rank: item.rank, slot: item.slot, title: item.title, region: item.region, category: candidate.category, followUp: item.followUp,
-        whatHappened: facts.map((fact) => fact.quote).join(" "),
-        whyImportant: item.whyImportant, impact: item.impact, marketImpact: item.marketImpact, interpretation: item.interpretation,
+        whatHappened: events.map((fact) => fact.quote).join(" "),
+        ...(backgrounds.length ? { background: backgrounds.map((fact) => fact.quote).join(" ") } : {}),
+        whyImportant: item.whyImportant, impact: item.impact, marketImpact: item.marketImpact, interpretation: item.interpretation, takeaway: item.takeaway,
         sources: documents.map((doc) => doc.source),
         evidence: {
           candidateId: candidate.id, facts,

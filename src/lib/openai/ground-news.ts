@@ -1,6 +1,6 @@
 import "server-only";
 import { zodTextFormat } from "openai/helpers/zod";
-import { NEWS_GROUND_LIMIT, NEWS_GROUND_PER_SLOT, NEWS_SLOTS } from "@/config/app";
+import { NEWS_DOCS_PER_CANDIDATE, NEWS_GROUND_LIMIT, NEWS_GROUND_PER_SLOT, NEWS_SLOTS } from "@/config/app";
 import { isFreshSource, type DateString } from "@/lib/date";
 import type { EvidenceRejection, SourceDocument } from "@/lib/news/evidence-types";
 import { extractSource } from "@/lib/news/extract-source";
@@ -19,13 +19,13 @@ export class GroundNewsError extends Error {
 }
 type GroundNewsDependencies = {
   fetch: (url: string, signal?: AbortSignal) => Promise<SourceResponse>;
-  select: (inputs: CandidateDocuments[], date: DateString, signal?: AbortSignal) => Promise<SelectionResult>;
+  select: (inputs: CandidateDocuments[], date: DateString, signal?: AbortSignal, requireBackground?: boolean) => Promise<SelectionResult>;
 };
 
-async function selectFacts(inputs: CandidateDocuments[], date: DateString, signal?: AbortSignal): Promise<SelectionResult> {
+async function selectFacts(inputs: CandidateDocuments[], date: DateString, signal?: AbortSignal, requireBackground = false): Promise<SelectionResult> {
   const response = await getOpenAI().responses.parse({
     model: getModel(),
-    input: buildFactSelectionPrompt(inputs, date),
+    input: buildFactSelectionPrompt(inputs, date, requireBackground),
     reasoning: LIGHT_REASONING,
     text: { format: zodTextFormat(factSelectionSchema, "evidence_selection") },
   }, { timeout: 60_000, maxRetries: 0, signal });
@@ -69,9 +69,11 @@ export async function groundMarketNews(
   /**
    * 한국어 기사 본문만 근거로 쓴다. 주요 이슈는 근거 문장이 지면에 그대로 실리므로 기본값이다.
    * 테크 상식은 영문 원문을 한국어로 풀어 쓰므로 false로 부른다.
+   * 주요 이슈(koreanOnly)는 원인·배경 문장도 확인해야 쓴다. 그래서 같은 사건의 기사를 NEWS_DOCS_PER_CANDIDATE건까지 읽는다.
    */
   koreanOnly = true,
 ) {
+  const docsPerCandidate = koreanOnly ? NEWS_DOCS_PER_CANDIDATE : 1;
   const fresh = (publishedAt: string | undefined) => (allowUndated ? true : isFreshSource(publishedAt, date, maxAgeHours));
   const rejected: EvidenceRejection[] = [];
   const inputs: CandidateDocuments[] = [];
@@ -88,6 +90,8 @@ export async function groundMarketNews(
         ? [...candidate.sources].sort((a, b) => Number(isKoreanText(b.title)) - Number(isKoreanText(a.title)))
         : candidate.sources;
       for (const source of sources.slice(0, 3)) {
+        // 두 번째 기사부터는 원인·배경을 더 찾으려는 것이다. 영문 제목 기사는 본문도 영문이라 읽지 않는다
+        if (koreanOnly && documents.length && !isKoreanText(source.title)) continue;
         try {
           const key = sourceUrlKey(source.url);
           if (!key) throw new Error("수집할 수 없는 출처 URL입니다.");
@@ -110,8 +114,10 @@ export async function groundMarketNews(
             rejected.push({ candidateId: id, url: source.url, reason: "한국어 기사가 아닙니다." });
             continue;
           }
+          // 리디렉션으로 같은 기사에 닿았으면 두 번 넣지 않는다
+          if (documents.some((entry) => entry.id === doc.id)) continue;
           documents.push(doc);
-          break;
+          if (documents.length >= docsPerCandidate) break;
         } catch (error) {
           rejected.push({ candidateId: id, url: source.url, reason: error instanceof Error ? error.message : String(error) });
         }
@@ -127,12 +133,12 @@ export async function groundMarketNews(
   for (let offset = 0; offset < inputs.length; offset += SELECT_BATCH) batches.push(inputs.slice(offset, offset + SELECT_BATCH));
   let results: SelectionResult[];
   try {
-    results = await Promise.all(batches.map((batch) => dependencies.select(batch, date, signal)));
+    results = await Promise.all(batches.map((batch) => dependencies.select(batch, date, signal, koreanOnly)));
   } catch (error) {
     throw new GroundNewsError(error instanceof Error ? error.message : String(error), rejected);
   }
   const selection: FactSelection = { candidates: results.flatMap((result) => result.selection.candidates) };
-  const grounded = groundCandidates(inputs, selection, date, maxAgeHours, allowUndated, koreanOnly);
+  const grounded = groundCandidates(inputs, selection, date, maxAgeHours, allowUndated, koreanOnly, koreanOnly);
   return {
     ...grounded,
     rejected: [...rejected, ...grounded.rejected],
