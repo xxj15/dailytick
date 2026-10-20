@@ -114,13 +114,16 @@ test("IT 커리큘럼을 다 돌면 가장 오래된 두 개를 복습한다", (
   assert.deepEqual(concepts.map((c) => c.slug), all.slice(0, 2));
 });
 
-test("테크 상식은 CS·프론트엔드·AI를 돌아가며 나가고, 분야 안에서는 쉬운 것부터 나간다", () => {
-  assert.deepEqual(TECH_CURRICULUM.slice(0, 3).map((c) => c.category), ["cs", "frontend", "ai"]);
+test("테크 상식은 CS·프론트엔드·백엔드·AI를 돌아가며 나가고, 분야 안에서는 쉬운 것부터 나간다", () => {
+  assert.deepEqual(TECH_CURRICULUM.slice(0, 4).map((c) => c.category), ["cs", "frontend", "backend", "ai"]);
   for (let i = 1; i < 60; i++) {
     assert.notEqual(TECH_CURRICULUM[i].category, TECH_CURRICULUM[i - 1].category, `${i}번째`);
   }
   const frontend = TECH_CURRICULUM.filter((c) => c.category === "frontend").map((c) => c.slug);
   assert.ok(frontend.indexOf("q-rendering-pipeline") < frontend.indexOf("q-server-components"));
+  // 설계 패턴(MVC)과 클라우드 서버(EC2) 같은 실무 기본기가 들어 있다
+  assert.equal(TECH_CURRICULUM.find((c) => c.slug === "q-mvc")?.category, "cs");
+  assert.equal(TECH_CURRICULUM.find((c) => c.slug === "q-ec2")?.category, "backend");
   assert.equal(new Set(TECH_CURRICULUM.map((c) => c.slug)).size, TECH_CURRICULUM.length);
 });
 

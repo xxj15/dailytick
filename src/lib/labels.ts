@@ -36,8 +36,8 @@ export const NEWS_SLOT_LABEL: Record<StoredNewsSlot, string> = {
   domestic: "국내",
 };
 
-/** 상식의 세부 카테고리 칩. 테크는 CS·프론트엔드·AI, 경제는 경제·증권으로 보여준다. */
-const KNOWLEDGE_FIELD_LABEL: Record<string, string> = { cs: "CS", frontend: "프론트엔드", ai: "AI" };
+/** 상식의 세부 카테고리 칩. 테크는 CS·프론트엔드·백엔드·AI, 경제는 경제·증권으로 보여준다. */
+const KNOWLEDGE_FIELD_LABEL: Record<string, string> = { cs: "CS", frontend: "프론트엔드", backend: "백엔드·클라우드", ai: "AI" };
 
 /** 경제 커리큘럼의 세부 분류. 칩 옆에 작게 붙인다. */
 const ECONOMY_CATEGORY_LABEL: Record<string, string> = {

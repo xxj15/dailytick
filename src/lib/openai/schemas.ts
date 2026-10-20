@@ -259,7 +259,7 @@ export const aiTechTopicListSchema = z.object({
   topics: z.array(z.object({
     title: z.string(),
     summary: z.string(),
-    field: z.enum(["cs", "frontend", "ai"]),
+    field: z.enum(["cs", "frontend", "backend", "ai"]),
     format: z.enum(["article", "trend"]),
     learning: z.number(),
     sources: z.array(aiNewsSourceSchema),

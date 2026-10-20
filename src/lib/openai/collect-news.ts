@@ -122,7 +122,7 @@ async function collectNews(
 export type TechTopic = {
   title: string;
   summary: string;
-  field: "cs" | "frontend" | "ai";
+  field: "cs" | "frontend" | "backend" | "ai";
   format: "article" | "trend";
   learning: number;
   candidate: NewsCandidate;

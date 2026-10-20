@@ -5,15 +5,15 @@ import { rotateByCategory } from "@/lib/curriculum/rotate";
  * 테크 상식 Curriculum.
  *
  * 경제 커리큘럼과 같은 규칙을 따른다. AI가 주제를 고르지 않고 출제 순서는 코드가 정한다.
- * CS 기본기 · 프론트엔드 실무 · AI 세 분야를 하루 하나씩 돌아가며 낸다.
- * 기초(CS·프론트엔드)와 트렌드(AI)가 번갈아 나오도록 하기 위해서다.
+ * CS·설계 패턴 · 프론트엔드 실무 · 백엔드·클라우드 · AI 네 분야를 돌아가며 낸다.
+ * 개발자가 실무에서 바로 마주치는 기본기(MVC 같은 설계 패턴, EC2 같은 클라우드 서버)를 고루 다지기 위해서다. (2026-10-20 사용자 요청)
  *
  * 제목은 교과서 목차 대신 "어, 그거 왜 그렇지?" 싶은 질문으로 단다.
  * references(더 알아보기)는 AI가 쓰지 않는다. 사람이 고른 공식 문서·아티클만 서버가 붙인다.
  * 아래 목록은 고치기 쉽도록 분야별로 묶어 두었고, 분야 안에서는 쉬운 것부터 나간다.
  */
 
-export type TechCurriculumCategory = "cs" | "frontend" | "ai";
+export type TechCurriculumCategory = "cs" | "frontend" | "backend" | "ai";
 
 export type TechCurriculumConcept = Concept & { category: TechCurriculumCategory };
 
@@ -21,7 +21,7 @@ const MDN = "https://developer.mozilla.org/ko/docs";
 const MDN_EN = "https://developer.mozilla.org/en-US/docs";
 
 const BY_CATEGORY: TechCurriculumConcept[] = [
-  // CS — 네트워크·운영체제·자료구조·DB·보안·시스템 설계
+  // CS — 네트워크·운영체제·자료구조·DB·보안·설계 패턴·시스템 설계
   { slug: "q-url-enter", title: "주소창에 URL을 치고 엔터를 누르면 생기는 일", level: 1, category: "cs",
     references: [{ title: "MDN: 웹은 어떻게 동작하는가", url: `${MDN}/Learn_web_development/Getting_started/Web_standards/How_the_web_works` }] },
   { slug: "q-dns", title: "DNS: 인터넷은 주소를 어떻게 찾아갈까", level: 1, category: "cs",
@@ -44,6 +44,10 @@ const BY_CATEGORY: TechCurriculumConcept[] = [
     references: [{ title: "Big-O Cheat Sheet", url: "https://www.bigocheatsheet.com/" }] },
   { slug: "q-hash-table", title: "사전은 어떻게 단어를 바로 찾을까 (해시 테이블)", level: 2, category: "cs",
     references: [{ title: "MDN: Map", url: `${MDN}/Web/JavaScript/Reference/Global_Objects/Map` }] },
+  { slug: "q-mvc", title: "화면·데이터·로직을 왜 나눌까 (MVC 패턴)", level: 2, category: "cs",
+    references: [{ title: "MDN: MVC", url: `${MDN}/Glossary/MVC` }] },
+  { slug: "q-rest-api", title: "REST API는 왜 URL과 메서드로 나눠 쓸까", level: 2, category: "cs",
+    references: [{ title: "AWS: RESTful API란?", url: "https://aws.amazon.com/ko/what-is/restful-api/" }] },
   { slug: "q-tree-graph", title: "폴더 구조와 친구 추천의 공통점 (트리와 그래프)", level: 3, category: "cs",
     references: [{ title: "VisuAlgo: 그래프 탐색 시각화", url: "https://visualgo.net/en/dfsbfs" }] },
   { slug: "q-concurrency", title: "동시성과 병렬성은 같은 말일까", level: 3, category: "cs",
@@ -58,28 +62,34 @@ const BY_CATEGORY: TechCurriculumConcept[] = [
     references: [{ title: "MongoDB: NoSQL vs SQL", url: "https://www.mongodb.com/resources/basics/databases/nosql-explained/nosql-vs-sql" }] },
   { slug: "q-stay-logged-in", title: "로그인은 어떻게 유지될까: 세션과 토큰", level: 3, category: "cs",
     references: [{ title: "MDN: HTTP 쿠키", url: `${MDN}/Web/HTTP/Guides/Cookies` }] },
+  { slug: "q-layered-architecture", title: "Controller·Service·Repository는 왜 나눌까 (계층형 아키텍처)", level: 3, category: "cs",
+    references: [{ title: "Martin Fowler: Presentation Domain Data Layering", url: "https://martinfowler.com/bliki/PresentationDomainDataLayering.html" }] },
+  { slug: "q-design-patterns", title: "디자인 패턴은 왜 배울까: 싱글톤·옵저버·전략", level: 3, category: "cs",
+    references: [{ title: "Refactoring.Guru: 디자인 패턴", url: "https://refactoring.guru/ko/design-patterns" }] },
   { slug: "q-google-login", title: "'구글로 로그인'의 원리 (OAuth)", level: 4, category: "cs",
     references: [{ title: "OAuth 2.0 간단 정리 (oauth.net)", url: "https://oauth.net/2/" }] },
   { slug: "q-password-storage", title: "비밀번호는 서버에 어떻게 저장될까", level: 4, category: "cs",
     references: [{ title: "OWASP: Password Storage Cheat Sheet", url: "https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html" }] },
   { slug: "q-xss", title: "댓글 하나로 사이트를 해킹하는 법 (XSS)", level: 4, category: "cs",
     references: [{ title: "OWASP: Cross Site Scripting", url: "https://owasp.org/www-community/attacks/xss/" }] },
+  { slug: "q-dependency-injection", title: "객체를 직접 만들지 않고 받아 쓰는 이유 (의존성 주입)", level: 4, category: "cs",
+    references: [{ title: "Martin Fowler: Inversion of Control Containers and the Dependency Injection pattern", url: "https://martinfowler.com/articles/injection.html" }] },
+  { slug: "q-solid", title: "고치기 쉬운 코드의 다섯 가지 조건 (SOLID)", level: 4, category: "cs",
+    references: [{ title: "Wikipedia: SOLID", url: "https://en.wikipedia.org/wiki/SOLID" }] },
+  { slug: "q-graphql", title: "GraphQL은 REST의 무엇을 바꿨을까", level: 4, category: "cs",
+    references: [{ title: "GraphQL 공식 문서: Learn", url: "https://graphql.org/learn/" }] },
   { slug: "q-cdn", title: "전 세계 어디서나 빠른 사이트의 비결 (CDN)", level: 4, category: "cs",
     references: [{ title: "Cloudflare: CDN이란?", url: "https://www.cloudflare.com/ko-kr/learning/cdn/what-is-a-cdn/" }] },
-  { slug: "q-load-balancer", title: "서버 여러 대에 손님을 나눠 보내는 법 (로드밸런서)", level: 4, category: "cs",
-    references: [{ title: "Cloudflare: 로드 밸런싱이란?", url: "https://www.cloudflare.com/ko-kr/learning/performance/what-is-load-balancing/" }] },
-  { slug: "q-cache-redis", title: "Redis는 왜 그렇게 빠를까 (캐시 전략)", level: 4, category: "cs",
-    references: [{ title: "AWS: 캐싱 모범 사례", url: "https://aws.amazon.com/ko/caching/best-practices/" }] },
   { slug: "q-rate-limit", title: "API가 '요청이 너무 많습니다'를 돌려주는 원리 (Rate Limit)", level: 4, category: "cs",
     references: [{ title: "Cloudflare: Rate limiting이란?", url: "https://www.cloudflare.com/ko-kr/learning/bots/what-is-rate-limiting/" }] },
   { slug: "q-realtime-chat", title: "카톡 메시지는 어떻게 실시간으로 올까 (WebSocket)", level: 5, category: "cs",
     references: [{ title: "MDN: WebSocket API", url: `${MDN}/Web/API/WebSockets_API` }] },
-  { slug: "q-docker", title: "'내 컴퓨터에선 되는데'를 없애는 도커", level: 5, category: "cs",
-    references: [{ title: "Docker 문서: Docker 개요", url: "https://docs.docker.com/get-started/docker-overview/" }] },
-  { slug: "q-serverless", title: "서버리스는 정말 서버가 없을까", level: 5, category: "cs",
-    references: [{ title: "Cloudflare: 서버리스 컴퓨팅이란?", url: "https://www.cloudflare.com/ko-kr/learning/serverless/what-is-serverless/" }] },
   { slug: "q-git-time-travel", title: "Git은 어떻게 과거로 돌아갈까", level: 5, category: "cs",
     references: [{ title: "Pro Git: Git 기초", url: "https://git-scm.com/book/ko/v2/%EC%8B%9C%EC%9E%91%ED%95%98%EA%B8%B0-Git-%EA%B8%B0%EC%B4%88" }] },
+  { slug: "q-monolith-msa", title: "서비스를 언제 여러 개로 쪼갤까 (모놀리스와 마이크로서비스)", level: 5, category: "cs",
+    references: [{ title: "Martin Fowler: Microservices", url: "https://martinfowler.com/articles/microservices.html" }] },
+  { slug: "q-message-queue", title: "주문이 몰려도 서버가 버티는 비결 (메시지 큐)", level: 5, category: "cs",
+    references: [{ title: "AWS: 메시지 대기열이란?", url: "https://aws.amazon.com/ko/message-queue/" }] },
   { slug: "q-system-design-url", title: "단축 URL 서비스는 어떻게 설계할까 (시스템 설계 맛보기)", level: 5, category: "cs",
     references: [{ title: "System Design Primer", url: "https://github.com/donnemartin/system-design-primer" }] },
 
@@ -114,6 +124,8 @@ const BY_CATEGORY: TechCurriculumConcept[] = [
     references: [{ title: "React 문서: 리스트 렌더링", url: "https://ko.react.dev/learn/rendering-lists" }] },
   { slug: "q-state-where", title: "상태는 어디에 둬야 할까: 로컬·전역·서버 상태", level: 3, category: "frontend",
     references: [{ title: "React 문서: State 구조 선택하기", url: "https://ko.react.dev/learn/choosing-the-state-structure" }] },
+  { slug: "q-one-way-data-flow", title: "데이터는 왜 한 방향으로만 흐르게 할까 (Flux·Redux)", level: 3, category: "frontend",
+    references: [{ title: "Redux 문서: Concepts and Data Flow", url: "https://redux.js.org/tutorials/fundamentals/part-2-concepts-data-flow" }] },
   { slug: "q-vue-reactivity", title: "Vue는 값이 바뀐 걸 어떻게 알아챌까 (반응성)", level: 3, category: "frontend",
     references: [{ title: "Vue 문서: 반응형 심화", url: "https://ko.vuejs.org/guide/extras/reactivity-in-depth" }] },
   { slug: "q-where-render", title: "화면은 어디서 그려질까: CSR과 SSR", level: 4, category: "frontend",
@@ -134,6 +146,8 @@ const BY_CATEGORY: TechCurriculumConcept[] = [
     references: [{ title: "CSS-Tricks: Debouncing and Throttling", url: "https://css-tricks.com/debouncing-throttling-explained-examples/" }] },
   { slug: "q-a11y", title: "화면을 못 보는 사람은 웹을 어떻게 쓸까 (접근성)", level: 4, category: "frontend",
     references: [{ title: "web.dev: Learn Accessibility", url: "https://web.dev/learn/accessibility" }] },
+  { slug: "q-fe-testing", title: "프론트엔드 테스트는 어디까지 짜야 할까 (단위·통합·E2E)", level: 4, category: "frontend",
+    references: [{ title: "Kent C. Dodds: The Testing Trophy", url: "https://kentcdodds.com/blog/the-testing-trophy-and-testing-classifications" }] },
   { slug: "q-cors-error", title: "CORS 에러는 왜 나를 괴롭힐까", level: 5, category: "frontend",
     references: [{ title: "MDN: 교차 출처 리소스 공유(CORS)", url: `${MDN}/Web/HTTP/Guides/CORS` }] },
   { slug: "q-font-flash", title: "웹폰트가 늦게 뜨면서 글자가 번쩍이는 이유", level: 5, category: "frontend",
@@ -142,6 +156,42 @@ const BY_CATEGORY: TechCurriculumConcept[] = [
     references: [{ title: "MDN: 서비스 워커 API", url: `${MDN}/Web/API/Service_Worker_API` }] },
   { slug: "q-npm-install", title: "npm install을 누르면 무슨 일이 일어날까", level: 5, category: "frontend",
     references: [{ title: "npm 문서: package-lock.json", url: "https://docs.npmjs.com/cli/configuring-npm/package-lock-json" }] },
+
+  // 백엔드·클라우드 — 서버·배포·운영. 프론트엔드 개발자가 내 서비스를 직접 올리고 운영할 때 마주치는 것
+  { slug: "q-iaas-paas-saas", title: "클라우드는 어디까지 빌려 쓰는 걸까 (IaaS·PaaS·SaaS)", level: 1, category: "backend",
+    references: [{ title: "AWS: 클라우드 컴퓨팅의 유형", url: "https://aws.amazon.com/ko/types-of-cloud-computing/" }] },
+  { slug: "q-ec2", title: "클라우드에 내 서버 한 대 띄우기 (EC2)", level: 1, category: "backend",
+    references: [{ title: "AWS 문서: Amazon EC2란?", url: "https://docs.aws.amazon.com/ko_kr/AWSEC2/latest/UserGuide/concepts.html" }] },
+  { slug: "q-env-config", title: "API 키는 코드 어디에 둬야 할까 (환경 변수와 시크릿)", level: 2, category: "backend",
+    references: [{ title: "The Twelve-Factor App: 설정", url: "https://12factor.net/ko/config" }] },
+  { slug: "q-ci-cd", title: "push하면 자동으로 배포되는 원리 (CI/CD)", level: 2, category: "backend",
+    references: [{ title: "GitHub 문서: GitHub Actions 이해하기", url: "https://docs.github.com/ko/actions/get-started/understand-github-actions" }] },
+  { slug: "q-s3", title: "이미지·파일은 어디에 올려 둘까 (S3 객체 스토리지)", level: 2, category: "backend",
+    references: [{ title: "AWS 문서: Amazon S3란?", url: "https://docs.aws.amazon.com/ko_kr/AmazonS3/latest/userguide/Welcome.html" }] },
+  { slug: "q-rds", title: "DB 서버를 직접 설치하지 않고 쓰는 법 (RDS)", level: 2, category: "backend",
+    references: [{ title: "AWS 문서: Amazon RDS란?", url: "https://docs.aws.amazon.com/ko_kr/AmazonRDS/latest/UserGuide/Welcome.html" }] },
+  { slug: "q-reverse-proxy", title: "Nginx는 서버 앞에서 무슨 일을 할까 (리버스 프록시)", level: 3, category: "backend",
+    references: [{ title: "NGINX 문서: Reverse Proxy", url: "https://docs.nginx.com/nginx/admin-guide/web-server/reverse-proxy/" }] },
+  { slug: "q-https-cert", title: "내 도메인에 HTTPS 붙이기 (인증서 발급과 갱신)", level: 3, category: "backend",
+    references: [{ title: "Let's Encrypt: 작동 방식", url: "https://letsencrypt.org/ko/how-it-works/" }] },
+  { slug: "q-vpc", title: "내 서버만의 사설 네트워크 (VPC와 서브넷)", level: 3, category: "backend",
+    references: [{ title: "AWS 문서: Amazon VPC란?", url: "https://docs.aws.amazon.com/ko_kr/vpc/latest/userguide/what-is-amazon-vpc.html" }] },
+  { slug: "q-auto-scaling", title: "손님이 몰리면 서버가 저절로 늘어나는 원리 (오토스케일링)", level: 3, category: "backend",
+    references: [{ title: "AWS 문서: Amazon EC2 Auto Scaling이란?", url: "https://docs.aws.amazon.com/ko_kr/autoscaling/ec2/userguide/what-is-amazon-ec2-auto-scaling.html" }] },
+  { slug: "q-load-balancer", title: "서버 여러 대에 손님을 나눠 보내는 법 (로드밸런서)", level: 4, category: "backend",
+    references: [{ title: "Cloudflare: 로드 밸런싱이란?", url: "https://www.cloudflare.com/ko-kr/learning/performance/what-is-load-balancing/" }] },
+  { slug: "q-cache-redis", title: "Redis는 왜 그렇게 빠를까 (캐시 전략)", level: 4, category: "backend",
+    references: [{ title: "AWS: 캐싱 모범 사례", url: "https://aws.amazon.com/ko/caching/best-practices/" }] },
+  { slug: "q-logging-monitoring", title: "장애는 어떻게 알아챌까 (로그와 모니터링)", level: 4, category: "backend",
+    references: [{ title: "AWS 문서: Amazon CloudWatch란?", url: "https://docs.aws.amazon.com/ko_kr/AmazonCloudWatch/latest/monitoring/WhatIsCloudWatch.html" }] },
+  { slug: "q-blue-green", title: "서비스를 끄지 않고 배포하는 법 (무중단 배포)", level: 4, category: "backend",
+    references: [{ title: "Martin Fowler: Blue Green Deployment", url: "https://martinfowler.com/bliki/BlueGreenDeployment.html" }] },
+  { slug: "q-docker", title: "'내 컴퓨터에선 되는데'를 없애는 도커", level: 5, category: "backend",
+    references: [{ title: "Docker 문서: Docker 개요", url: "https://docs.docker.com/get-started/docker-overview/" }] },
+  { slug: "q-serverless", title: "서버리스는 정말 서버가 없을까", level: 5, category: "backend",
+    references: [{ title: "Cloudflare: 서버리스 컴퓨팅이란?", url: "https://www.cloudflare.com/ko-kr/learning/serverless/what-is-serverless/" }] },
+  { slug: "q-kubernetes", title: "컨테이너가 수백 개면 누가 관리할까 (쿠버네티스)", level: 5, category: "backend",
+    references: [{ title: "Kubernetes 문서: 개요", url: "https://kubernetes.io/ko/docs/concepts/overview/" }] },
 
   // AI — 원리·개발 활용·생태계
   { slug: "q-llm-how", title: "LLM은 어떻게 다음 단어를 고를까", level: 1, category: "ai",

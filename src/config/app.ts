@@ -207,6 +207,6 @@ export const USER_PROFILE = {
   timezone: SERVICE_TIMEZONE,
   preferredLength: "concise",
   newsGoal: "요즘 기업·트렌드·시장 등락 흐름을 파악",
-  techGoal: "개발·AI 쪽 흐름을 따라가고 프론트엔드 실무 지식을 원리부터 다지기",
+  techGoal: "프론트엔드 실무, 설계 패턴, 백엔드·클라우드 기초까지 개발자가 실무에서 바로 쓰는 지식을 원리부터 다지기",
   techLevel: "프론트엔드 개발자 (React·TypeScript)",
 } as const;
