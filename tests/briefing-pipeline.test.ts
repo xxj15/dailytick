@@ -1139,3 +1139,11 @@ test("경제 상식 후보: 경제 기초와 금융·IT 산업은 하나씩만 �
   assert.equal(pool.filter((candidate) => candidate.category === "금융·IT 산업").length, 1);
   assert.equal(pool.filter((candidate) => candidate.category === "금융시장").length, 3);
 });
+
+test("경제 상식 후보: 최근 사흘 안에 금융·IT 산업 상식이 나왔으면 그 갈래는 쉰다", () => {
+  const recent = (category: string, date: string) => ({ briefingDate: date, items: [{ slug: `s-${date}`, title: "지난 상식", category }] });
+  assert.equal(economyCandidates([recent("digital-finance", "2026-10-20")]).filter((c) => c.category === "금융·IT 산업").length, 0);
+  // 나흘 전이면 다시 후보다
+  const older = [recent("macro", "2026-10-20"), recent("macro", "2026-10-19"), recent("macro", "2026-10-18"), recent("digital-finance", "2026-10-17")];
+  assert.equal(economyCandidates(older).filter((c) => c.category === "금융·IT 산업").length, 1);
+});

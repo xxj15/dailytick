@@ -116,12 +116,21 @@ export const ECONOMY_GROUP: Record<string, string> = {
 const ECONOMY_PER_GROUP: Record<string, number> = { "경제 기초": 1, "금융·IT 산업": 1 };
 const ECONOMY_DEFAULT_PER_GROUP = 3;
 
-/** 경제 상식 후보: 미학습 개념을 일곱 갈래에서 3개씩(경제 기초·금융·IT 산업은 1개). 갈래 안에서는 커리큘럼 순서(쉬운 것부터)를 따른다. */
+/** 금융·IT 산업 갈래를 쉬는 기간(최근 지면 수). 이 안에 그 갈래가 나왔으면 후보에 올리지 않는다. 일주일에 두 번 안쪽이 되게 한다. */
+const DIGITAL_FINANCE_COOLDOWN = 3;
+
+/**
+ * 경제 상식 후보: 미학습 개념을 일곱 갈래에서 3개씩(경제 기초·금융·IT 산업은 1개). 갈래 안에서는 커리큘럼 순서(쉬운 것부터)를 따른다.
+ * 금융·IT 산업은 최근 지면에 나왔으면 쉰다. 경제 뉴스를 이해하는 개념(금융시장·거시경제·투자·기업 재무)이 중심이다.
+ */
 export function economyCandidates(history: ConceptHistoryEntry[]): KnowledgeCandidate[] {
   const seen = learned(history);
+  const resting = history.slice(0, DIGITAL_FINANCE_COOLDOWN)
+    .some((entry) => entry.items.some((item) => ECONOMY_GROUP[item.category ?? ""] === "금융·IT 산업"));
+  const perGroup = (group: string) => (resting && group === "금융·IT 산업" ? 0 : (ECONOMY_PER_GROUP[group] ?? ECONOMY_DEFAULT_PER_GROUP));
   const unseen = CURRICULUM.filter((concept) => !seen.slugs.has(concept.slug))
     .map((concept) => ({ ...concept, group: ECONOMY_GROUP[concept.category] ?? concept.category }));
-  return spread(unseen.map((concept) => ({ ...concept, category: concept.group, original: concept.category })), (group) => ECONOMY_PER_GROUP[group] ?? ECONOMY_DEFAULT_PER_GROUP)
+  return spread(unseen.map((concept) => ({ ...concept, category: concept.group, original: concept.category })), perGroup)
     .map((concept) => {
       const original = CURRICULUM.find((entry) => entry.slug === concept.slug) as Concept;
       return {
