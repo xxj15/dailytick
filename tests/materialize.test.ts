@@ -88,7 +88,9 @@ test("무슨 일과 원인·배경 근거 문장을 따로 이어 '무슨 일이
   const content = dailyBriefingSchema.parse(stripNulls(materializeBriefing(draft, [WITH_CAUSE])));
   assert.equal(content.newsItems[0].whatHappened, QUOTE);
   assert.equal(content.newsItems[0].background, CAUSE);
-  assert.equal(content.newsItems[0].takeaway, DRAFT.newsItems[0].takeaway);
+  // 2026-10-20부터 영향·시장 영향·해석·알아둘 점은 쓰지 않는다
+  assert.equal(content.newsItems[0].takeaway, undefined);
+  assert.deepEqual(content.newsItems[0].marketImpact, {});
   assert.deepEqual(verifyBriefing(content, { date: DATE, concepts: [CONCEPT], candidates: [WITH_CAUSE] }), []);
   // 모델이 '왜 일어났나'를 바꿔 쓰면 근거 불일치다
   const edited = { ...content, newsItems: [{ ...content.newsItems[0], background: "추측한 원인" }] };

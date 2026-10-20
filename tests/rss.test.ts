@@ -3,7 +3,8 @@ import test from "node:test";
 import { NEWS_FEEDS } from "@/config/app";
 import { collectMarketNews } from "@/lib/openai/collect-news";
 import { buildNewsSelectionPrompt, feedLine } from "@/lib/openai/prompts";
-import { candidatesFromPicks, collectFeedItems, parseFeed, parseFeedDate, normalizeItemId, selectionScore, type FeedItem } from "@/lib/news/rss";
+import { decodeHtmlEntities } from "@/lib/news/entities";
+import { candidatesFromPicks, cleanFeedTitle, collectFeedItems, parseFeed, parseFeedDate, normalizeItemId, selectionScore, type FeedItem } from "@/lib/news/rss";
 
 const FEED = { publisher: "연합뉴스", section: "종합" } as const;
 
@@ -72,9 +73,9 @@ const ITEMS: FeedItem[] = [
 
 test("고른 결과는 목록에 있는 기사만 출처로 쓰고, 한 기사는 먼저 고른 후보 하나에만 쓴다", () => {
   const candidates = candidatesFromPicks([
-    { itemIds: ["n1", "n2", "n99"], title: "기준금리 동결", summary: "", region: "KR", category: "rates", scores: { importance: 9.6, learningValue: 9.6, jobRelevance: 9.6, explainability: 9.6 }, reason: "읽을 가치" },
-    { itemIds: ["n2"], title: "같은 기사를 다시 고른 후보", summary: "요약", region: "KR", category: "rates", scores: { importance: 5, learningValue: 5, jobRelevance: 5, explainability: 5 }, reason: "읽을 가치" },
-    { itemIds: ["n3"], title: "KT AI 기술 공개", summary: "요약", region: "KR", category: "ai", scores: { importance: 0, learningValue: 0, jobRelevance: 0, explainability: 0 }, reason: "읽을 가치" },
+    { itemIds: ["n1", "n2", "n99"], title: "기준금리 동결", summary: "", region: "KR", category: "rates", scores: { importance: 9.6, learningValue: 9.6, relevance: 9.6, timeliness: 9.6, reliability: 9.6 }, reason: "읽을 가치" },
+    { itemIds: ["n2"], title: "같은 기사를 다시 고른 후보", summary: "요약", region: "KR", category: "rates", scores: { importance: 5, learningValue: 5, relevance: 5, timeliness: 5, reliability: 5 }, reason: "읽을 가치" },
+    { itemIds: ["n3"], title: "KT AI 기술 공개", summary: "요약", region: "KR", category: "ai", scores: { importance: 0, learningValue: 0, relevance: 0, timeliness: 0, reliability: 0 }, reason: "읽을 가치" },
   ], ITEMS);
   assert.deepEqual(candidates.map((candidate) => [candidate.title, candidate.sources.map((source) => source.url), candidate.importance]), [
     ["기준금리 동결", ["https://www.yna.co.kr/view/A1", "https://www.mk.co.kr/news/1"], 10],
@@ -103,7 +104,7 @@ test("수집은 RSS 목록에서 한 번 고르고, 목록이 비면 모델을 �
     feeds: async () => ({ items: ITEMS, feeds: [{ publisher: "연합뉴스", url: "https://www.yna.co.kr/rss/news.xml", items: 3 }] }),
     select: async () => {
       selects++;
-      return { picks: { candidates: [{ itemIds: ["n3"], title: "KT AI 기술 공개", summary: "요약", region: "KR", category: "ai", scores: { importance: 8, learningValue: 8, jobRelevance: 8, explainability: 8 }, reason: "읽을 가치" }], rejected: [{ title: "코스피 장중 등락", reason: "시세 중계라 배경 설명이 없다" }] }, inputTokens: 100, outputTokens: 20 };
+      return { picks: { candidates: [{ itemIds: ["n3"], title: "KT AI 기술 공개", summary: "요약", region: "KR", category: "ai", scores: { importance: 8, learningValue: 8, relevance: 8, timeliness: 8, reliability: 8 }, reason: "읽을 가치" }], rejected: [{ title: "코스피 장중 등락", reason: "시세 중계라 배경 설명이 없다" }] }, inputTokens: 100, outputTokens: 20 };
     },
   });
   assert.equal(selects, 1);
@@ -121,12 +122,12 @@ test("수집은 RSS 목록에서 한 번 고르고, 목록이 비면 모델을 �
 });
 
 test("후보 점수는 평가 항목의 가중합이고, 항목마다 1~10으로 자른다", () => {
-  const base = { importance: 5, learningValue: 5, jobRelevance: 5, explainability: 5 };
+  const base = { importance: 5, learningValue: 5, relevance: 5, timeliness: 5, reliability: 5 };
   assert.equal(selectionScore(base), 5);
-  // 직무 관련성은 가산점 정도다. 같은 폭이면 중요도·학습 가치·설명 가능성이 더 크게 움직인다
-  assert.ok(selectionScore({ ...base, jobRelevance: 10 }) < selectionScore({ ...base, importance: 10 }));
-  assert.ok(selectionScore({ ...base, jobRelevance: 10 }) < selectionScore({ ...base, explainability: 10 }));
-  assert.equal(selectionScore({ importance: 99, learningValue: -3, jobRelevance: Number.NaN, explainability: 10 }), selectionScore({ importance: 10, learningValue: 1, jobRelevance: 1, explainability: 10 }));
+  // 관심 분야 관련성은 중요도·학습 가치보다 덜 움직인다. 개인 관심사 때문에 중요한 뉴스를 놓치지 않기 위해서다
+  assert.ok(selectionScore({ ...base, relevance: 10 }) < selectionScore({ ...base, importance: 10 }));
+  assert.ok(selectionScore({ ...base, relevance: 10 }) < selectionScore({ ...base, learningValue: 10 }));
+  assert.equal(selectionScore({ importance: 99, learningValue: -3, relevance: Number.NaN, timeliness: 10, reliability: 10 }), selectionScore({ importance: 10, learningValue: 1, relevance: 1, timeliness: 10, reliability: 10 }));
 });
 
 test("모델이 적은 기사 id의 형식이 조금 달라도 목록 id로 맞춘다", () => {
@@ -134,10 +135,21 @@ test("모델이 적은 기사 id의 형식이 조금 달라도 목록 id로 맞�
     assert.equal(normalizeItemId(id), "n3", id);
   }
   // 목록에 없는 번호는 여전히 버린다
-  const scores = { importance: 5, learningValue: 5, jobRelevance: 5, explainability: 5 };
+  const scores = { importance: 5, learningValue: 5, relevance: 5, timeliness: 5, reliability: 5 };
   const candidates = candidatesFromPicks([
     { itemIds: [" N3 "], title: "KT AI 기술 공개", summary: "요약", region: "KR", category: "ai", scores, reason: "이유" },
     { itemIds: ["n99", "기사"], title: "없는 기사", summary: "요약", region: "KR", category: "ai", scores, reason: "이유" },
   ], ITEMS);
   assert.deepEqual(candidates.map((candidate) => candidate.sources[0].url), ["https://www.etnews.com/1"]);
+});
+
+test("피드 제목의 HTML 엔티티를 풀고, 앞뒤에 붙은 매체 이름을 뗀다", () => {
+  assert.equal(cleanFeedTitle("두산에너빌리티·LIG D&amp;A, 유도무기 엔진 개발 협력", "경향신문"), "두산에너빌리티·LIG D&A, 유도무기 엔진 개발 협력");
+  assert.equal(cleanFeedTitle("29CM &#039;이구홈 성수 2호점&#039;, 한 달 새 매출 10배", "머니투데이"), "29CM '이구홈 성수 2호점', 한 달 새 매출 10배");
+  assert.equal(cleanFeedTitle("&amp;quot;세계 최대 박물관 봉쇄&amp;quot;", "머니투데이"), "\"세계 최대 박물관 봉쇄\"");
+  assert.equal(cleanFeedTitle("AI 추론, &apos;토큰 팩토리&apos; 견인", "ZDNet Korea"), "AI 추론, '토큰 팩토리' 견인");
+  assert.equal(cleanFeedTitle("[연합뉴스] 기준금리 동결 | 연합뉴스", "연합뉴스"), "기준금리 동결");
+  assert.equal(cleanFeedTitle("코스피 급락 - 매일경제", "매일경제"), "코스피 급락");
+  // 모르는 엔티티와 일반 & 기호는 그대로 둔다
+  assert.equal(decodeHtmlEntities("R&D &unknown; 투자"), "R&D &unknown; 투자");
 });

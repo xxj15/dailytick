@@ -6,8 +6,8 @@ import { slotOrder } from "@/lib/news/slots";
 
 /**
  * 사실 본문·출처·게시일은 모델이 작성하지 않는다. 서버가 검증된 자료에서 조합한다.
- * '무슨 일이 있었나'는 무슨 일(event) 근거 문장, '왜 일어났나'는 원인·배경(background) 근거 문장을 그대로 잇는다.
- * 후보에 원인·배경 문장이 있으면 그중 하나 이상을 골라야 한다. 원인 없이 수치만 전하는 기사를 만들지 않는다.
+ * 핵심 요약은 무슨 일(event) 근거 문장(whatHappened)과 원인·배경(background) 근거 문장을 그대로 잇는다.
+ * 후보에 원인·배경 문장이 있으면 그중 하나를 골라야 한다. 원인이 확인된 기사를 수치만 전하는 요약으로 만들지 않는다.
  * 같은 후보를 두 슬롯에 쓴 경우는 여기서 막지 않는다. verify.ts가 그 뉴스 rank를 가리켜 걸러야
  * 재시도와 마지막 시도의 트림(그 뉴스만 빼고 발행)을 탈 수 있다.
  *
@@ -45,7 +45,8 @@ export function materializeBriefing<D extends { newsItems: z.infer<typeof aiNews
         rank: item.rank, slot: item.slot, title: item.title, region: item.region, category: candidate.category, followUp: item.followUp,
         whatHappened: events.map((fact) => fact.quote).join(" "),
         ...(backgrounds.length ? { background: backgrounds.map((fact) => fact.quote).join(" ") } : {}),
-        whyImportant: item.whyImportant, impact: item.impact, marketImpact: item.marketImpact, interpretation: item.interpretation, takeaway: item.takeaway,
+        // 2026-10-20부터 기사는 핵심 요약과 왜 읽을 만한가만 쓴다. 시장 영향은 저장 모양을 지키려 빈 값으로 둔다
+        whyImportant: item.whyImportant, marketImpact: {},
         sources: documents.map((doc) => doc.source),
         evidence: {
           candidateId: candidate.id, facts,

@@ -61,9 +61,9 @@ export function buildGroundingReviewPrompt(content: GroundedSection, candidates:
 각 뉴스 rank를 정확히 한 번 검토해 supported와 구체적인 reason을 반환한다.
 판단이 불가능하면 supported=false다. 존재하는 URL, 게시일, 원문과 일치하는 quote만으로 통과시키지 않는다.
 반드시 원문의 맥락과 비교한다:
-- title·whatHappened·background·whyImportant·impact·marketImpact·interpretation·takeaway의 구체적인 사실, 수치, 단위, 기관, 인용, 정책 내용, 관측된 시장 반응이 선택된 facts로 뒷받침되는가?
-- background(왜 일어났나)가 실제로 그 사건의 원인·배경을 설명하는가? 사건을 되풀이하거나 다른 사건의 배경이거나 전망뿐이면 supported=false다.
-  whyImportant·impact·takeaway가 facts에 없는 원인을 추측해 보탰다면 supported=false다.
+- title·whatHappened·background·whyImportant(왜 읽을 만한가)의 구체적인 사실, 수치, 단위, 기관, 인용, 정책 내용, 관측된 시장 반응이 선택된 facts로 뒷받침되는가?
+- background가 있으면 실제로 그 사건의 원인·배경인가? 사건을 되풀이하거나 다른 사건의 배경이면 supported=false다.
+- whyImportant가 facts에 없는 원인·전망·수치를 사실처럼 보탰다면 supported=false다. 전망은 조건부 표현일 때만 허용한다.
 - 원문은 전년/전분기/과거 사건을 설명하는데 오늘 새 사건처럼 썼는가? 기사 게시일과 사건 발생일을 혼동했는가?
 - 전망·가정·부정문·타인의 주장을 확정 사실로 바꾸거나 문장을 잘라 의미를 바꾸었는가?
 - 후보 제목과 실제 자료가 다른 사건인가? 중복 사건을 여러 뉴스로 발행하는가?

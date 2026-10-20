@@ -97,10 +97,11 @@ export const NEWS_FEEDS = [
 ] as const;
 
 /**
- * 피드 하나에서 고르기에 넘기는 최신 기사 수. 제목 한 줄이 입력 토큰 수십 개라
- * 피드 13개 × 25건이면 고르기 입력이 2만 토큰 안팎이다(웹 검색 수집은 한 번에 30만 토큰을 넘었다).
+ * 피드 하나에서 고르기에 넘기는 최신 기사 수. 제목 한 줄이 입력 토큰 수십 개다.
+ * 25건일 때는 연합뉴스·머니투데이처럼 큰 피드가 최근 15~30분 치뿐이라 중요한 기사를 놓쳤다(2026-10-20 측정).
+ * 피드 자체가 최근 1~14시간 치만 담으므로 60건이면 대부분 피드의 범위 안 기사를 다 본다. 고르기 입력은 3~4만 토큰이다.
  */
-export const NEWS_FEED_ITEMS_PER_FEED = 25;
+export const NEWS_FEED_ITEMS_PER_FEED = 60;
 
 /** 고르기에 넘기는 기사의 게시 시각 범위. 기준일 전날 0시부터다(isFreshSource 기준). 아침 발행이면 약 32시간이다. */
 export const NEWS_FEED_MAX_AGE_HOURS = 24;
@@ -108,8 +109,8 @@ export const NEWS_FEED_MAX_AGE_HOURS = 24;
 /** 고르기에서 슬롯마다 받는 후보 수. 근거 확인은 그중 앞의 NEWS_GROUND_PER_SLOT개를 읽는다. */
 export const NEWS_PICKS_PER_SLOT = 3;
 
-/** 기사 고르기 호출의 제한 시간. 웹 검색 없이 제목 목록만 보므로 짧다. */
-export const NEWS_SELECT_TIMEOUT_MS = 60_000;
+/** 기사 고르기 호출의 제한 시간. 웹 검색 없이 제목 목록만 보지만 목록이 600건 안팎이다. */
+export const NEWS_SELECT_TIMEOUT_MS = 90_000;
 
 /**
  * 본문을 직접 읽어 근거를 확인할 후보 수 상한. 싣는 기사는 최대 3건이라 슬롯마다 예비 하나씩이면 된다.
@@ -118,10 +119,10 @@ export const NEWS_SELECT_TIMEOUT_MS = 60_000;
 export const NEWS_GROUND_LIMIT = 6;
 
 /**
- * 주요 이슈 후보 하나에서 본문을 읽는 기사 수. 첫 기사에 원인·배경 문장이 없을 때 같은 사건의 다른 기사에서 찾는다.
- * 읽는 본문이 근거 문장 고르기·검토의 입력 토큰이다.
+ * 주요 이슈 후보 하나에서 본문을 읽는 기사 수. 읽는 본문이 근거 문장 고르기·검토의 입력 토큰이다.
+ * 원인·배경 문장은 필수가 아니므로(있으면 요약에 넣는다) 한 건만 읽는다. 읽히지 않으면 다음 출처를 읽는다.
  */
-export const NEWS_DOCS_PER_CANDIDATE = 2;
+export const NEWS_DOCS_PER_CANDIDATE = 1;
 
 /**
  * 근거 확인 자리를 슬롯마다 먼저 이만큼 잡은 뒤 나머지를 중요도 순으로 채운다.
@@ -179,12 +180,12 @@ export const PREFERRED_PUBLISHERS = {
  */
 export const USER_PROFILE = {
   /** 2026-10-20 사용자가 밝힌 목표. 특정 기업 이름은 프롬프트에 넣지 않는다(모든 글이 그 기업으로 쏠린다). */
-  goal: "DX/AX 엔지니어·금융 IT·커머스 IT 직무 취업 준비 (기술·직무 면접 대비)",
+  goal: "IT 개발·DX/AX 직무 중심 취업 준비 (금융 IT·커머스에도 관심)",
   financeLevel: "beginner",
   locale: "ko-KR",
   timezone: SERVICE_TIMEZONE,
   preferredLength: "concise",
-  newsGoal: "경제·산업·IT 흐름을 원인과 영향까지 맥락과 함께 이해",
+  newsGoal: "중요한 국내외 이슈를 폭넓게 접하고 경제·산업·기술 흐름을 자연스럽게 이해",
   techGoal: "CS·소프트웨어 엔지니어링 기본기와 AI·클라우드 실무(DX/AX)를 원리부터 다지기",
   techLevel: "프론트엔드(React·TypeScript) 경험이 있는 취업 준비 개발자",
 } as const;

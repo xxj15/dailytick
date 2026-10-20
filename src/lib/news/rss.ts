@@ -2,6 +2,7 @@ import { load } from "cheerio";
 import { NEWS_FEED_ITEMS_PER_FEED, NEWS_FEED_MAX_AGE_HOURS, NEWS_FEEDS } from "@/config/app";
 import { isFreshSource, type DateString } from "@/lib/date";
 import { normalizeEvidenceText } from "@/lib/news/extract-source";
+import { decodeHtmlEntities } from "@/lib/news/entities";
 import { fetchSource, type SourceResponse } from "@/lib/news/fetch-source";
 import { sourceMatchKey } from "@/lib/news/url-key";
 import type { NewsCandidate, NewsCategory, NewsRegion } from "@/types/briefing";
@@ -58,13 +59,25 @@ function articleUrl(value: string): string | null {
   }
 }
 
+/**
+ * 피드 제목을 지면에 실을 모양으로 다듬는다. 한 번 더 인코딩된 HTML 엔티티(&amp;#039; 등)를 풀고,
+ * 앞뒤에 붙은 매체 이름("[연합뉴스]", "… | 연합뉴스", "… - 연합뉴스")을 뗀다.
+ */
+export function cleanFeedTitle(raw: string, publisher: string): string {
+  const name = publisher.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return normalizeEvidenceText(decodeHtmlEntities(raw))
+    .replace(new RegExp(`^\\s*\\[${name}\\]\\s*`), "")
+    .replace(new RegExp(`\\s*[|\\-–—:]\\s*${name}\\s*$`), "")
+    .trim();
+}
+
 /** RSS 2.0(item)과 Atom(entry)을 읽는다. 제목·링크가 없거나 잡음(NOISE)인 기사는 뺀다. */
 export function parseFeed(xml: string, feed: Pick<NewsFeed, "publisher" | "section">): Omit<FeedItem, "id">[] {
   const $ = load(xml, { xml: true });
   const nodes = $("item").length ? $("item") : $("entry");
   return nodes.toArray().flatMap((node) => {
     const entry = $(node);
-    const title = normalizeEvidenceText(entry.children("title").first().text());
+    const title = cleanFeedTitle(entry.children("title").first().text(), feed.publisher);
     const link = entry.children("link").first();
     const url = articleUrl(link.attr("href") ?? link.text()) ?? articleUrl(entry.children("guid").first().text());
     if (!title || !url || NOISE.test(title)) return [];
@@ -117,16 +130,17 @@ export async function collectFeedItems(
 }
 
 /**
- * 고르기 평가 항목(각 1~10). 2026-10-20 사용자 요청: 최신·화제성이 아니라 읽을 가치로 고른다.
- *   importance      중요도. 파급 범위·새 변화·여러 매체 보도
- *   learningValue   학습 가치. 읽고 나면 경제·산업·기술을 이해하는 틀이 남는가
- *   jobRelevance    직무 관련성. 금융 IT·커머스 IT·DX/AX 실무와 닿는가
- *   explainability  설명 가능성. 원인·배경·영향까지 기사로 설명할 수 있을 것으로 보이는가
+ * 고르기 평가 항목(각 1~10). 2026-10-20 사용자 결정: 최신·화제성이 아니라 기사 자체의 중요성과 정보 가치로 고른다.
+ *   importance     중요도. 국내외 경제·사회·산업·기술에서 주목할 사건인가, 파급 범위
+ *   learningValue  학습 가치. 새로운 지식이나 산업 흐름을 이해하는 데 도움이 되는가
+ *   relevance      관심 분야 관련성. 경제·금융·IT·AI·DX/AX·주요 산업과 이어지는가(취업 관련성은 가산 요소)
+ *   timeliness     시의성. 최근 일어난 새 사건·새 변화인가, 최근에 실은 사건과 겹치지 않는가
+ *   reliability    신뢰성. 공식 발표·확인된 보도인가
  */
-export type SelectionScores = { importance: number; learningValue: number; jobRelevance: number; explainability: number };
+export type SelectionScores = { importance: number; learningValue: number; relevance: number; timeliness: number; reliability: number };
 
-/** 평가 가중치. 직무 관련성은 가산점 정도로만 둔다. 모든 기사를 직무에 억지로 잇지 않기 위해서다. */
-export const SELECTION_WEIGHTS: SelectionScores = { importance: 0.35, learningValue: 0.25, explainability: 0.25, jobRelevance: 0.15 };
+/** 평가 가중치. 관심 분야 관련성은 중요도·학습 가치보다 낮게 둔다. 개인 관심사 때문에 사회적으로 중요한 뉴스를 놓치지 않기 위해서다. */
+export const SELECTION_WEIGHTS: SelectionScores = { importance: 0.3, learningValue: 0.25, relevance: 0.2, timeliness: 0.15, reliability: 0.1 };
 
 /** 후보 점수. 항목마다 1~10으로 자른 뒤 가중합한다. 소수 첫째 자리까지. */
 export function selectionScore(scores: SelectionScores): number {

@@ -176,19 +176,19 @@ test("주요 이슈 출처는 페이지 메타데이터 대신 RSS의 매체명�
   assert.equal(result.candidates[0].sources[0].publishedAt, "2026-10-08T22:00:00.000Z");
 });
 
-test("주요 이슈는 원인·배경 문장을 본문에서 확인하지 못하면 후보를 뺀다", async () => {
+test("주요 이슈는 원인·배경 문장이 없어도 무슨 일 문장으로 받는다. 원인 문장은 있으면 요약에 넣는다", async () => {
   const result = await groundMarketNews([input.candidate], "2026-10-09", {
     fetch: async (url) => article(url),
     // 무슨 일 문장만 있다
     select: async (inputs) => ({ selection: { candidates: inputs.map((item) => ({ candidateId: item.id, facts: [{ sourceId: item.documents[0].id, quote, role: "event" as const }] })) }, inputTokens: 1, outputTokens: 1 }),
   });
-  assert.equal(result.candidates.length, 0);
-  assert.match(result.rejected[0].reason, /원인·배경 문장을 확인할 수 없습니다/);
+  assert.equal(result.candidates.length, 1);
+  assert.deepEqual(result.candidates[0].facts.map((fact) => fact.role), ["event"]);
   // 테크 상식(원인 문장을 요구하지 않는 근거 확인)은 무슨 일 문장만으로 받는다
   assert.equal(groundCandidates([input], selection, "2026-10-09", undefined, false, false, false).candidates.length, 1);
 });
 
-test("첫 기사에 원인이 없으면 같은 사건의 두 번째 한국어 기사 본문까지 읽어 원인 문장을 찾는다", async () => {
+test("주요 이슈는 후보마다 본문 한 건만 읽는다. 첫 기사가 읽히면 나머지 출처는 읽지 않는다", async () => {
   const sources = [
     { ...input.candidate.sources[0], title: "코스피 장중 4% 급락", url: "https://example.com/first" },
     { ...input.candidate.sources[0], title: "Kospi slides", url: "https://example.com/english" },
@@ -199,19 +199,17 @@ test("첫 기사에 원인이 없으면 같은 사건의 두 번째 한국어 �
   const result = await groundMarketNews([{ ...input.candidate, sources }], "2026-10-09", {
     fetch: async (url) => {
       fetched.push(url);
-      return page(url, url.endsWith("second") ? background : quote);
+      return page(url, quote + background);
     },
     select: async (inputs) => {
       documents = inputs[0].documents.length;
-      const [first, second] = inputs[0].documents;
-      return { selection: { candidates: [{ candidateId: inputs[0].id, facts: [{ sourceId: first.id, quote, role: "event" as const }, { sourceId: second.id, quote: background, role: "background" as const }] }] }, inputTokens: 1, outputTokens: 1 };
+      return { selection: { candidates: [{ candidateId: inputs[0].id, facts: factsFor(inputs[0].documents[0].id) }] }, inputTokens: 1, outputTokens: 1 };
     },
   });
-  // 두 번째부터는 영문 제목 기사를 읽지 않는다
-  assert.deepEqual(fetched, ["https://example.com/first", "https://example.com/second"]);
-  assert.equal(documents, 2);
+  // 토큰을 아끼려고 본문은 한 건만 읽는다
+  assert.deepEqual(fetched, ["https://example.com/first"]);
+  assert.equal(documents, 1);
   assert.deepEqual(result.candidates[0].facts.map((fact) => fact.role), ["event", "background"]);
-  assert.deepEqual(result.candidates[0].sources.map((source) => source.url), ["https://example.com/first", "https://example.com/second"]);
 });
 
 test("테크 아티클 원문은 역할별 개수를 보지 않는다. 주요 이슈는 무슨 일 문장이 3개면 거른다", () => {

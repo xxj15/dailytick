@@ -71,7 +71,7 @@ export const newsIssueSchema = z.object({
 
   /** 사실: 실제로 발표되거나 보도된 내용. 근거 문장(무슨 일) 그대로다 */
   whatHappened: z.string().min(1),
-  /** 사실: 왜 일어났나(원인·배경). 근거 문장(원인·배경) 그대로다. 2026-10-20 이전 row에는 없다. */
+  /** 사실: 원인·배경. 근거 문장(원인·배경) 그대로다. 지면에는 핵심 요약의 끝에 붙는다. 2026-10-20 이전 row에는 없다. */
   background: z.string().optional(),
   whyImportant: z.string().min(1),
   /** 어떤 영향이 있을까: 산업·경제·사회에 미칠 수 있는 영향. 2026-10-18 이전 row에는 없다. */
@@ -81,7 +81,7 @@ export const newsIssueSchema = z.object({
   /** 해석: 사실과 반드시 구분한다 */
   interpretation: z.string().optional(),
 
-  /** 알아둘 점: 이 뉴스를 이해하려면 기억해 둘 개념·관점 한두 문장. 2026-10-20 이전 row에는 없다. */
+  /** 알아둘 점. 2026-10-20 오후 row에만 있다. 지금은 쓰지 않는다(왜 읽을 만한가에 합쳤다). */
   takeaway: z.string().optional(),
 
   sources: z.array(newsSourceSchema).min(1, "출처 없는 뉴스는 발행하지 않는다."),
@@ -188,13 +188,6 @@ export const newsCandidateSchema = z.object({
  * AI 응답은 반드시 canonical 스키마를 통과한 뒤에만 저장된다.
  * ------------------------------------------------------------------ */
 
-const aiMarketImpactSchema = z.object({
-  stocks: z.string().nullable(),
-  rates: z.string().nullable(),
-  fx: z.string().nullable(),
-  industry: z.string().nullable(),
-});
-
 export const aiNewsIssueSchema = z.object({
   rank: z.number(),
   /** 새로 쓰는 기사는 반드시 슬롯 하나에 들어간다. 슬롯 규칙은 verify.ts가 검사한다. */
@@ -205,11 +198,8 @@ export const aiNewsIssueSchema = z.object({
   region: newsRegionSchema,
   factIds: z.array(z.string()),
   title: z.string(),
+  /** 왜 읽을 만한가. 1~2문장. 2026-10-20부터 영향·시장 영향·해석·알아둘 점을 따로 쓰지 않는다(기사는 짧게, 자세한 내용은 원문). */
   whyImportant: z.string(),
-  impact: z.string().nullable(),
-  marketImpact: aiMarketImpactSchema,
-  interpretation: z.string().nullable(),
-  takeaway: z.string(),
 });
 
 const aiKnowledgeItemSchema = z.object({
@@ -257,8 +247,9 @@ export const aiNewsSelectionSchema = z.object({
     scores: z.object({
       importance: z.number(),
       learningValue: z.number(),
-      jobRelevance: z.number(),
-      explainability: z.number(),
+      relevance: z.number(),
+      timeliness: z.number(),
+      reliability: z.number(),
     }),
     reason: z.string(),
   })),

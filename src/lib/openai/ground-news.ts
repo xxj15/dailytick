@@ -19,13 +19,13 @@ export class GroundNewsError extends Error {
 }
 type GroundNewsDependencies = {
   fetch: (url: string, signal?: AbortSignal) => Promise<SourceResponse>;
-  select: (inputs: CandidateDocuments[], date: DateString, signal?: AbortSignal, requireBackground?: boolean) => Promise<SelectionResult>;
+  select: (inputs: CandidateDocuments[], date: DateString, signal?: AbortSignal, newsRoles?: boolean) => Promise<SelectionResult>;
 };
 
-async function selectFacts(inputs: CandidateDocuments[], date: DateString, signal?: AbortSignal, requireBackground = false): Promise<SelectionResult> {
+async function selectFacts(inputs: CandidateDocuments[], date: DateString, signal?: AbortSignal, newsRoles = false): Promise<SelectionResult> {
   const response = await getOpenAI().responses.parse({
     model: getModel(),
-    input: buildFactSelectionPrompt(inputs, date, requireBackground),
+    input: buildFactSelectionPrompt(inputs, date, newsRoles),
     reasoning: LIGHT_REASONING,
     text: { format: zodTextFormat(factSelectionSchema, "evidence_selection") },
   }, { timeout: 60_000, maxRetries: 0, signal });
@@ -69,7 +69,7 @@ export async function groundMarketNews(
   /**
    * 한국어 기사 본문만 근거로 쓴다. 주요 이슈는 근거 문장이 지면에 그대로 실리므로 기본값이다.
    * 테크 상식은 영문 원문을 한국어로 풀어 쓰므로 false로 부른다.
-   * 주요 이슈(koreanOnly)는 원인·배경 문장도 확인해야 쓴다. 그래서 같은 사건의 기사를 NEWS_DOCS_PER_CANDIDATE건까지 읽는다.
+   * 주요 이슈(koreanOnly)는 근거 문장마다 역할(무슨 일·원인)을 보고, 같은 사건의 기사를 NEWS_DOCS_PER_CANDIDATE건까지 읽는다.
    */
   koreanOnly = true,
 ) {
