@@ -72,6 +72,7 @@ export function buildGroundingReviewPrompt(content: GroundedSection, candidates:
 - 검색/로그인/오류/관련 기사 목록을 본문으로 오인했는가? 원문에 상충하는 맥락이 있는가?
 - 최근에 실은 사건(<recent_news>)과 같은 사건인가? 같은 사건이면 followUp이 있고, 선택된 facts에 이전과 다른 새 변화가 있어야 한다.
   표현·출처가 달라도 같은 사건이면 같은 사건으로 본다. 새 변화 없이 반복하면 supported=false다.
+  주가지수·환율·금리처럼 매일 움직이는 지표는 다른 날 다시 크게 움직였고 그 원인이 새로우면 새 사건이다. 어제도 같은 지표 기사를 실었다는 이유만으로 빼지 않는다.
 일반적인 금융 원리를 조건부로 설명하는 것은 허용한다. 출처 없는 실제 관측·통계·발언·미래 단정은 허용하지 않는다.
 framing은 todayKeywords·oneLiner(있는 경우)·knowledgeItems 전체를 검토한다. 일반 금융·IT 교육과 가상임을 밝힌 예시는 허용하되,
 출처에 없는 실제 최신 수치·사건·정책을 보태거나 선택된 뉴스와 모순되면 supported=false다.
