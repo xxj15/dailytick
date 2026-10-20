@@ -1,3 +1,4 @@
+import { decodeHtmlEntities } from "@/lib/news/entities";
 import { createHash } from "node:crypto";
 import { load } from "cheerio";
 import type { SourceDocument } from "@/lib/news/evidence-types";
@@ -68,8 +69,8 @@ export function extractSource(response: SourceResponse, requestedUrl: string, fe
     throw new Error("무료 공개 본문이 아닌 자료입니다.");
   }
   const meta = (key: string) => $(`meta[property='${key}'], meta[name='${key}'], meta[itemprop='${key}']`).first().attr("content");
-  const title = normalizeEvidenceText(meta("og:title") ?? $("h1").first().text() ?? "") || normalizeEvidenceText($("title").text());
-  const publisher = normalizeEvidenceText(meta("og:site_name") ?? meta("publisher") ?? new URL(response.url).hostname);
+  const title = decodeHtmlEntities(normalizeEvidenceText(meta("og:title") ?? $("h1").first().text() ?? "") || normalizeEvidenceText($("title").text()));
+  const publisher = decodeHtmlEntities(normalizeEvidenceText(meta("og:site_name") ?? meta("publisher") ?? new URL(response.url).hostname));
   // 메뉴·관련 기사에 표시된 오늘 날짜를 원문의 게시일로 쓰지 않는다.
   const dateScope = $("article, #article, .bd-view, .article-view, main").first();
   const rawDate = (meta("article:published_time") ?? meta("datePublished") ?? meta("pubdate") ??

@@ -1,4 +1,5 @@
 import { formatSourceDate } from "@/lib/date";
+import { decodeHtmlEntities } from "@/lib/news/entities";
 import type { NewsSource } from "@/types/briefing";
 
 /** 출처는 반드시 클릭 가능해야 하고 새 탭으로 연다. */
@@ -22,10 +23,10 @@ export function SourceLinks({ sources }: { sources: NewsSource[] }) {
                 className="group flex flex-wrap items-baseline gap-x-2"
               >
                 <span className="font-semibold text-ink-soft group-hover:underline">
-                  {source.publisher}
+                  {decodeHtmlEntities(source.publisher)}
                 </span>
                 <span className="text-ink-muted group-hover:text-ink-soft">
-                  {source.title}
+                  {decodeHtmlEntities(source.title)}
                 </span>
                 {publishedAt && (
                   <span className="shrink-0 text-xs text-ink-muted/80 tabular-nums">
