@@ -14,7 +14,7 @@ export const metadata = {
 };
 
 /** 지면에 보이는 큰 갈래 순서. 커리큘럼을 바꾸기 전 분류는 맨 뒤 '기타'로 모은다. */
-const FIELD_ORDER = ["CS", "프론트엔드", "AI", "경제", "증권"];
+const FIELD_ORDER = ["CS", "프론트엔드", "백엔드·클라우드", "AI", "경제", "증권"];
 
 function groupByField(entries: KnowledgeArchiveEntry[]) {
   const groups = new Map<string, KnowledgeArchiveEntry[]>();
