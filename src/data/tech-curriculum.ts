@@ -6,7 +6,7 @@ import { rotateByCategory } from "@/lib/curriculum/rotate";
  *
  * 경제 커리큘럼과 같은 규칙을 따른다. AI가 주제를 고르지 않고 출제 순서는 코드가 정한다.
  * CS·설계 패턴 · 프론트엔드 실무 · 백엔드·클라우드 · AI 네 분야를 돌아가며 낸다.
- * 하루 두 개는 CS·소프트웨어 엔지니어링 축(cs·frontend)과 AI·클라우드 축(ai·backend)에서 하나씩 고른다(curation/candidates.ts TECH_AXIS, 2026-10-20).
+ * 하루 두 개는 프론트엔드 하나와 CS·백엔드·AI 가운데 하나다(curation/candidates.ts TECH_AXIS, 2026-10-20 사용자 결정).
  * 개발자가 실무에서 바로 마주치는 기본기(MVC 같은 설계 패턴, EC2 같은 클라우드 서버)를 고루 다지기 위해서다. (2026-10-20 사용자 요청)
  *
  * 제목은 교과서 목차 대신 "어, 그거 왜 그렇지?" 싶은 질문으로 단다.

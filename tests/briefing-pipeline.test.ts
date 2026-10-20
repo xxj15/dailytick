@@ -194,53 +194,56 @@ function groundTech(run: ReturnType<typeof harness>, fail: string[] = [], ground
   };
 }
 
-test("테크 상식 정상: 두 축에서 하나씩 원문 근거를 통과하면 추천 순서대로 두 개를 싣고, 원문마다 어느 상식의 근거인지 붙여 넘긴다", async () => {
+test("테크 상식 정상: 프론트엔드 하나와 나머지 하나가 원문 근거를 통과하면 추천 순서대로 싣고, 원문마다 어느 상식의 근거인지 붙여 넘긴다", async () => {
   const run = harness();
   await createDailyBriefing(DATE, {}, { ...run.services,
-    // 2위 프론트엔드는 1위 CS와 같은 축(CS·소프트웨어 엔지니어링)이라 미루고, 3위 AI를 먼저 쓴다
+    // 1위 CS(나머지 축), 2위 프론트엔드. 3위 AI는 1위와 같은 축이라 쓰지 않는다
     curateKnowledge: curateTech(run, [CS_A.slug, FRONT_A.slug, AI_A.slug]),
     groundMarketNews: groundTech(run),
   });
   const items = run.saved[0].tech?.knowledgeItems ?? [];
-  assert.deepEqual(items.map((item) => item.slug), [CS_A.slug, AI_A.slug]);
-  assert.deepEqual(items.map((item) => item.references?.[0].url), [CS_A.url, AI_A.url]);
+  assert.deepEqual(items.map((item) => item.slug), [CS_A.slug, FRONT_A.slug]);
+  assert.deepEqual(items.map((item) => item.references?.[0].url), [CS_A.url, FRONT_A.url]);
   const curation = run.logs[0].audit?.tech?.curation;
   assert.equal(curation?.status, "curated");
-  assert.deepEqual(curation?.chosen?.map((entry) => [entry.id, entry.category]), [[CS_A.slug, "cs"], [AI_A.slug, "ai"]]);
+  assert.deepEqual(curation?.chosen?.map((entry) => [entry.id, entry.category]), [[CS_A.slug, "cs"], [FRONT_A.slug, "frontend"]]);
   // 두 원문을 합쳐 넘기되, id가 겹치지 않고 각자 자기 상식의 slug를 단다
   const params = run.calls.tech[0];
-  assert.deepEqual(params.concepts.map((concept) => concept.slug), [CS_A.slug, AI_A.slug]);
-  assert.deepEqual(params.candidates.map((candidate) => [candidate.knowledgeSlug, candidate.documents[0].source.url]), [[CS_A.slug, CS_A.url], [AI_A.slug, AI_A.url]]);
+  assert.deepEqual(params.concepts.map((concept) => concept.slug), [CS_A.slug, FRONT_A.slug]);
+  assert.deepEqual(params.candidates.map((candidate) => [candidate.knowledgeSlug, candidate.documents[0].source.url]), [[CS_A.slug, CS_A.url], [FRONT_A.slug, FRONT_A.url]]);
   assert.equal(new Set(params.candidates.map((candidate) => candidate.id)).size, 2);
   assert.deepEqual(run.logs[0].audit?.tech?.evidence.map((entry) => entry.candidateId), params.candidates.map((candidate) => candidate.id));
   // 큐레이터에게 오늘 두 개를 싣는다고 알린다
   assert.equal(run.calls.curate.find((call) => call.kind === "tech")?.count, 2);
 });
 
-test("테크 상식 분야 우선: 추천 1·2위가 같은 분야면 2위는 미루고, 다른 분야인 3위가 통과하면 1위와 3위를 싣는다", async () => {
+test("테크 상식 축 우선: 추천 1·2위가 같은 축이면 2위는 미루고, 다른 축인 3위가 통과하면 1위와 3위를 싣는다", async () => {
   const run = harness();
   const grounded: string[] = [];
   await createDailyBriefing(DATE, {}, { ...run.services,
-    curateKnowledge: curateTech(run, [CS_A.slug, CS_B.slug, AI_A.slug]),
+    curateKnowledge: curateTech(run, [CS_A.slug, CS_B.slug, FRONT_A.slug]),
     groundMarketNews: groundTech(run, [], grounded),
   });
-  assert.deepEqual(run.saved[0].tech?.knowledgeItems.map((item) => item.slug), [CS_A.slug, AI_A.slug]);
+  assert.deepEqual(run.saved[0].tech?.knowledgeItems.map((item) => item.slug), [CS_A.slug, FRONT_A.slug]);
   // 미룬 2위는 자리가 찼으므로 원문을 읽지도 않는다
-  assert.deepEqual(grounded, [CS_A.title, AI_A.title]);
-  assert.deepEqual(run.logs[0].audit?.tech?.curation?.chosen?.map((entry) => entry.id), [CS_A.slug, AI_A.slug]);
+  assert.deepEqual(grounded, [CS_A.title, FRONT_A.title]);
+  assert.deepEqual(run.logs[0].audit?.tech?.curation?.chosen?.map((entry) => entry.id), [CS_A.slug, FRONT_A.slug]);
 });
 
-test("테크 상식 다른 분야 없음: 다른 분야 추천이 근거 확인에 실패하면 같은 분야 두 개를 싣는다", async () => {
+test("테크 상식 다른 축 실패: 프론트엔드 추천이 근거 확인에 실패하면 미룬 같은 축 추천 대신 프론트엔드 개념으로 채운다", async () => {
   const run = harness();
   await createDailyBriefing(DATE, {}, { ...run.services,
-    curateKnowledge: curateTech(run, [CS_A.slug, CS_B.slug, AI_A.slug]),
-    groundMarketNews: groundTech(run, [AI_A.title]),
+    curateKnowledge: curateTech(run, [CS_A.slug, CS_B.slug, FRONT_A.slug]),
+    groundMarketNews: groundTech(run, [FRONT_A.title]),
   });
   const items = run.saved[0].tech?.knowledgeItems ?? [];
-  assert.deepEqual(items.map((item) => [item.slug, item.category]), [[CS_A.slug, "cs"], [CS_B.slug, "cs"]]);
+  assert.equal(items[0].slug, CS_A.slug);
+  assert.equal(items[1].category, "frontend");
+  assert.notEqual(items[1].slug, CS_B.slug);
   const curation = run.logs[0].audit?.tech?.curation;
   assert.equal(curation?.status, "curated");
-  assert.ok(curation?.rejected?.some((reason) => reason.startsWith(AI_A.slug) && reason.includes("원문 근거 문장 없음")));
+  assert.deepEqual(curation?.chosen?.map((entry) => entry.fallback ?? false), [false, true]);
+  assert.ok(curation?.rejected?.some((reason) => reason.startsWith(FRONT_A.slug) && reason.includes("원문 근거 문장 없음")));
 });
 
 test("테크 상식 근거 실패: 추천 가운데 하나만 통과하면 그것과, 이미 고른 것과 다른 분야의 검증된 커리큘럼 개념 하나를 싣고 탈락 사유를 남긴다", async () => {
@@ -408,8 +411,9 @@ test("테크 상식 같은 원문: 커리큘럼 개념과 아티클이 같은 �
   assert.equal(slugs.length, 2);
   assert.equal(slugs[0], agent.slug);
   assert.ok(!slugs.includes(article.slug));
+  // 같은 축(나머지)이라 미뤄 두고, 빈 프론트엔드 자리를 먼저 채우므로 아티클 원문은 읽지도 않는다
   assert.deepEqual(grounded, []);
-  assert.ok(picked.logs[0].audit?.tech?.curation?.rejected?.some((reason) => reason.startsWith(`${article.slug}: 이미 고른 k-${agent.slug}와 같은 개념`)));
+  assert.equal(picked.saved[0].tech?.knowledgeItems[1].category, "frontend");
 
   // 대체: 아티클을 고른 뒤, 대체 풀 맨 앞이 같은 글의 개념이어도 건너뛴다
   const filled = harness();
@@ -426,7 +430,7 @@ test("테크 상식 같은 원문: 커리큘럼 개념과 아티클이 같은 �
   assert.notEqual(items[1].references?.[0].url, article.url);
 });
 
-test("테크 상식 대체: 남은 커리큘럼이 고른 개념과 같은 분야뿐이면 같은 분야의 다른 개념으로 채운다", async () => {
+test("테크 상식 대체: 남은 미학습 개념이 AI뿐이면 프론트엔드 자리는 복습으로, 다른 AI 개념으로 대신하지 않는다", async () => {
   const run = harness();
   const ai = TECH_CURRICULUM.filter((concept) => concept.category === "ai");
   await createDailyBriefing(DATE, {}, { ...run.services,
@@ -434,11 +438,13 @@ test("테크 상식 대체: 남은 커리큘럼이 고른 개념과 같은 분�
     curateKnowledge: curateTech(run, [`k-${ai[0].slug}`]),
   });
   const items = run.saved[0].tech?.knowledgeItems ?? [];
-  assert.deepEqual(items.map((item) => [item.slug, item.category]), [[ai[0].slug, "ai"], [ai[1].slug, "ai"]]);
+  assert.deepEqual(items.map((item) => [item.slug, item.category]).slice(0, 1), [[ai[0].slug, "ai"]]);
+  assert.equal(items[1].category, "frontend");
+  assert.equal(items[1].review, true);
   assert.deepEqual(run.logs[0].audit?.tech?.curation?.chosen?.map((entry) => entry.fallback ?? false), [false, true]);
 });
 
-test("테크 상식 대체: 대체 풀 맨 앞이 이미 고른 축이어도 다른 축의 개념을 먼저 쓴다", async () => {
+test("테크 상식 대체: 추천에 프론트엔드가 없으면 대체 풀 맨 앞이 아니어도 프론트엔드 개념으로 채운다", async () => {
   const run = harness();
   const pool = techCandidates([]);
   const cs = pool.filter((candidate) => candidate.concept && candidate.category === "cs");
@@ -448,9 +454,9 @@ test("테크 상식 대체: 대체 풀 맨 앞이 이미 고른 축이어도 다
   const items = run.saved[0].tech?.knowledgeItems ?? [];
   assert.equal(items.length, 2);
   assert.equal(items[0].slug, cs[1].concept?.slug);
-  // cs와 frontend는 같은 축이다. 대체는 AI·클라우드 축에서 고른다
-  assert.equal(techAxis(items[1].category), "ai-dx");
-  assert.equal(items[1].slug, pool.find((candidate) => candidate.concept && techAxis(candidate.category) !== "engineering")?.concept?.slug);
+  // cs는 나머지 축이다. 빈 프론트엔드 자리는 프론트엔드 개념으로 채운다
+  assert.equal(techAxis(items[1].category), "frontend");
+  assert.equal(items[1].slug, pool.find((candidate) => candidate.concept && candidate.category === "frontend")?.concept?.slug);
 });
 
 test("경제 복습일: 경제 커리큘럼을 다 돌았으면 작성에 복습 모드를 넘기고 저장할 때 복습 표시를 한다", async () => {
@@ -587,7 +593,7 @@ test("테크 상식 같은 원문: 원문 확인 뒤 리다이렉트로 같은 U
   assert.deepEqual(run.calls.tech[0].candidates.map((candidate) => candidate.knowledgeSlug), [FRONT_A.slug]);
 });
 
-test("테크 상식 같은 참고 문서: 참고 URL만 같은 커리큘럼 개념 둘은 서로 다른 개념이라 함께 싣는다", async () => {
+test("테크 상식 같은 참고 문서: 참고 URL만 같은 같은 축 개념은 같은 개념으로 거르지 않고 미뤄 둔다", async () => {
   const run = harness();
   const ai = TECH_CURRICULUM.filter((concept) => concept.category === "ai");
   const structured = ai.find((concept) => concept.slug === "q-structured-output")!;
@@ -599,9 +605,11 @@ test("테크 상식 같은 참고 문서: 참고 URL만 같은 커리큘럼 개�
     getTechConceptHistory: async () => learned(before),
     curateKnowledge: curateTech(run, [`k-${structured.slug}`, `k-${tool.slug}`]),
   });
-  assert.deepEqual(run.saved[0].tech?.knowledgeItems.map((item) => item.slug), [structured.slug, tool.slug]);
+  // 두 번째 AI 개념은 같은 축이라 미루고, 빈 프론트엔드 자리를 채운다
+  const items = run.saved[0].tech?.knowledgeItems ?? [];
+  assert.deepEqual(items.map((item) => item.category), ["ai", "frontend"]);
+  assert.equal(items[0].slug, structured.slug);
   const curation = run.logs[0].audit?.tech?.curation;
-  assert.deepEqual(curation?.chosen?.map((entry) => [entry.id, entry.fallback ?? false]), [[`k-${structured.slug}`, false], [`k-${tool.slug}`, false]]);
   assert.ok(!curation?.rejected?.some((reason) => reason.includes("같은 개념")));
 });
 
@@ -892,14 +900,16 @@ test("새 개념과 복습이 섞인 날: 복습 안내는 복습 항목에만 �
     },
   });
   const items = run.saved[0].tech?.knowledgeItems ?? [];
-  assert.deepEqual(items.map((item) => [item.slug, item.review ?? false]), [[last, false], [all[0], true]]);
+  // 남은 새 개념(나머지 축) 하나와, 미학습이 없는 프론트엔드 자리의 복습 개념
+  const frontendFirst = TECH_CURRICULUM.find((concept) => concept.category === "frontend")!.slug;
+  assert.deepEqual(items.map((item) => [item.slug, item.review ?? false]), [[last, false], [frontendFirst, true]]);
   const params = run.calls.tech[0];
   assert.equal(params.mode, "new");
-  assert.deepEqual(params.reviewSlugs, [all[0]]);
+  assert.deepEqual(params.reviewSlugs, [frontendFirst]);
   // 복습 안내('다른 각도')는 복습 항목 한 줄에만 있다
   const reviewLines = prompt.split("\n").filter((line) => line.includes("다른 각도(심화)"));
   assert.deepEqual(reviewLines.length, 1);
-  assert.ok(reviewLines[0].startsWith(`- 복습 항목(${all[0]}): `), reviewLines[0]);
+  assert.ok(reviewLines[0].startsWith(`- 복습 항목(${frontendFirst}): `), reviewLines[0]);
   assert.ok(!reviewLines[0].includes(last));
   assert.ok(prompt.includes(`- 새 개념 항목(${last}): 독자가 이미 기본은 알 수 있다고 가정한다.`));
   assert.doesNotMatch(prompt, /복습 모드다/);
@@ -1100,14 +1110,27 @@ test("실행이 취소되면 생성 결과가 있어도 저장하지 않는다",
   assert.equal(run.logs[0].status, "failed");
 });
 
-test("테크 상식 후보: 직전 지면에 프론트엔드가 있었으면 오늘은 프론트엔드 개념·아티클을 후보에서 뺀다", () => {
-  const frontend = techCandidates([]).find((candidate) => candidate.category === "frontend");
-  assert.ok(frontend);
-  const yesterday = [{ briefingDate: "2026-10-08", items: [{ slug: "q-old", title: "지난 프론트엔드 글", category: "frontend" }] }];
-  assert.equal(techCandidates(yesterday).some((candidate) => candidate.category === "frontend"), false);
-  // 이틀 전이었으면 다시 후보다
-  const twoDaysAgo = [{ briefingDate: "2026-10-08", items: [{ slug: "q-old2", title: "지난 CS 글", category: "cs" }] }, ...yesterday];
-  assert.equal(techCandidates(twoDaysAgo).some((candidate) => candidate.category === "frontend"), true);
+test("테크 상식: 추천이 모두 프론트엔드가 아닌 축이어도 미룬 추천보다 프론트엔드를 먼저 채운다", async () => {
+  const run = harness();
+  // 추천 1·2위가 모두 나머지 축(cs·ai)이다
+  await createDailyBriefing(DATE, {}, { ...run.services, curateKnowledge: curateTech(run, [CS_A.slug, AI_A.slug]), groundMarketNews: groundTech(run) });
+  const items = run.saved[0].tech?.knowledgeItems ?? [];
+  assert.deepEqual(items.map((item) => techAxis(item.category)), ["core", "frontend"]);
+  assert.equal(items[0].slug, CS_A.slug);
+});
+
+test("테크 상식: 프론트엔드 미학습 개념이 바닥나면 다른 분야 대신 프론트엔드 복습으로 채운다", async () => {
+  const run = harness();
+  const frontend = TECH_CURRICULUM.filter((concept) => concept.category === "frontend");
+  const frontendArticles = TECH_ARTICLES.filter((article) => article.category === "frontend").map((article) => article.slug);
+  await createDailyBriefing(DATE, {}, { ...run.services,
+    getTechConceptHistory: async () => learned([...frontend.map((concept) => concept.slug), ...frontendArticles]),
+    curateKnowledge: curateTech(run, [CS_A.slug]),
+    groundMarketNews: groundTech(run),
+  });
+  const items = run.saved[0].tech?.knowledgeItems ?? [];
+  assert.deepEqual(items.map((item) => item.category), ["cs", "frontend"]);
+  assert.equal(items[1].review, true);
 });
 
 test("경제 상식 후보: 경제 기초는 하나만 올리고, 금융·IT 산업 갈래를 함께 올린다", () => {

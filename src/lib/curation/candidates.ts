@@ -52,25 +52,23 @@ function spread<T extends { category: string }>(items: T[], perCategory: number 
 }
 
 /**
- * 테크 상식의 두 축. 하루 두 개는 축마다 하나씩 고른다(2026-10-20 사용자 요청).
- *   engineering  CS·소프트웨어 엔지니어링(DB·운영체제·네트워크·아키텍처·API·인증·트랜잭션·동시성) + 프론트엔드
- *   ai-dx        AI·DX 실무(LLM·RAG·에이전트·AI 보안) + 클라우드·인프라·시스템 통합(backend)
+ * 테크 상식의 두 축. 하루 두 개는 축마다 하나씩, 반드시 싣는다(2026-10-20 사용자 결정).
+ *   frontend  프론트엔드. 매일 하나
+ *   core      CS·소프트웨어 엔지니어링(cs)·백엔드·클라우드(backend)·AI(ai) 가운데 하나
  */
-export const TECH_AXIS: Record<string, "engineering" | "ai-dx"> = { cs: "engineering", frontend: "engineering", ai: "ai-dx", backend: "ai-dx" };
+export const TECH_AXIS: Record<string, "frontend" | "core"> = { frontend: "frontend", cs: "core", backend: "core", ai: "core" };
+
+/** 하루에 꼭 하나씩 싣는 테크 상식 축. 대체·복습으로 채울 때 이 순서로 채운다(지면 순서) */
+export const TECH_GROUPS = ["core", "frontend"] as const;
 
 export function techAxis(category: string): string {
   return TECH_AXIS[category] ?? category;
 }
 
-/**
- * 테크 상식 후보: 미학습 커리큘럼 개념(분야당 4개) + 아직 소개하지 않은 아티클 전부.
- * 프론트엔드는 경험 분야라 빼지 않되 한쪽으로 쏠리지 않게, 직전 지면에 프론트엔드가 있었으면 오늘은 후보에서 뺀다.
- */
+/** 테크 상식 후보: 미학습 커리큘럼 개념(분야당 4개) + 아직 소개하지 않은 아티클 전부. */
 export function techCandidates(history: ConceptHistoryEntry[]): KnowledgeCandidate[] {
   const seen = learned(history);
-  const frontendLast = history[0]?.items.some((item) => item.category === "frontend") ?? false;
-  const allowed = (category: string) => !(frontendLast && category === "frontend");
-  const concepts = spread(TECH_CURRICULUM.filter((concept) => !seen.slugs.has(concept.slug) && allowed(concept.category)), 4).map((concept) => ({
+  const concepts = spread(TECH_CURRICULUM.filter((concept) => !seen.slugs.has(concept.slug)), 4).map((concept) => ({
     id: `k-${concept.slug}`,
     format: concept.format ?? ("concept" as const),
     category: concept.category,
@@ -79,7 +77,7 @@ export function techCandidates(history: ConceptHistoryEntry[]): KnowledgeCandida
     note: concept.references?.[0]?.title ?? "",
     concept: { ...concept, format: concept.format ?? ("concept" as const) },
   }));
-  const articles = TECH_ARTICLES.filter((article) => !seen.slugs.has(article.slug) && !seen.urls.has(article.url) && allowed(article.category)).map((article) => ({
+  const articles = TECH_ARTICLES.filter((article) => !seen.slugs.has(article.slug) && !seen.urls.has(article.url)).map((article) => ({
     id: article.slug,
     format: "article" as const,
     category: article.category,

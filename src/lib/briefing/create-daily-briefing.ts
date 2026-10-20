@@ -7,6 +7,7 @@ import {
   economyCandidates,
   fallbackConcept,
   recentKnowledge,
+  TECH_GROUPS,
   techAxis,
   techCandidates,
   type KnowledgeCandidate,
@@ -334,6 +335,11 @@ async function chooseKnowledge(
     signal: AbortSignal;
     /** 다양성을 보는 갈래. 테크 상식은 축(techAxis)이다. 없으면 분야(category) 그대로다. */
     groupOf?: (category: string) => string;
+    /**
+     * 하루에 꼭 하나씩 실을 갈래. 테크 상식은 프론트엔드와 나머지(CS·백엔드·AI)다.
+     * 빈 갈래는 다른 갈래 추천으로 대신하지 않고 그 갈래의 검증된 개념(미학습이 없으면 복습)으로 채운다.
+     */
+    requiredGroups?: readonly string[];
   },
   count: number,
 ): Promise<{ choices: Choice[]; audit: CurationAudit; usage: Usage }> {
@@ -364,9 +370,11 @@ async function chooseKnowledge(
    * 빈 자리를 커리큘럼 개념으로 하나씩 채운다. selectTodayConcepts 순서(미학습 → 가장 오래전에 다룬 개념)를 따르고,
    * 이미 고른 것과 같은 개념은 뺀다. 커리큘럼을 다 돈 뒤라면 복습이고, 그 항목에만 복습 표시를 한다.
    */
-  const fillFromCurriculum = (fallback: boolean) => {
+  const fillFromCurriculum = (fallback: boolean, group?: string) => {
+    let added = false;
     while (taken.length < count) {
-      const open = params.curriculum.filter((concept) => !sameAs(concept.slug, concept.references?.[0]?.url, false));
+      const open = params.curriculum.filter((concept) =>
+        !sameAs(concept.slug, concept.references?.[0]?.url, false) && (group === undefined || groupOf(concept.category) === group));
       const { concepts: [concept], mode } = selectTodayConcepts(history, open, 1, false);
       if (!concept) break;
       const format = concept.format ?? "concept";
@@ -379,10 +387,40 @@ async function chooseKnowledge(
           ...(mode === "review" ? { review: true as const } : {}),
         },
       });
+      added = true;
+      // 갈래를 정해 채울 때는 그 갈래 한 자리만 채운다
+      if (group !== undefined) break;
+    }
+    return added;
+  };
+
+  /** 꼭 실어야 하는 갈래 가운데 아직 고르지 않은 것 */
+  const missingGroup = () => params.requiredGroups?.find((group) => !takenGroups().has(group));
+  /**
+   * 꼭 실어야 하는 갈래가 비었으면 그 갈래로 채운다. 먼저 후보 가운데 그 갈래의 커리큘럼 개념(미학습)을,
+   * 없으면 그 갈래의 커리큘럼에서 미학습 → 가장 오래전에 다룬 개념(복습) 순으로 고른다. 다른 갈래로 대신하지 않는다.
+   */
+  const fillRequired = (fallback: boolean) => {
+    for (let group = missingGroup(); group !== undefined && taken.length < count; group = missingGroup()) {
+      const target = group;
+      const open = candidates.filter((candidate) =>
+        candidate.concept && groupOf(candidate.category) === target && !taken.some(({ entry }) => entry.id === candidate.id) &&
+        !sameAs(candidate.concept.slug, candidate.concept.references?.[0]?.url, false));
+      const pickFromPool = fallbackConcept(open, recent);
+      if (pickFromPool?.concept) {
+        taken.push({
+          order: Number.MAX_SAFE_INTEGER,
+          choice: { concept: pickFromPool.concept, mode: "new", evidence: [] },
+          entry: { id: pickFromPool.id, title: pickFromPool.concept.title, format: pickFromPool.format, category: pickFromPool.category, ...(fallback ? { fallback: true as const } : {}) },
+        });
+        continue;
+      }
+      if (!fillFromCurriculum(fallback, target)) break;
     }
   };
 
   if (!candidates.length) {
+    fillRequired(false);
     fillFromCurriculum(false);
     if (!taken.length) return { choices: [], audit: { status: "skipped", error: "커리큘럼이 비어 있습니다." }, usage };
     return { choices: taken.map(({ choice }) => choice), audit: { status: "review", chosen: taken.map(({ entry }) => entry) }, usage };
@@ -506,6 +544,8 @@ async function chooseKnowledge(
       }
       await tryPick(order, pick, candidate);
     }
+    // 꼭 실어야 하는 갈래(테크 상식의 프론트엔드·나머지)가 비었으면 미룬 추천보다 먼저 그 갈래로 채운다.
+    fillRequired(true);
     // 2차: 다른 분야로 자리를 채우지 못했다. 미뤄 둔 같은 분야 추천을 추천 순서대로 검증한다.
     for (const { order, pick, candidate } of deferred) {
       signal.throwIfAborted();
@@ -518,7 +558,8 @@ async function chooseKnowledge(
     throw error;
   }
   taken.sort((a, b) => a.order - b.order);
-  const fromPicks = taken.length;
+  // 추천에서 고른 것만 센다. 꼭 실을 갈래를 대체·복습으로 채운 항목(order가 최댓값)은 추천이 아니다.
+  const fromPicks = taken.filter(({ order }) => order !== Number.MAX_SAFE_INTEGER).length;
 
   // 모자란 자리는 검증된 커리큘럼 개념으로 채운다. 이미 고른 것과 같은 개념(slug, 아티클이면 첫 참고 URL)은 빼고, 가능하면 고르지 않은 분야에서 고른다.
   const pool = candidates.filter((candidate) => candidate.concept && !taken.some(({ entry }) => entry.id === candidate.id));
@@ -608,7 +649,7 @@ async function createTechSection(
     audit.stage = "sources";
     let picked: Awaited<ReturnType<typeof chooseKnowledge>>;
     try {
-      picked = await chooseKnowledge("tech", { history, candidates, curriculum: TECH_CURRICULUM, date, services, signal, groupOf: techAxis }, TECH_CONCEPTS_PER_DAY);
+      picked = await chooseKnowledge("tech", { history, candidates, curriculum: TECH_CURRICULUM, date, services, signal, groupOf: techAxis, requiredGroups: TECH_GROUPS }, TECH_CONCEPTS_PER_DAY);
     } catch (error) {
       // 고르는 중 테크 기한·취소로 끊겼다. 그때까지의 큐레이션 기록·사용량은 남기고, 원래 오류로 테크를 생략한다.
       if (!(error instanceof SelectionAbortedError)) throw error;
