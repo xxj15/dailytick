@@ -54,15 +54,22 @@ export function groundCandidates(inputs: CandidateDocuments[], selected: FactSel
       rejected.push({ candidateId: input.id, reason: "한국어 근거 문장이 없습니다." });
       continue;
     }
-    const facts = kept.map((fact, index) => ({ ...fact, id: `${input.id}-f${index + 1}` }));
-    const backgrounds = facts.filter(isBackground).length;
-    const events = facts.length - backgrounds;
-    const rolesOk = !newsRoles || (events >= 1 && events <= MAX_PER_ROLE && backgrounds <= MAX_PER_ROLE);
-    const valid = facts.length >= 1 && facts.length <= MAX_FACTS && rolesOk && facts.every((fact) => {
+    // 확인되지 않는 문장(본문에 없음·다른 후보의 원문·길이 범위 밖·중복)은 그 문장만 뺀다. 확인된 나머지 문장까지 버리지 않는다.
+    // 주요 이슈 문장은 지면에 그대로 실리므로 25~400자다. 테크 아티클 원문은 요약에만 쓰므로 영문 장문을 감안해 15~800자다.
+    const [minLength, maxLength] = newsRoles ? [25, 400] : [15, 800];
+    const seen = new Set<string>();
+    const verified = kept.filter((fact) => {
       const doc = input.documents.find((source) => source.id === fact.sourceId);
-      return doc && fact.quote.length >= 25 && fact.quote.length <= 400 && doc.text.includes(fact.quote);
+      const ok = doc && fact.quote.length >= minLength && fact.quote.length <= maxLength && doc.text.includes(fact.quote) && !seen.has(fact.quote);
+      if (ok) seen.add(fact.quote);
+      return ok;
     });
-    if (!valid || new Set(facts.map((fact) => fact.quote)).size !== facts.length) {
+    // 주요 이슈는 무슨 일 최대 2개·원인 최대 2개만 쓴다. 넘치면 앞의 것을 남긴다
+    const limited = newsRoles
+      ? [...verified.filter((fact) => !isBackground(fact)).slice(0, MAX_PER_ROLE), ...verified.filter(isBackground).slice(0, MAX_PER_ROLE)]
+      : verified.slice(0, MAX_FACTS);
+    const facts = verified.filter((fact) => limited.includes(fact)).map((fact, index) => ({ ...fact, id: `${input.id}-f${index + 1}` }));
+    if (!facts.length || (newsRoles && !facts.some((fact) => !isBackground(fact)))) {
       rejected.push({ candidateId: input.id, reason: "본문에 없는 문장·출처 또는 허용 범위를 벗어난 근거입니다." });
       continue;
     }

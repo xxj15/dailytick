@@ -212,12 +212,28 @@ test("주요 이슈는 후보마다 본문 한 건만 읽는다. 첫 기사가 �
   assert.deepEqual(result.candidates[0].facts.map((fact) => fact.role), ["event", "background"]);
 });
 
-test("테크 아티클 원문은 역할별 개수를 보지 않는다. 주요 이슈는 무슨 일 문장이 3개면 거른다", () => {
+test("테크 아티클 원문은 역할별 개수를 보지 않는다. 주요 이슈는 무슨 일 문장을 앞의 두 개만 쓴다", () => {
   const three = ["첫 번째 핵심 문장으로 원문에 그대로 들어 있는 설명이다.", "두 번째 핵심 문장으로 원문에 그대로 들어 있는 설명이다.", "세 번째 핵심 문장으로 원문에 그대로 들어 있는 설명이다."];
   const doc = { ...input, documents: [{ ...input.documents[0], text: three.join(" ") }] };
   const picked = { candidates: [{ candidateId: "c1", facts: three.map((quote) => ({ sourceId: "s1", quote, role: "event" as const })) }] };
-  // 테크 상식(원인 문장을 요구하지 않는 근거 확인)
-  assert.equal(groundCandidates([doc], picked, "2026-10-09", undefined, false, false, false).candidates.length, 1);
-  // 주요 이슈는 원인 문장도 없고 무슨 일 문장이 상한을 넘는다
-  assert.equal(groundCandidates([doc], picked, "2026-10-09", undefined, false, true, true).candidates.length, 0);
+  // 테크 상식(주요 이슈 규칙을 쓰지 않는 근거 확인)은 세 문장을 다 쓴다
+  assert.equal(groundCandidates([doc], picked, "2026-10-09", undefined, false, false, false).candidates[0].facts.length, 3);
+  // 주요 이슈는 무슨 일 문장을 두 개까지만 쓴다
+  assert.deepEqual(groundCandidates([doc], picked, "2026-10-09", undefined, false, true, true).candidates[0].facts.map((fact) => fact.quote), three.slice(0, 2));
+});
+
+test("확인되지 않는 문장은 그 문장만 빼고, 확인된 나머지 문장은 쓴다. 테크 아티클은 긴 영문 문장도 받는다", () => {
+  const long = `${"Interactions can be broken down into three subparts that each add latency to the next paint. ".repeat(6)}`.trim();
+  const short = "Networks are unreliable.";
+  const doc = { ...input, documents: [{ ...input.documents[0], text: `${quote} ${long} ${short}` }] };
+  const picked = { candidates: [{ candidateId: "c1", facts: [
+    { sourceId: "s1", quote, role: "event" as const },
+    { sourceId: "s1", quote: "본문에 없는 문장을 지어내 근거처럼 붙인 경우다.", role: "event" as const },
+  ] }] };
+  // 주요 이슈: 지어낸 문장만 빠지고 확인된 문장은 남는다
+  assert.deepEqual(groundCandidates([doc], picked, "2026-10-09").candidates[0].facts.map((fact) => [fact.id, fact.quote]), [["c1-f1", quote]]);
+  // 테크 아티클: 400자가 넘는 영문 문장과 짧은 문장(15자 이상)도 근거로 받는다
+  const english = { candidates: [{ candidateId: "c1", facts: [{ sourceId: "s1", quote: long, role: "event" as const }, { sourceId: "s1", quote: short, role: "background" as const }] }] };
+  assert.ok(long.length > 400);
+  assert.equal(groundCandidates([doc], english, "2026-10-09", undefined, true, false, false).candidates[0].facts.length, 2);
 });
