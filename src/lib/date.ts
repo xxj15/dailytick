@@ -1,4 +1,5 @@
 import {
+  EVENT_MAX_AGE_DAYS,
   FIRST_ISSUE_DATE,
   SOURCE_MAX_AGE_HOURS,
   PUBLISH_HOUR_KST,
@@ -68,7 +69,7 @@ export function getPublishTimeLabel(): string {
 }
 
 /** 두 날짜 사이의 일수 차이 (to - from). */
-function diffDays(from: DateString, to: DateString): number {
+export function diffDays(from: DateString, to: DateString): number {
   const toUtc = (value: DateString) => {
     const [y, m, d] = value.split("-").map(Number);
     return Date.UTC(y, m - 1, d);
@@ -154,6 +155,26 @@ export function isFreshSource(
 
   const { from, until } = freshSourceBounds(date, maxAgeHours);
   return published >= from && published < until;
+}
+
+/**
+ * 기사가 전하는 핵심 사건이 기준일 지면에 '오늘의 뉴스'로 싣기에 지난 일인가. (명세 §12)
+ *
+ * 게시 시각(isFreshSource)과 따로 본다. 기사가 어제 게시됐어도 사건 자체가 며칠 지났으면(재보도·정리 기사) 지난 일이다.
+ * 기준일 EVENT_MAX_AGE_DAYS일 전까지 받는다. 월요일 지면은 주말을 건너 금요일 사건까지 하루 더 받는다.
+ * 날짜를 읽을 수 없거나 기준일 뒤(시행 예정일 등)면 지난 일로 보지 않는다. 확인할 수 없는 값으로 기사를 버리지 않는다.
+ */
+export function isStaleEvent(eventDate: string, date: DateString): boolean {
+  if (!isDateString(eventDate)) return false;
+  const monday = new Date(`${date}T00:00:00Z`).getUTCDay() === 1;
+  return diffDays(eventDate, date) > EVENT_MAX_AGE_DAYS + (monday ? 1 : 0);
+}
+
+/** timestamptz → KST 날짜·시각. 예: '2026-10-22 08:07'. 근거 선택 프롬프트가 '이날'을 KST 날짜로 읽게 한다. 읽을 수 없으면 null. */
+export function formatKstDateTime(isoTimestamp?: string): string | null {
+  const parsed = isoTimestamp ? Date.parse(isoTimestamp) : Number.NaN;
+  if (Number.isNaN(parsed)) return null;
+  return new Date(parsed + 9 * HOUR_MS).toISOString().slice(0, 16).replace("T", " ");
 }
 
 /**

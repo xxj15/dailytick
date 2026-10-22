@@ -9,7 +9,8 @@ export type GenerationAudit = {
   dryRun?: true;
   stage: "history" | "search" | "sources" | "generation" | "save" | "complete";
   sourceRejections: EvidenceRejection[];
-  evidence: { candidateId: string; facts: GroundedCandidate["facts"]; documents: Omit<GroundedCandidate["documents"][number], "text">[] }[];
+  /** eventDate는 본문에서 읽은 핵심 사건 발생일이다(2026-10-22부터, 알 수 없었으면 없다). */
+  evidence: { candidateId: string; eventDate?: string; facts: GroundedCandidate["facts"]; documents: Omit<GroundedCandidate["documents"][number], "text">[] }[];
   reviews: ReviewRecord[];
   /** IT 파트는 경제 파트와 따로 성패가 갈리므로 위반·실패 사유를 자기 안에 둔다. */
   tech?: TechAudit;
@@ -113,6 +114,7 @@ export function summarizeAudit(audit: Omit<GenerationAudit, "tech"> & { errorMes
 export function auditEvidence(candidates: GroundedCandidate[]): GenerationAudit["evidence"] {
   return candidates.map((candidate) => ({
     candidateId: candidate.id,
+    ...(candidate.eventDate ? { eventDate: candidate.eventDate } : {}),
     facts: candidate.facts,
     documents: candidate.documents.map((doc) => ({
       id: doc.id, requestedUrl: doc.requestedUrl, source: doc.source, fetchedAt: doc.fetchedAt, contentHash: doc.contentHash,

@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
-import { groundCandidates, isKoreanText, type CandidateDocuments } from "@/lib/news/ground-candidates";
+import { buildFactSelectionPrompt, groundCandidates, isKoreanText, type CandidateDocuments } from "@/lib/news/ground-candidates";
 import { boundForGrounding, groundMarketNews } from "@/lib/openai/ground-news";
 import { NEWS_GROUND_LIMIT } from "@/config/app";
 
@@ -236,4 +236,31 @@ test("확인되지 않는 문장은 그 문장만 빼고, 확인된 나머지 �
   const english = { candidates: [{ candidateId: "c1", facts: [{ sourceId: "s1", quote: long, role: "event" as const }, { sourceId: "s1", quote: short, role: "background" as const }] }] };
   assert.ok(long.length > 400);
   assert.equal(groundCandidates([doc], english, "2026-10-09", undefined, true, false, false).candidates[0].facts.length, 2);
+});
+
+test("주요 이슈는 본문에서 읽은 핵심 사건 발생일이 지났으면 게시일이 최신이어도 싣지 않는다", () => {
+  // 기준일 2026-10-09(금요일). 기사는 당일 게시됐다
+  const withDate = (eventDate: string | null) => ({ candidates: [{ candidateId: "c1", eventDate, facts: [{ sourceId: "s1", quote, role: "event" as const }] }] });
+  const news = (eventDate: string | null) => groundCandidates([input], withDate(eventDate), "2026-10-09", undefined, false, true, true);
+  // 이틀 전 사건까지는 받고, 발생일을 후보에 남겨 작성·검토가 게시일과 구분하게 한다
+  assert.equal(news("2026-10-07").candidates[0].eventDate, "2026-10-07");
+  // 사흘 전 사건을 다시 정리한 기사는 떨어진다. 이유를 로그에 남긴다
+  const stale = news("2026-10-06");
+  assert.equal(stale.candidates.length, 0);
+  assert.match(stale.rejected[0].reason, /2026-10-06에 일어난 지난 일/);
+  // 발생일을 알 수 없으면(null·읽을 수 없는 값) 게시일 검사만으로 받는다. 추측한 날짜로 버리지 않는다
+  assert.equal(news(null).candidates.length, 1);
+  assert.ok(!("eventDate" in news(null).candidates[0]));
+  assert.ok(!("eventDate" in news("10월 6일").candidates[0]));
+  // 테크 아티클(주요 이슈 규칙이 아닌 원문)은 발생일을 보지 않는다
+  assert.equal(groundCandidates([input], withDate("2020-01-01"), "2026-10-09", undefined, true, false, false).candidates.length, 1);
+});
+
+test("근거 선택 프롬프트는 주요 이슈에만 사건 발생일과 KST 게시 시각을 묻는다", () => {
+  const news = buildFactSelectionPrompt([input], "2026-10-09", true);
+  assert.match(news, /eventDate: 이 기사가 새로 전하는 핵심 사건/);
+  assert.match(news, /"publishedKST":"2026-10-09 07:00"/);
+  const tech = buildFactSelectionPrompt([input], "2026-10-09", false);
+  assert.match(tech, /eventDate는 null로 둔다/);
+  assert.doesNotMatch(tech, /publishedKST/);
 });

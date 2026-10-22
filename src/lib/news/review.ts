@@ -65,6 +65,7 @@ export function buildGroundingReviewPrompt(content: GroundedSection, candidates:
 - background가 있으면 실제로 그 사건의 원인·배경인가? 사건을 되풀이하거나 다른 사건의 배경이면 supported=false다.
 - whyImportant가 facts에 없는 원인·전망·수치를 사실처럼 보탰다면 supported=false다. 전망은 조건부 표현일 때만 허용한다.
 - 원문은 전년/전분기/과거 사건을 설명하는데 오늘 새 사건처럼 썼는가? 기사 게시일과 사건 발생일을 혼동했는가?
+  evidence의 eventDate는 근거 확인 단계가 본문에서 읽은 핵심 사건 발생일이다. 원문과 다르거나, 그보다 오래된 사건을 새 사건처럼 썼으면 supported=false다.
 - 전망·가정·부정문·타인의 주장을 확정 사실로 바꾸거나 문장을 잘라 의미를 바꾸었는가?
 - 후보 제목과 실제 자료가 다른 사건인가? 중복 사건을 여러 뉴스로 발행하는가?
 - 실제 사건의 지역·분류가 브리핑의 region·category와 맞는가? slot이 economy면 실제로 경제·시장·기업 사건인가? slot이 it이면 실적·주가가 아니라 기술·제품·서비스 사건인가?
@@ -88,6 +89,7 @@ knowledgeItems의 교육용 설명·예시·코드는 명백히 틀린 내용일
 <evidence>${dataJson(candidates.filter((candidate) => used.has(candidate.id)).map((candidate) => ({
   candidateId: candidate.id,
   ...(candidate.knowledgeSlug ? { knowledgeSlug: candidate.knowledgeSlug } : {}),
+  ...(candidate.eventDate ? { eventDate: candidate.eventDate } : {}),
   facts: candidate.facts,
   // 근거 문장을 고를 때 본 길이까지만 보여 준다. 고른 문장은 이 범위 안에 있다.
   documents: candidate.documents.map((doc) => ({ sourceId: doc.id, ...doc.source, text: doc.text.slice(0, FACT_TEXT_LIMIT) })),

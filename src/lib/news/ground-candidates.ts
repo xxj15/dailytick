@@ -1,16 +1,18 @@
 import { z } from "zod";
-import { isFreshSource, type DateString } from "@/lib/date";
+import { formatKstDateTime, isDateString, isFreshSource, isStaleEvent, type DateString } from "@/lib/date";
 import { normalizeEvidenceText } from "@/lib/news/extract-source";
 import { isBackground, type EvidenceRejection, type GroundedCandidate, type SourceDocument } from "@/lib/news/evidence-types";
 import type { NewsCandidate } from "@/types/briefing";
 
 /**
  * ID와 quote만 고르게 한다. 사실 문장·수치·날짜를 새로 작성하는 단계가 아니다.
- * role은 그 문장이 무슨 일(event)인지 원인·배경(background)인지다. 주요 이슈는 둘 다 있어야 쓴다.
+ * role은 그 문장이 무슨 일(event)인지 원인·배경(background)인지다. 원인·배경은 있으면 쓴다.
+ * eventDate는 본문이 말하는 핵심 사건 발생일이다(주요 이슈만. 2026-10-22). 게시일이 최신인 재보도·정리 기사를 거르는 데 쓴다.
  */
 export const factSelectionSchema = z.object({
   candidates: z.array(z.object({
     candidateId: z.string(),
+    eventDate: z.string().nullable(),
     facts: z.array(z.object({ sourceId: z.string(), quote: z.string(), role: z.enum(["event", "background"]) })),
   })),
 });
@@ -18,7 +20,10 @@ export const factSelectionSchema = z.object({
 /** 후보 하나에서 고르는 근거 문장 수 상한. 무슨 일 최대 2개 + 원인·배경 최대 2개. */
 export const MAX_FACTS = 4;
 const MAX_PER_ROLE = 2;
-export type FactSelection = z.infer<typeof factSelectionSchema>;
+/** 근거 선택 결과. 모델 응답에는 eventDate가 늘 있지만(null 포함), 없는 결과도 받는다. 없으면 알 수 없음(null)으로 본다. */
+export type FactSelection = {
+  candidates: (Omit<z.infer<typeof factSelectionSchema>["candidates"][number], "eventDate"> & { eventDate?: string | null })[];
+};
 export type CandidateDocuments = { id: string; candidate: NewsCandidate; documents: SourceDocument[] };
 
 /**
@@ -37,6 +42,8 @@ export function isKoreanText(value: string): boolean {
  *
  * newsRoles면 주요 이슈 규칙으로 역할별 문장 수를 본다: 무슨 일(event) 1~2개, 원인·배경(background) 0~2개.
  * 원인·배경 문장은 있으면 요약에 넣지만 필수는 아니다(2026-10-20 사용자 결정: 원인 문장이 없다는 이유로 좋은 기사를 놓치지 않는다).
+ * newsRoles면 핵심 사건 발생일(eventDate)도 본다. 기사 게시일이 최신이어도 사건이 지난 일(isStaleEvent)이면 싣지 않는다.
+ * 발생일을 알 수 없으면(null) 게시일 검사만으로 받는다.
  * 테크 아티클 원문은 역할과 상관없이 문장 1~MAX_FACTS개를 받는다.
  */
 export function groundCandidates(inputs: CandidateDocuments[], selected: FactSelection, date: DateString, maxAgeHours?: number, allowUndated = false, koreanOnly = true, newsRoles = false) {
@@ -46,6 +53,11 @@ export function groundCandidates(inputs: CandidateDocuments[], selected: FactSel
     const entries = selected.candidates.filter((entry) => entry.candidateId === input.id);
     if (entries.length !== 1) {
       rejected.push({ candidateId: input.id, reason: "근거 선택 결과가 없거나 중복되었습니다." });
+      continue;
+    }
+    const eventDate = newsRoles && entries[0].eventDate && isDateString(entries[0].eventDate) ? entries[0].eventDate : undefined;
+    if (eventDate && isStaleEvent(eventDate, date)) {
+      rejected.push({ candidateId: input.id, reason: `핵심 사건이 ${eventDate}에 일어난 지난 일입니다. 기사 게시일이 최신이어도 오늘의 뉴스로 싣지 않습니다.` });
       continue;
     }
     const quoted = entries[0].facts.map((fact) => ({ ...fact, quote: normalizeEvidenceText(fact.quote) }));
@@ -87,6 +99,7 @@ export function groundCandidates(inputs: CandidateDocuments[], selected: FactSel
       sources: documents.map((doc) => doc.source),
       facts,
       documents,
+      ...(eventDate ? { eventDate } : {}),
     });
   }
   return { candidates, rejected };
@@ -117,11 +130,21 @@ quote는 원문 언어 그대로 복사한다. 영어 기사는 영어 문장을
 본문이 로그인/오류/관련 기사 목록이거나, 후보와 본문이 다른 사건이면 facts를 빈 배열로 반환한다.
 단순 문장 조각으로 의미를 바꾸지 말고 완결된 문장과 필요한 앞뒤 맥락을 포함한다.
 자료를 확보하지 못한 후보를 새로 만들지 않는다. 모든 입력 candidateId를 정확히 한 번 반환한다.
+${newsRoles ? `eventDate: 이 기사가 새로 전하는 핵심 사건(결정·발표·발생·통계 공표)이 일어난 날짜를 YYYY-MM-DD로 쓴다. 기사 게시일이 아니라 본문이 말하는 날짜다.
+- 본문의 "이날"·"오늘"은 기사 게시일(publishedKST)이고, "어제"·"지난 20일"은 게시일에서 따진 날짜다. 해외 사건의 '현지시간' 날짜는 그대로 쓴다.
+- 통계·지표 기사는 공표한 날이다. 통계의 대상 기간(예: 8월)이 아니다.
+- 지난 사건을 다시 정리한 기사면 그 원래 사건의 날짜다. 진행 중인 사건의 새 전개(새 결정·수치·결과)를 전하면 그 새 전개의 날짜다.
+- 시행·발효 예정일처럼 앞으로의 날짜가 아니라, 그렇게 정한 결정이 나온 날짜다.
+- 본문으로 날짜를 알 수 없으면 null이다. 추측하지 않는다.` : "eventDate는 null로 둔다."}
 <source_documents>
 ${JSON.stringify(inputs.map((input) => ({
   candidateId: input.id,
   searchHint: { title: input.candidate.title, summary: input.candidate.summary },
-  documents: input.documents.map((doc) => ({ sourceId: doc.id, ...doc.source, text: doc.text.slice(0, FACT_TEXT_LIMIT) })),
+  documents: input.documents.map((doc) => ({
+    sourceId: doc.id, ...doc.source,
+    ...(newsRoles && formatKstDateTime(doc.source.publishedAt) ? { publishedKST: formatKstDateTime(doc.source.publishedAt) } : {}),
+    text: doc.text.slice(0, FACT_TEXT_LIMIT),
+  })),
 })))}
 </source_documents>`;
 }

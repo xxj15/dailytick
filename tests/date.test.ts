@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import test from "node:test";
-import { getTodayKST, isFreshSource } from "@/lib/date";
+import { formatKstDateTime, getTodayKST, isFreshSource, isStaleEvent } from "@/lib/date";
 
 /**
  * 서버는 대부분 UTC로 돈다. 날짜가 하루 어긋나면
@@ -53,4 +53,26 @@ test("신선도 검사의 경계: 기준일 자정 72시간 전부터 기준일 
   assert.equal(isFreshSource("2026-10-15T23:59:59+09:00", date), false);
   assert.equal(isFreshSource("2026-10-19T23:59:59+09:00", date), true);
   assert.equal(isFreshSource("2026-10-20T00:00:00+09:00", date), false);
+});
+
+test("핵심 사건 발생일: 기준일 이틀 전까지 받고, 월요일 지면은 금요일 사건까지 받는다", () => {
+  // 2026-10-22는 목요일이다
+  assert.equal(isStaleEvent("2026-10-22", "2026-10-22"), false);
+  assert.equal(isStaleEvent("2026-10-20", "2026-10-22"), false);
+  // 사흘 전 사건을 오늘 게시된 기사로 다시 정리했어도 지난 일이다
+  assert.equal(isStaleEvent("2026-10-19", "2026-10-22"), true);
+  assert.equal(isStaleEvent("2026-10-15", "2026-10-22"), true);
+  // 2026-10-26은 월요일이다. 금요일(10-23) 사건까지 받는다
+  assert.equal(isStaleEvent("2026-10-23", "2026-10-26"), false);
+  assert.equal(isStaleEvent("2026-10-22", "2026-10-26"), true);
+  // 앞으로의 날짜(시행 예정일 등)나 읽을 수 없는 값으로 기사를 버리지 않는다
+  assert.equal(isStaleEvent("2026-12-01", "2026-10-22"), false);
+  assert.equal(isStaleEvent("어제", "2026-10-22"), false);
+});
+
+test("근거 선택 프롬프트에 넘기는 게시 시각은 KST로 적는다", () => {
+  assert.equal(formatKstDateTime("2026-10-21T23:07:45.000Z"), "2026-10-22 08:07");
+  assert.equal(formatKstDateTime("2026-10-22T08:07:00+09:00"), "2026-10-22 08:07");
+  assert.equal(formatKstDateTime(undefined), null);
+  assert.equal(formatKstDateTime("시각 없음"), null);
 });

@@ -37,6 +37,11 @@ export type GroundedCandidate = Omit<NewsCandidate, "summary"> & {
    * 하루 상식이 여러 개면 작성·검토가 항목마다 자기 원문만 보도록 이 값으로 가른다.
    */
   knowledgeSlug?: string;
+  /**
+   * 주요 이슈에만 있다. 근거 확인 단계가 본문에서 읽은 핵심 사건 발생일(YYYY-MM-DD, KST). 기사 게시일과 다를 수 있다.
+   * 지난 사건이면 근거 확인에서 떨어지므로 여기 남은 값은 최근 날짜다. 본문으로 알 수 없었으면 없다.
+   */
+  eventDate?: string;
 };
 
 export type EvidenceRejection = { candidateId: string; url?: string; reason: string };

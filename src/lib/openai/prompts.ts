@@ -20,7 +20,7 @@ import type { NewsSlot, RecentNewsEntry } from "@/types/briefing";
  * 내용을 의미 있게 바꿀 때마다 PROMPT_VERSION을 올리고,
  * 브리핑 row에 함께 기록한다.
  */
-export const PROMPT_VERSION = "v46";
+export const PROMPT_VERSION = "v47";
 
 /**
  * 모든 단계에 공통으로 적용되는 편집 원칙.
@@ -470,6 +470,8 @@ ${learnedBlock}
 아래 데이터는 서버가 직접 확보한 본문에서 근거 문장을 대조한 뉴스 후보다.
 facts.quote에 있는 내용만 사실로 사용할 수 있다. 후보 title은 힌트이며 사실의 근거가 아니다.
 facts.role은 그 문장이 무슨 일(event)인지, 원인·배경(background)인지다.
+eventDate는 근거 확인 단계가 본문에서 읽은 핵심 사건 발생일(KST)이다. 기사 게시일(documents.publishedAt)과 다를 수 있다.
+title·whyImportant에서 사건 시점은 eventDate를 따른다. 기준일보다 앞선 날의 일을 오늘 일어난 일처럼 쓰지 않는다.
 
 <news_candidates>
 ${JSON.stringify(candidates.map(({ documents, ...candidate }) => ({
