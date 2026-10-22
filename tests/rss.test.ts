@@ -92,6 +92,9 @@ test("고르기 프롬프트는 기사 목록을 한 줄씩 싣고, 최근에 �
   assert.match(prompt, /n2 \| 매일경제·경제 \| - \| 한국은행, 금리 묶었다/);
   assert.match(prompt, /\[2026-10-19\] 어제 뉴스/);
   assert.match(prompt, /economy — 경제·금융/);
+  // 슬롯마다 예비 후보를 받는다. '적게 내도 된다'만 쓰면 모델이 슬롯마다 한 건만 내 본문 확인 한 번에 슬롯이 빈다(2026-10-22 미리보기)
+  assert.match(prompt, /선정 하한\(scores 설명\)을 넘는 기사로 3개를 채운다/);
+  assert.match(prompt, /총점이 6 미만이거나, 시의성이 5 미만이거나, 차별성이 5 미만/);
   assert.doesNotMatch(prompt, /검색/);
   // 제목 속 구분자(|)는 지우고, 태그는 이스케이프해 목록 밖으로 나가지 못하게 한다
   assert.equal(feedLine({ ...ITEMS[0], title: "금리 | 동결" }).split(" | ").length, 4);
