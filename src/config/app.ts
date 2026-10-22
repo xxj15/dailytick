@@ -106,8 +106,17 @@ export const NEWS_FEED_ITEMS_PER_FEED = 60;
 /** 고르기에 넘기는 기사의 게시 시각 범위. 기준일 전날 0시부터다(isFreshSource 기준). 아침 발행이면 약 32시간이다. */
 export const NEWS_FEED_MAX_AGE_HOURS = 24;
 
-/** 고르기에서 슬롯마다 받는 후보 수. 근거 확인은 그중 앞의 NEWS_GROUND_PER_SLOT개를 읽는다. */
+/** 고르기에서 슬롯마다 받는 후보 수의 상한. 근거 확인은 그중 앞의 NEWS_GROUND_PER_SLOT개를 읽는다. 기준을 넘는 기사가 적으면 그보다 적게 낸다. */
 export const NEWS_PICKS_PER_SLOT = 3;
+
+/**
+ * 고르기 평가 점수의 하한(rss.ts belowSelectionFloor). 이보다 낮은 후보는 근거 확인·작성에 넘기지 않는다.
+ * 2026-10-22 사용자 결정: 기준을 충족하는 기사가 두 건뿐이면 약한 기사로 세 건을 채우지 않는다.
+ *   score       가중합(10점 만점). 프롬프트 기준으로 6이면 "알아두면 좋지만 새로 배울 것이 적다" 수준이다
+ *   timeliness  시의성. 4 이하는 며칠 지난 사건의 재보도·정리, 일정 예고다
+ *   novelty     차별성. 4 이하는 최근에 실은 사건을 새 전개 없이 다시 다룬 것이다
+ */
+export const NEWS_SELECTION_FLOOR = { score: 6, timeliness: 5, novelty: 5 } as const;
 
 /** 기사 고르기 호출의 제한 시간. 웹 검색 없이 제목 목록만 보지만 목록이 600건 안팎이다. */
 export const NEWS_SELECT_TIMEOUT_MS = 90_000;

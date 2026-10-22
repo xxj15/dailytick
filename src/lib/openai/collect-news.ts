@@ -4,7 +4,7 @@ import { getModel, getOpenAI, LIGHT_REASONING } from "@/lib/openai/client";
 import { buildNewsSelectionPrompt } from "@/lib/openai/prompts";
 import { aiNewsSelectionSchema, newsCandidateSchema } from "@/lib/openai/schemas";
 import type { DateString } from "@/lib/date";
-import { candidatesFromPicks, collectFeedItems, normalizeItemId, selectionScore, type FeedItem, type FeedResult, type SelectionScores } from "@/lib/news/rss";
+import { belowSelectionFloor, candidatesFromPicks, collectFeedItems, normalizeItemId, selectionScore, type FeedItem, type FeedResult, type SelectionScores } from "@/lib/news/rss";
 import { repeatOfRecent } from "@/lib/news/repeat";
 import type { NewsCandidate, RecentNewsEntry } from "@/types/briefing";
 import { zodTextFormat } from "openai/helpers/zod";
@@ -38,6 +38,8 @@ export type NewsSelectionAudit = {
   /** unmatchedIds는 목록에 없어 버린 기사 id다. 후보가 적을 때 원인을 가른다. */
   picked: { title: string; category: string; score: number; scores: SelectionScores; reason: string; itemIds: string[]; unmatchedIds?: string[] }[];
   rejected: { title: string; reason: string }[];
+  /** 평가 점수가 하한(NEWS_SELECTION_FLOOR)에 못 미쳐 근거 확인에 넘기지 않은 후보 */
+  belowFloor?: { title: string; score: number; reason: string }[];
   /** 후보 모양 검사(newsCandidateSchema)에서 떨어진 후보와 첫 이유 */
   invalid?: string[];
   /** 최근에 실은 사건과 같아 뺀 후보(같은 기사 URL이거나 제목이 거의 같다) */
@@ -87,7 +89,14 @@ export async function collectMarketNews(
   }
   const invalid: string[] = [];
   const repeats: { title: string; recent: string }[] = [];
-  const candidates = candidatesFromPicks(parsed.data.candidates, items)
+  // 하한 미달 후보는 출처를 붙이기 전에 뺀다. 먼저 고른 약한 후보가 같은 기사를 차지해 뒤의 후보가 출처를 잃지 않게 한다.
+  const belowFloor: NonNullable<NewsSelectionAudit["belowFloor"]> = [];
+  const passed = parsed.data.candidates.filter((pick) => {
+    const reason = belowSelectionFloor(pick.scores);
+    if (reason) belowFloor.push({ title: pick.title, score: selectionScore(pick.scores), reason });
+    return !reason;
+  });
+  const candidates = candidatesFromPicks(passed, items)
     .flatMap((candidate) => {
       const checked = newsCandidateSchema.safeParse(candidate);
       if (!checked.success) invalid.push(`${candidate.title}: ${checked.error.issues[0]?.path.join(".")} ${checked.error.issues[0]?.message}`);
@@ -109,6 +118,7 @@ export async function collectMarketNews(
       };
     }),
     rejected: parsed.data.rejected,
+    ...(belowFloor.length ? { belowFloor } : {}),
     ...(invalid.length ? { invalid } : {}),
     ...(repeats.length ? { repeats } : {}),
   };

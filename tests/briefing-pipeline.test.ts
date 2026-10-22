@@ -995,13 +995,13 @@ test("근거 있는 후보로 채울 수 있었던 슬롯이 작성·검토에�
   ]);
 });
 
-test("수집 후보의 중요도가 정수가 아니거나 1~10 밖이면 거절하지 않고 반올림한 뒤 1~10으로 자른다", () => {
+test("수집 후보의 중요도(고르기 점수)는 소수 첫째 자리까지 두고, 1~10 밖이면 거절하지 않고 자른다", () => {
   const base = { title: "국내 금리", summary: "요약", region: "KR", category: "rates", sources: CANDIDATE.sources };
   const importance = (value: number) => newsCandidateSchema.parse({ ...base, importance: value }).importance;
-  assert.equal(importance(8.5), 9);
-  assert.equal(importance(7.2), 7);
+  // 정수로 반올림하면 7.6과 8.4가 같은 8이 돼 근거 확인 순서가 뭉개진다
+  assert.equal(importance(7.6), 7.6);
+  assert.equal(importance(8.44), 8.4);
   assert.equal(importance(10.4), 10);
-  assert.equal(importance(10.5), 10);
   assert.equal(importance(11), 10);
   assert.equal(importance(0.4), 1);
 });

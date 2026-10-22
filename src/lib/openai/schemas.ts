@@ -171,8 +171,8 @@ export const newsCandidateSchema = z.object({
   summary: z.string().min(1),
   region: newsRegionSchema,
   category: newsCategorySchema,
-  // AI 출력 스키마는 정수·범위를 강제하지 못한다. 8.5·10.5 같은 값 하나로 후보를 버리지 않도록 반올림한 뒤 1~10으로 자른다.
-  importance: z.number().transform((value) => Math.min(10, Math.max(1, Math.round(value)))),
+  // 고르기 평가 점수의 가중합이다(소수 첫째 자리). 근거 확인 순서를 정하므로 정수로 뭉개지 않는다. 범위 밖 값은 버리지 않고 1~10으로 자른다.
+  importance: z.number().transform((value) => Math.min(10, Math.max(1, Math.round(value * 10) / 10))),
   sources: z.array(newsSourceSchema).min(1),
 });
 
@@ -234,7 +234,7 @@ export const curatorSchema = z.object({
 
 /**
  * STEP 1 응답 형식. RSS 기사 목록에서 고른 후보. 출처 URL은 서버가 itemIds로 붙인다.
- * 후보마다 평가 점수(1~10)와 선정 이유를 받는다. 서버가 점수를 가중합해 후보 순서를 정한다(rss.ts selectionScore).
+ * 후보마다 평가 점수(1~10)와 선정 이유를 받는다. 서버가 점수를 가중합해 후보 순서를 정하고, 하한 미달 후보는 뺀다(rss.ts).
  * rejected는 눈에 띄지만 고르지 않은 기사와 그 이유다. 생성 로그에만 남는다.
  */
 export const aiNewsSelectionSchema = z.object({
@@ -245,11 +245,10 @@ export const aiNewsSelectionSchema = z.object({
     region: newsRegionSchema,
     category: newsCategorySchema,
     scores: z.object({
-      importance: z.number(),
-      learningValue: z.number(),
-      relevance: z.number(),
+      value: z.number(),
       timeliness: z.number(),
-      reliability: z.number(),
+      impact: z.number(),
+      novelty: z.number(),
     }),
     reason: z.string(),
   })),

@@ -4,7 +4,7 @@ import { NEWS_FEEDS } from "@/config/app";
 import { collectMarketNews } from "@/lib/openai/collect-news";
 import { buildNewsSelectionPrompt, feedLine } from "@/lib/openai/prompts";
 import { decodeHtmlEntities } from "@/lib/news/entities";
-import { candidatesFromPicks, cleanFeedTitle, collectFeedItems, parseFeed, parseFeedDate, normalizeItemId, selectionScore, type FeedItem } from "@/lib/news/rss";
+import { belowSelectionFloor, candidatesFromPicks, cleanFeedTitle, collectFeedItems, parseFeed, parseFeedDate, normalizeItemId, selectionScore, type FeedItem } from "@/lib/news/rss";
 
 const FEED = { publisher: "연합뉴스", section: "종합" } as const;
 
@@ -73,12 +73,12 @@ const ITEMS: FeedItem[] = [
 
 test("고른 결과는 목록에 있는 기사만 출처로 쓰고, 한 기사는 먼저 고른 후보 하나에만 쓴다", () => {
   const candidates = candidatesFromPicks([
-    { itemIds: ["n1", "n2", "n99"], title: "기준금리 동결", summary: "", region: "KR", category: "rates", scores: { importance: 9.6, learningValue: 9.6, relevance: 9.6, timeliness: 9.6, reliability: 9.6 }, reason: "읽을 가치" },
-    { itemIds: ["n2"], title: "같은 기사를 다시 고른 후보", summary: "요약", region: "KR", category: "rates", scores: { importance: 5, learningValue: 5, relevance: 5, timeliness: 5, reliability: 5 }, reason: "읽을 가치" },
-    { itemIds: ["n3"], title: "KT AI 기술 공개", summary: "요약", region: "KR", category: "ai", scores: { importance: 0, learningValue: 0, relevance: 0, timeliness: 0, reliability: 0 }, reason: "읽을 가치" },
+    { itemIds: ["n1", "n2", "n99"], title: "기준금리 동결", summary: "", region: "KR", category: "rates", scores: { value: 9.6, timeliness: 9.6, impact: 9.6, novelty: 9.6 }, reason: "읽을 가치" },
+    { itemIds: ["n2"], title: "같은 기사를 다시 고른 후보", summary: "요약", region: "KR", category: "rates", scores: { value: 5, timeliness: 5, impact: 5, novelty: 5 }, reason: "읽을 가치" },
+    { itemIds: ["n3"], title: "KT AI 기술 공개", summary: "요약", region: "KR", category: "ai", scores: { value: 0, timeliness: 0, impact: 0, novelty: 0 }, reason: "읽을 가치" },
   ], ITEMS);
   assert.deepEqual(candidates.map((candidate) => [candidate.title, candidate.sources.map((source) => source.url), candidate.importance]), [
-    ["기준금리 동결", ["https://www.yna.co.kr/view/A1", "https://www.mk.co.kr/news/1"], 10],
+    ["기준금리 동결", ["https://www.yna.co.kr/view/A1", "https://www.mk.co.kr/news/1"], 9.6],
     ["KT AI 기술 공개", ["https://www.etnews.com/1"], 1],
   ]);
   // 요약이 비면 제목으로 채우고, 게시 시각이 없는 기사는 시각 없이 둔다
@@ -104,7 +104,7 @@ test("수집은 RSS 목록에서 한 번 고르고, 목록이 비면 모델을 �
     feeds: async () => ({ items: ITEMS, feeds: [{ publisher: "연합뉴스", url: "https://www.yna.co.kr/rss/news.xml", items: 3 }] }),
     select: async () => {
       selects++;
-      return { picks: { candidates: [{ itemIds: ["n3"], title: "KT AI 기술 공개", summary: "요약", region: "KR", category: "ai", scores: { importance: 8, learningValue: 8, relevance: 8, timeliness: 8, reliability: 8 }, reason: "읽을 가치" }], rejected: [{ title: "코스피 장중 등락", reason: "시세 중계라 배경 설명이 없다" }] }, inputTokens: 100, outputTokens: 20 };
+      return { picks: { candidates: [{ itemIds: ["n3"], title: "KT AI 기술 공개", summary: "요약", region: "KR", category: "ai", scores: { value: 8, timeliness: 8, impact: 8, novelty: 8 }, reason: "읽을 가치" }], rejected: [{ title: "코스피 장중 등락", reason: "시세 중계라 배경 설명이 없다" }] }, inputTokens: 100, outputTokens: 20 };
     },
   });
   assert.equal(selects, 1);
@@ -121,13 +121,38 @@ test("수집은 RSS 목록에서 한 번 고르고, 목록이 비면 모델을 �
   }), /RSS에서 기준일 기사를 하나도 모으지 못했습니다\. \(연합뉴스: HTTP 403\)/);
 });
 
-test("후보 점수는 평가 항목의 가중합이고, 항목마다 1~10으로 자른다", () => {
-  const base = { importance: 5, learningValue: 5, relevance: 5, timeliness: 5, reliability: 5 };
+test("후보 점수는 정보 가치 40·시의성 25·파급력 20·차별성 15의 가중합이고, 항목마다 1~10으로 자른다", () => {
+  const base = { value: 5, timeliness: 5, impact: 5, novelty: 5 };
   assert.equal(selectionScore(base), 5);
-  // 관심 분야 관련성은 중요도·학습 가치보다 덜 움직인다. 개인 관심사 때문에 중요한 뉴스를 놓치지 않기 위해서다
-  assert.ok(selectionScore({ ...base, relevance: 10 }) < selectionScore({ ...base, importance: 10 }));
-  assert.ok(selectionScore({ ...base, relevance: 10 }) < selectionScore({ ...base, learningValue: 10 }));
-  assert.equal(selectionScore({ importance: 99, learningValue: -3, relevance: Number.NaN, timeliness: 10, reliability: 10 }), selectionScore({ importance: 10, learningValue: 1, relevance: 1, timeliness: 10, reliability: 10 }));
+  assert.equal(selectionScore({ value: 9, timeliness: 8, impact: 7, novelty: 10 }), 8.5);
+  // 정보 가치가 가장 크게, 차별성이 가장 작게 움직인다
+  const lift = (key: keyof typeof base) => selectionScore({ ...base, [key]: 10 });
+  assert.ok(lift("value") > lift("timeliness") && lift("timeliness") > lift("impact") && lift("impact") > lift("novelty"));
+  assert.equal(selectionScore({ value: 99, timeliness: -3, impact: Number.NaN, novelty: 10 }), selectionScore({ value: 10, timeliness: 1, impact: 1, novelty: 10 }));
+});
+
+test("선정 하한: 총점이 낮거나, 지난 사건 재보도(시의성)·최근 지면 반복(차별성)이면 뺀다", () => {
+  assert.equal(belowSelectionFloor({ value: 8, timeliness: 8, impact: 7, novelty: 9 }), null);
+  assert.match(belowSelectionFloor({ value: 5, timeliness: 6, impact: 5, novelty: 6 }) ?? "", /총점 5\.4/);
+  // 총점이 높아도 시의성·차별성 하나가 하한 밑이면 뺀다
+  assert.match(belowSelectionFloor({ value: 9, timeliness: 3, impact: 9, novelty: 9 }) ?? "", /시의성 3점/);
+  assert.match(belowSelectionFloor({ value: 9, timeliness: 9, impact: 9, novelty: 2 }) ?? "", /차별성 2점/);
+});
+
+test("수집은 하한 미달 후보를 출처를 붙이기 전에 빼고 그 이유를 로그에 남긴다. 슬롯을 약한 기사로 채우지 않는다", async () => {
+  const result = await collectMarketNews("2026-10-20", undefined, {}, {
+    feeds: async () => ({ items: ITEMS, feeds: [{ publisher: "연합뉴스", url: "https://www.yna.co.kr/rss/news.xml", items: 3 }] }),
+    select: async () => ({ picks: { candidates: [
+      // 먼저 고른 약한 후보가 n1을 차지하더라도, 빠지므로 뒤의 좋은 후보가 n1을 출처로 쓴다
+      { itemIds: ["n1"], title: "금리 동결 전망 재탕", summary: "요약", region: "KR", category: "rates", scores: { value: 7, timeliness: 4, impact: 7, novelty: 8 }, reason: "이유" },
+      { itemIds: ["n1", "n2"], title: "기준금리 동결", summary: "요약", region: "KR", category: "rates", scores: { value: 9, timeliness: 9, impact: 8, novelty: 9 }, reason: "이유" },
+      { itemIds: ["n3"], title: "KT 행사 개최", summary: "요약", region: "KR", category: "ai", scores: { value: 4, timeliness: 8, impact: 3, novelty: 8 }, reason: "이유" },
+    ], rejected: [] }, inputTokens: 1, outputTokens: 1 }),
+  });
+  assert.deepEqual(result.candidates.map((candidate) => [candidate.title, candidate.importance, candidate.sources.length]), [["기준금리 동결", 8.8, 2]]);
+  assert.deepEqual(result.selection.belowFloor?.map((entry) => [entry.title, entry.score]), [["금리 동결 전망 재탕", 6.4], ["KT 행사 개최", 5.4]]);
+  // IT 슬롯에 맞는 후보가 하한 미달뿐이었다. 그 슬롯은 빈 채로 남는다
+  assert.ok(!result.candidates.some((candidate) => candidate.category === "ai"));
 });
 
 test("모델이 적은 기사 id의 형식이 조금 달라도 목록 id로 맞춘다", () => {
@@ -135,7 +160,7 @@ test("모델이 적은 기사 id의 형식이 조금 달라도 목록 id로 맞�
     assert.equal(normalizeItemId(id), "n3", id);
   }
   // 목록에 없는 번호는 여전히 버린다
-  const scores = { importance: 5, learningValue: 5, relevance: 5, timeliness: 5, reliability: 5 };
+  const scores = { value: 5, timeliness: 5, impact: 5, novelty: 5 };
   const candidates = candidatesFromPicks([
     { itemIds: [" N3 "], title: "KT AI 기술 공개", summary: "요약", region: "KR", category: "ai", scores, reason: "이유" },
     { itemIds: ["n99", "기사"], title: "없는 기사", summary: "요약", region: "KR", category: "ai", scores, reason: "이유" },

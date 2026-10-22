@@ -1,5 +1,5 @@
 import { load } from "cheerio";
-import { NEWS_FEED_ITEMS_PER_FEED, NEWS_FEED_MAX_AGE_HOURS, NEWS_FEEDS } from "@/config/app";
+import { NEWS_FEED_ITEMS_PER_FEED, NEWS_FEED_MAX_AGE_HOURS, NEWS_FEEDS, NEWS_SELECTION_FLOOR } from "@/config/app";
 import { isFreshSource, type DateString } from "@/lib/date";
 import { normalizeEvidenceText } from "@/lib/news/extract-source";
 import { decodeHtmlEntities } from "@/lib/news/entities";
@@ -130,24 +130,38 @@ export async function collectFeedItems(
 }
 
 /**
- * 고르기 평가 항목(각 1~10). 2026-10-20 사용자 결정: 최신·화제성이 아니라 기사 자체의 중요성과 정보 가치로 고른다.
- *   importance     중요도. 국내외 경제·사회·산업·기술에서 주목할 사건인가, 파급 범위
- *   learningValue  학습 가치. 새로운 지식이나 산업 흐름을 이해하는 데 도움이 되는가
- *   relevance      관심 분야 관련성. 경제·금융·IT·AI·DX/AX·주요 산업과 이어지는가(취업 관련성은 가산 요소)
- *   timeliness     시의성. 최근 일어난 새 사건·새 변화인가, 최근에 실은 사건과 겹치지 않는가
- *   reliability    신뢰성. 공식 발표·확인된 보도인가
+ * 고르기 평가 항목(각 1~10). 2026-10-22 사용자 결정: 오늘 읽을 가치가 있는 기사를 고른다.
+ *   value       정보 가치·관련성. 금융·경제·AI·IT·DX 산업과 사회를 이해하는 데 도움이 되는가. 취업과 닿지 않아도 사회적으로 중요하면 높다
+ *   timeliness  시의성. 핵심 사건(새 결정·발표·수치·결과)이 최근에 일어났는가. 기사 게시일이 아니라 사건 발생일로 본다
+ *   impact      파급력. 기업·소비자·산업·경제·사회에 실질적인 변화가 있는가
+ *   novelty     차별성. 최근 7일 지면과 다른 사건인가, 같은 사건이면 실질적인 새 전개가 있는가
+ * 신뢰성은 점수가 아니라 조건이다. 루머·익명 소식통 전언은 고르지 않는다(프롬프트). 사실은 다음 단계가 본문으로 확인한다.
  */
-export type SelectionScores = { importance: number; learningValue: number; relevance: number; timeliness: number; reliability: number };
+export type SelectionScores = { value: number; timeliness: number; impact: number; novelty: number };
 
-/** 평가 가중치. 관심 분야 관련성은 중요도·학습 가치보다 낮게 둔다. 개인 관심사 때문에 사회적으로 중요한 뉴스를 놓치지 않기 위해서다. */
-export const SELECTION_WEIGHTS: SelectionScores = { importance: 0.3, learningValue: 0.25, relevance: 0.2, timeliness: 0.15, reliability: 0.1 };
+/** 평가 가중치(2026-10-22 사용자 결정). */
+export const SELECTION_WEIGHTS: SelectionScores = { value: 0.4, timeliness: 0.25, impact: 0.2, novelty: 0.15 };
+
+const clampScore = (value: number) => Math.min(10, Math.max(1, Number.isFinite(value) ? value : 1));
 
 /** 후보 점수. 항목마다 1~10으로 자른 뒤 가중합한다. 소수 첫째 자리까지. */
 export function selectionScore(scores: SelectionScores): number {
-  const clamp = (value: number) => Math.min(10, Math.max(1, Number.isFinite(value) ? value : 1));
   const total = (Object.keys(SELECTION_WEIGHTS) as (keyof SelectionScores)[])
-    .reduce((sum, key) => sum + clamp(scores[key]) * SELECTION_WEIGHTS[key], 0);
+    .reduce((sum, key) => sum + clampScore(scores[key]) * SELECTION_WEIGHTS[key], 0);
   return Math.round(total * 10) / 10;
+}
+
+/**
+ * 싣지 않을 후보인가. 그렇다면 그 이유, 아니면 null.
+ * 총점이 하한보다 낮거나, 시의성·차별성 하나라도 하한보다 낮으면(지난 사건 재보도, 최근에 실은 내용의 반복) 뺀다.
+ * 슬롯을 채우려고 약한 기사를 근거 확인·작성에 넘기지 않는다. 그 슬롯은 비는 편이 낫다.
+ */
+export function belowSelectionFloor(scores: SelectionScores): string | null {
+  const score = selectionScore(scores);
+  if (score < NEWS_SELECTION_FLOOR.score) return `총점 ${score}이 선정 하한 ${NEWS_SELECTION_FLOOR.score}보다 낮다`;
+  if (clampScore(scores.timeliness) < NEWS_SELECTION_FLOOR.timeliness) return `시의성 ${scores.timeliness}점: 지난 사건의 재보도·정리이거나 일정 예고다`;
+  if (clampScore(scores.novelty) < NEWS_SELECTION_FLOOR.novelty) return `차별성 ${scores.novelty}점: 최근에 실은 사건과 새 전개 없이 겹친다`;
+  return null;
 }
 
 /** 모델이 고른 후보 한 건. 같은 사건을 다룬 기사 id를 itemIds로 묶는다. */
@@ -176,7 +190,8 @@ export function normalizeItemId(id: string): string {
 /**
  * 고른 결과를 뉴스 후보로 바꾼다. 출처는 목록에 실제로 있는 기사뿐이다.
  * 목록에 없는 id는 버리고, 한 기사는 먼저 고른 후보 하나에만 쓴다. 남은 출처가 없는 후보는 버린다.
- * importance에는 평가 점수의 가중합(selectionScore)을 1~10 정수로 반올림해 넣는다. 근거 확인 순서와 슬롯 채우기가 이 값을 쓴다.
+ * importance에는 평가 점수의 가중합(selectionScore, 소수 첫째 자리)을 넣는다. 근거 확인 순서와 슬롯 채우기가 이 값을 쓴다.
+ * 정수로 반올림하면 7.6과 8.4가 같은 8이 돼 순서가 모델이 적은 순서로 정해졌다(2026-10-22 생성 로그).
  */
 export function candidatesFromPicks(picks: FeedPick[], items: FeedItem[]): NewsCandidate[] {
   const byId = new Map(items.map((item) => [item.id, item]));
@@ -196,7 +211,7 @@ export function candidatesFromPicks(picks: FeedPick[], items: FeedItem[]): NewsC
       summary: pick.summary.trim() || pick.title.trim(),
       region: pick.region,
       category: pick.category,
-      importance: Math.min(10, Math.max(1, Math.round(selectionScore(pick.scores)))),
+      importance: selectionScore(pick.scores),
       sources,
     }];
   });
