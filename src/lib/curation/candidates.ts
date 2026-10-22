@@ -1,14 +1,53 @@
+import { KNOWLEDGE_OVERLAP_DAYS } from "@/config/app";
 import { CURRICULUM, type Concept, type KnowledgeFormat } from "@/data/curriculum";
+import { LEGACY_SLUGS, OVERLAP_GROUPS } from "@/data/knowledge-overlaps";
 import { TECH_ARTICLES, type TechArticle } from "@/data/tech-articles";
 import { TECH_CURRICULUM } from "@/data/tech-curriculum";
+import { diffDays, type DateString } from "@/lib/date";
 import type { ConceptHistoryEntry } from "@/types/briefing";
 
 /**
  * 상식 후보 모으기. 순수 함수만 둔다.
  *
  * 오늘의 주제는 AI 큐레이터가 고르지만, 무엇을 후보로 보여줄지와 고른 결과가 유효한지는 코드가 정한다.
- * 이미 다룬 개념·아티클은 후보에서 빼고, 분야와 난이도가 고루 보이도록 나눠 담는다.
+ * 이미 다룬 개념·아티클과, 최근 7일 안에 낸 상식과 학습 범위가 크게 겹치는 상식은 후보에서 빼고,
+ * 분야와 난이도가 고루 보이도록 나눠 담는다.
  */
+
+/** 지금 slug. 예전 커리큘럼 slug는 같은 개념의 지금 slug로 바꾼다(knowledge-overlaps.ts LEGACY_SLUGS). */
+function canonicalSlug(slug: string): string {
+  return LEGACY_SLUGS[slug] ?? slug;
+}
+
+/**
+ * 예전 slug를 지금 slug로 바꾼 학습 이력. 미학습 판정·복습 순서(selectTodayConcepts)가 이 이력을 쓴다.
+ * 바꾸지 않으면 예전 slug로 배운 개념이 새 개념처럼 다시 나간다.
+ */
+export function canonicalHistory(history: ConceptHistoryEntry[]): ConceptHistoryEntry[] {
+  return history.map((entry) => ({ ...entry, items: entry.items.map((item) => ({ ...item, slug: canonicalSlug(item.slug) })) }));
+}
+
+/** 기준일보다 앞선 지면. 같은 날짜로 다시 만들 때 그날의 이전 지면을 '최근'으로 세지 않는다. */
+function before(history: ConceptHistoryEntry[], date: DateString): ConceptHistoryEntry[] {
+  return history.filter((entry) => entry.briefingDate < date);
+}
+
+/**
+ * 최근 KNOWLEDGE_OVERLAP_DAYS일 안에 낸 상식과 학습 범위가 크게 겹치는 상식 slug(knowledge-overlaps.ts OVERLAP_GROUPS).
+ * 후보와 대체·복습 풀에서 뺀다. 그 기간이 지나면 다시 고를 수 있다.
+ */
+export function recentOverlaps(history: ConceptHistoryEntry[], date: DateString): Set<string> {
+  const recent = new Set(before(history, date)
+    .filter((entry) => diffDays(entry.briefingDate, date) <= KNOWLEDGE_OVERLAP_DAYS)
+    .flatMap((entry) => entry.items.map((item) => canonicalSlug(item.slug))));
+  return new Set(OVERLAP_GROUPS.filter((group) => group.some((slug) => recent.has(slug))).flat());
+}
+
+/** 대체·복습에 쓸 커리큘럼. 최근 상식과 학습 범위가 크게 겹치는 개념은 뺀다. */
+export function withoutRecentOverlaps<T extends { slug: string }>(curriculum: T[], history: ConceptHistoryEntry[], date: DateString): T[] {
+  const overlapping = recentOverlaps(history, date);
+  return curriculum.filter((concept) => !overlapping.has(concept.slug));
+}
 
 /** 큐레이터에게 보여주는 후보 한 줄. id 접두사로 출처를 구분한다. k- 커리큘럼 / a- 아티클 */
 export type KnowledgeCandidate = {
@@ -34,7 +73,7 @@ export function recentKnowledge(history: ConceptHistoryEntry[], days = 7): Recen
 
 function learned(history: ConceptHistoryEntry[]) {
   return {
-    slugs: new Set(history.flatMap((entry) => entry.items.map((item) => item.slug))),
+    slugs: new Set(history.flatMap((entry) => entry.items.map((item) => canonicalSlug(item.slug)))),
     urls: new Set(history.flatMap((entry) => entry.items.map((item) => item.url).filter((url): url is string => !!url))),
   };
 }
@@ -65,10 +104,31 @@ export function techAxis(category: string): string {
   return TECH_AXIS[category] ?? category;
 }
 
-/** 테크 상식 후보: 미학습 커리큘럼 개념(분야당 4개) + 아직 소개하지 않은 아티클 전부. */
-export function techCandidates(history: ConceptHistoryEntry[]): KnowledgeCandidate[] {
+/**
+ * 테크 상식 나머지 축(CS·백엔드·AI)에서 최근 지면에 나온 분야. 거슬러 올라가며 서로 다른 분야를 count개까지 모은다.
+ * 두 분야를 쉬게 하면 가장 오래 안 나온 한 분야만 남아 세 분야가 돌아가며 나온다(2026-10-22 사용자 요청: 영역이 고르게).
+ * 큐레이터에게 맡겼을 때는 아티클이 많은 CS·AI만 이어지고 백엔드·클라우드는 10-18~22 닷새 동안 한 번도 나오지 않았다.
+ */
+function recentCoreCategories(history: ConceptHistoryEntry[], date: DateString, count: number): Set<string> {
+  const seen: string[] = [];
+  for (const entry of before(history, date)) {
+    const core = entry.items.map((item) => item.category).find((category): category is string => !!category && TECH_AXIS[category] === "core");
+    if (core && !seen.includes(core)) seen.push(core);
+    if (seen.length >= count) break;
+  }
+  return new Set(seen);
+}
+
+/**
+ * 테크 상식 후보: 미학습 커리큘럼 개념(분야당 4개) + 아직 소개하지 않은 아티클 전부.
+ * 최근 7일 안에 낸 상식과 학습 범위가 크게 겹치는 상식은 뺀다.
+ * 나머지 축은 최근 두 지면에 나온 분야를 쉬게 한다. 쉬고 나니 나머지 축 후보가 없으면(그 분야를 다 배웠으면) 가장 최근 분야만 쉬고, 그래도 없으면 쉬지 않는다.
+ */
+export function techCandidates(history: ConceptHistoryEntry[], date: DateString): KnowledgeCandidate[] {
   const seen = learned(history);
-  const concepts = spread(TECH_CURRICULUM.filter((concept) => !seen.slugs.has(concept.slug)), 4).map((concept) => ({
+  const overlapping = recentOverlaps(history, date);
+  const open = (slug: string) => !seen.slugs.has(slug) && !overlapping.has(slug);
+  const concepts = spread(TECH_CURRICULUM.filter((concept) => open(concept.slug)), 4).map((concept) => ({
     id: `k-${concept.slug}`,
     format: concept.format ?? ("concept" as const),
     category: concept.category,
@@ -77,7 +137,7 @@ export function techCandidates(history: ConceptHistoryEntry[]): KnowledgeCandida
     note: concept.references?.[0]?.title ?? "",
     concept: { ...concept, format: concept.format ?? ("concept" as const) },
   }));
-  const articles = TECH_ARTICLES.filter((article) => !seen.slugs.has(article.slug) && !seen.urls.has(article.url)).map((article) => ({
+  const articles = TECH_ARTICLES.filter((article) => open(article.slug) && !seen.urls.has(article.url)).map((article) => ({
     id: article.slug,
     format: "article" as const,
     category: article.category,
@@ -86,7 +146,13 @@ export function techCandidates(history: ConceptHistoryEntry[]): KnowledgeCandida
     note: `${article.publisher} · ${article.takeaway}`,
     article,
   }));
-  return [...concepts, ...articles];
+  const all: KnowledgeCandidate[] = [...concepts, ...articles];
+  for (const count of [2, 1]) {
+    const resting = recentCoreCategories(history, date, count);
+    const rested = all.filter((candidate) => !resting.has(candidate.category));
+    if (rested.some((candidate) => techAxis(candidate.category) === "core")) return rested;
+  }
+  return all;
 }
 
 /**
@@ -122,13 +188,15 @@ const DIGITAL_FINANCE_COOLDOWN = 3;
 /**
  * 경제 상식 후보: 미학습 개념을 일곱 갈래에서 3개씩(경제 기초·금융·IT 산업은 1개). 갈래 안에서는 커리큘럼 순서(쉬운 것부터)를 따른다.
  * 금융·IT 산업은 최근 지면에 나왔으면 쉰다. 경제 뉴스를 이해하는 개념(금융시장·거시경제·투자·기업 재무)이 중심이다.
+ * 최근 7일 안에 낸 상식과 학습 범위가 크게 겹치는 개념(인플레이션 → CPI 등)은 뺀다.
  */
-export function economyCandidates(history: ConceptHistoryEntry[]): KnowledgeCandidate[] {
+export function economyCandidates(history: ConceptHistoryEntry[], date: DateString): KnowledgeCandidate[] {
   const seen = learned(history);
-  const resting = history.slice(0, DIGITAL_FINANCE_COOLDOWN)
+  const overlapping = recentOverlaps(history, date);
+  const resting = before(history, date).slice(0, DIGITAL_FINANCE_COOLDOWN)
     .some((entry) => entry.items.some((item) => ECONOMY_GROUP[item.category ?? ""] === "금융·IT 산업"));
   const perGroup = (group: string) => (resting && group === "금융·IT 산업" ? 0 : (ECONOMY_PER_GROUP[group] ?? ECONOMY_DEFAULT_PER_GROUP));
-  const unseen = CURRICULUM.filter((concept) => !seen.slugs.has(concept.slug))
+  const unseen = CURRICULUM.filter((concept) => !seen.slugs.has(concept.slug) && !overlapping.has(concept.slug))
     .map((concept) => ({ ...concept, group: ECONOMY_GROUP[concept.category] ?? concept.category }));
   return spread(unseen.map((concept) => ({ ...concept, category: concept.group, original: concept.category })), perGroup)
     .map((concept) => {

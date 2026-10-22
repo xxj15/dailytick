@@ -3,6 +3,7 @@ import { ECONOMY_CONCEPTS_PER_DAY, MANUAL_RUN_BUDGET_USD, NEWS_SLOTS, TECH_CONCE
 import { CURRICULUM, type Concept } from "@/data/curriculum";
 import { TECH_CURRICULUM } from "@/data/tech-curriculum";
 import {
+  canonicalHistory,
   ECONOMY_GROUP,
   economyCandidates,
   fallbackConcept,
@@ -10,6 +11,7 @@ import {
   TECH_GROUPS,
   techAxis,
   techCandidates,
+  withoutRecentOverlaps,
   type KnowledgeCandidate,
 } from "@/lib/curation/candidates";
 import {
@@ -150,7 +152,8 @@ export async function createDailyBriefing(
   };
 
   try {
-    const history = await services.getConceptHistory();
+    // 예전 slug로 배운 개념도 지금 slug로 본다. 미학습 판정·복습 순서·최근 겹침이 같은 이력을 쓴다.
+    const history = canonicalHistory(await services.getConceptHistory());
     // 최근 뉴스를 못 읽어도 발행은 한다. 반복 방지는 검토 단계가 한 번 더 본다.
     const recentNews: RecentNewsEntry[] = await services.getRecentNews(date).catch(() => []);
 
@@ -190,8 +193,9 @@ export async function createDailyBriefing(
     // 경제 상식: 뉴스와 별개로 고르되, 오늘 이슈와 자연스럽게 이어지면 가산점을 준다.
     const economy = await chooseKnowledge("economy", {
       history,
-      candidates: economyCandidates(history),
-      curriculum: CURRICULUM,
+      candidates: economyCandidates(history, date),
+      // 대체·복습도 최근 7일 상식과 학습 범위가 크게 겹치는 개념은 쓰지 않는다
+      curriculum: withoutRecentOverlaps(CURRICULUM, history, date),
       newsTitles: grounded.candidates.map((candidate) => candidate.title),
       date, services, signal,
     }, ECONOMY_CONCEPTS_PER_DAY);
@@ -642,14 +646,17 @@ async function createTechSection(
   };
 
   try {
-    const history = await services.getTechConceptHistory();
-    const candidates = techCandidates(history);
+    const history = canonicalHistory(await services.getTechConceptHistory());
+    const candidates = techCandidates(history, date);
 
     // 커리큘럼 개념과 사람이 고른 아티클에서만 고른다. 그날 웹 검색으로 글을 찾지 않는다(2026-10-20 비용 절감).
     audit.stage = "sources";
     let picked: Awaited<ReturnType<typeof chooseKnowledge>>;
     try {
-      picked = await chooseKnowledge("tech", { history, candidates, curriculum: TECH_CURRICULUM, date, services, signal, groupOf: techAxis, requiredGroups: TECH_GROUPS }, TECH_CONCEPTS_PER_DAY);
+      picked = await chooseKnowledge("tech", {
+        history, candidates, curriculum: withoutRecentOverlaps(TECH_CURRICULUM, history, date),
+        date, services, signal, groupOf: techAxis, requiredGroups: TECH_GROUPS,
+      }, TECH_CONCEPTS_PER_DAY);
     } catch (error) {
       // 고르는 중 테크 기한·취소로 끊겼다. 그때까지의 큐레이션 기록·사용량은 남기고, 원래 오류로 테크를 생략한다.
       if (!(error instanceof SelectionAbortedError)) throw error;

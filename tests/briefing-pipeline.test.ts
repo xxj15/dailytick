@@ -128,7 +128,7 @@ test("검증된 후보가 하나도 없고 커리큘럼도 다 돌았으면 검�
   const run = harness();
   // 남은 후보는 아티클 하나뿐이고, 그 원문 근거 확인이 실패한다
   const [article, ...read] = TECH_ARTICLES;
-  const learnedAll = [{ briefingDate: "2026-10-08", items: [...TECH_CURRICULUM, ...read].map((entry) => ({ slug: entry.slug, title: entry.title })) }];
+  const learnedAll = [{ briefingDate: "2026-09-20", items: [...TECH_CURRICULUM, ...read].map((entry) => ({ slug: entry.slug, title: entry.title })) }];
   await createDailyBriefing(DATE, {}, { ...run.services,
     getTechConceptHistory: async () => learnedAll,
     groundMarketNews: async (candidates, ...rest) => candidates.length === 1 && candidates[0].title === article.title
@@ -272,8 +272,8 @@ test("테크 상식 대체 풀 바닥: 커리큘럼을 다 쓰고 남은 아티�
   // 최신순 이력. 가장 오래된 날에 커리큘럼 첫 개념이 있다. 아티클은 FRONT_A만 남았다
   const all = TECH_CURRICULUM.map((concept) => concept.slug);
   const history = [
-    { briefingDate: "2026-10-08", items: [...all.slice(1), ...TECH_ARTICLES.filter((article) => article.slug !== FRONT_A.slug).map((article) => article.slug)].map((slug) => ({ slug, title: slug })) },
-    { briefingDate: "2026-10-01", items: [{ slug: all[0], title: all[0] }] },
+    { briefingDate: "2026-09-20", items: [...all.slice(1), ...TECH_ARTICLES.filter((article) => article.slug !== FRONT_A.slug).map((article) => article.slug)].map((slug) => ({ slug, title: slug })) },
+    { briefingDate: "2026-09-10", items: [{ slug: all[0], title: all[0] }] },
   ];
   await createDailyBriefing(DATE, {}, { ...run.services,
     getTechConceptHistory: async () => history,
@@ -367,7 +367,7 @@ test("다음 날에는 전날 실은 테크 상식 두 개념(커리큘럼 개�
   assert.equal(saved.length, 2);
   // 저장한 항목을 학습 이력으로 읽는 방식(readConceptHistory)과 같게 만든다
   const history = [{ briefingDate: DATE, items: saved.map((item) => ({ slug: item.slug, title: item.title, category: item.category, format: item.format, level: item.level, url: item.references?.[0]?.url })) }];
-  const ids = techCandidates(history).map((candidate) => candidate.id);
+  const ids = techCandidates(history, "2026-10-10").map((candidate) => candidate.id);
   assert.ok(!ids.includes(`k-${CS_CONCEPT.slug}`));
   assert.ok(!ids.includes(FRONT_A.slug));
 });
@@ -377,8 +377,8 @@ test("테크 후보가 하나도 없으면 가장 오래된 커리큘럼 개념 
   const all = TECH_CURRICULUM.map((concept) => concept.slug);
   // 최신순 이력. 마지막 행(가장 오래된 날)에 커리큘럼 앞 두 개가 있다. 아티클도 모두 소개했다
   const history = [
-    { briefingDate: "2026-10-08", items: [...all.slice(2), ...TECH_ARTICLES.map((article) => article.slug)].map((slug) => ({ slug, title: slug })) },
-    { briefingDate: "2026-10-01", items: all.slice(0, 2).map((slug) => ({ slug, title: slug })) },
+    { briefingDate: "2026-09-20", items: [...all.slice(2), ...TECH_ARTICLES.map((article) => article.slug)].map((slug) => ({ slug, title: slug })) },
+    { briefingDate: "2026-09-10", items: all.slice(0, 2).map((slug) => ({ slug, title: slug })) },
   ];
   await createDailyBriefing(DATE, {}, { ...run.services, getTechConceptHistory: async () => history });
   const items = run.saved[0].tech?.knowledgeItems ?? [];
@@ -446,7 +446,7 @@ test("테크 상식 대체: 남은 미학습 개념이 AI뿐이면 프론트엔�
 
 test("테크 상식 대체: 추천에 프론트엔드가 없으면 대체 풀 맨 앞이 아니어도 프론트엔드 개념으로 채운다", async () => {
   const run = harness();
-  const pool = techCandidates([]);
+  const pool = techCandidates([], DATE);
   const cs = pool.filter((candidate) => candidate.concept && candidate.category === "cs");
   // 두 번째 cs 개념을 고르면 남은 대체 풀 맨 앞은 첫 cs 개념이다
   assert.equal(pool[0].id, cs[0].id);
@@ -881,8 +881,8 @@ test("새 개념과 복습이 섞인 날: 복습 안내는 복습 항목에만 �
   const all = TECH_CURRICULUM.map((concept) => concept.slug);
   const last = all[all.length - 1];
   const history = [
-    { briefingDate: "2026-10-08", items: [...all.slice(1, -1), ...TECH_ARTICLES.map((article) => article.slug)].map((slug) => ({ slug, title: slug })) },
-    { briefingDate: "2026-10-01", items: [{ slug: all[0], title: all[0] }] },
+    { briefingDate: "2026-09-20", items: [...all.slice(1, -1), ...TECH_ARTICLES.map((article) => article.slug)].map((slug) => ({ slug, title: slug })) },
+    { briefingDate: "2026-09-10", items: [{ slug: all[0], title: all[0] }] },
   ];
   let prompt = "";
   await createDailyBriefing(DATE, {}, { ...run.services,
@@ -1134,7 +1134,7 @@ test("테크 상식: 프론트엔드 미학습 개념이 바닥나면 다른 분
 });
 
 test("경제 상식 후보: 경제 기초와 금융·IT 산업은 하나씩만 올리고, 금융시장 같은 중심 갈래는 셋씩 올린다", () => {
-  const pool = economyCandidates([]);
+  const pool = economyCandidates([], DATE);
   assert.equal(pool.filter((candidate) => candidate.category === "경제 기초").length, 1);
   assert.equal(pool.filter((candidate) => candidate.category === "금융·IT 산업").length, 1);
   assert.equal(pool.filter((candidate) => candidate.category === "금융시장").length, 3);
@@ -1142,8 +1142,8 @@ test("경제 상식 후보: 경제 기초와 금융·IT 산업은 하나씩만 �
 
 test("경제 상식 후보: 최근 사흘 안에 금융·IT 산업 상식이 나왔으면 그 갈래는 쉰다", () => {
   const recent = (category: string, date: string) => ({ briefingDate: date, items: [{ slug: `s-${date}`, title: "지난 상식", category }] });
-  assert.equal(economyCandidates([recent("digital-finance", "2026-10-20")]).filter((c) => c.category === "금융·IT 산업").length, 0);
+  assert.equal(economyCandidates([recent("digital-finance", "2026-10-20")], "2026-10-21").filter((c) => c.category === "금융·IT 산업").length, 0);
   // 나흘 전이면 다시 후보다
   const older = [recent("macro", "2026-10-20"), recent("macro", "2026-10-19"), recent("macro", "2026-10-18"), recent("digital-finance", "2026-10-17")];
-  assert.equal(economyCandidates(older).filter((c) => c.category === "금융·IT 산업").length, 1);
+  assert.equal(economyCandidates(older, "2026-10-21").filter((c) => c.category === "금융·IT 산업").length, 1);
 });

@@ -55,6 +55,12 @@ export const NEWS_PER_DAY = { min: 1, max: NEWS_SLOTS.length } as const;
 export const TECH_CONCEPTS_PER_DAY = 2;
 export const ECONOMY_CONCEPTS_PER_DAY = 1;
 
+/**
+ * 학습 범위가 크게 겹치는 상식(data/knowledge-overlaps.ts)을 다시 내지 않는 기간(일).
+ * 2026-10-22 사용자 요청: 최근 7일 안에 거의 같은 개념을 반복하지 않는다.
+ */
+export const KNOWLEDGE_OVERLAP_DAYS = 7;
+
 /** IT 파트 하루 뉴스 분량. 경제 파트와 같이 근거가 부족하면 줄여서 낸다. */
 export const TECH_NEWS_PER_DAY = { min: 1, max: 3, default: 2 } as const;
 
