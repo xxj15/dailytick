@@ -118,8 +118,11 @@ export async function getArchiveEntries(limit = 180): Promise<ArchiveEntry[]> {
   }));
 }
 
-/** 기준일 이전 days일 동안 실은 뉴스. 기준일 당일 row(재생성 대상)는 넣지 않는다. */
-export async function getRecentNews(date: DateString, days = 3): Promise<RecentNewsEntry[]> {
+/**
+ * 기준일 이전 days일 동안 실은 뉴스. 기준일 당일 row(재생성 대상)는 넣지 않는다.
+ * 2026-10-22 사용자 요청으로 사흘에서 7일로 늘렸다. 하루 최대 세 건이라 고르기·작성·검토 입력이 크게 늘지 않는다.
+ */
+export async function getRecentNews(date: DateString, days = 7): Promise<RecentNewsEntry[]> {
   const from = new Date(Date.parse(`${date}T00:00:00Z`) - days * 86_400_000).toISOString().slice(0, 10);
   const { data, error } = await getSupabase()
     .from(TABLE)
@@ -137,6 +140,7 @@ export async function getRecentNews(date: DateString, days = 3): Promise<RecentN
       title: item.title,
       whatHappened: item.whatHappened.slice(0, 200),
       urls: item.sources.map((source) => source.url),
+      sourceTitles: item.sources.map((source) => source.title),
     })),
   );
 }

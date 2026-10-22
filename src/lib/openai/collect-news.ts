@@ -5,7 +5,7 @@ import { buildNewsSelectionPrompt } from "@/lib/openai/prompts";
 import { aiNewsSelectionSchema, newsCandidateSchema } from "@/lib/openai/schemas";
 import type { DateString } from "@/lib/date";
 import { belowSelectionFloor, candidatesFromPicks, collectFeedItems, normalizeItemId, selectionScore, type FeedItem, type FeedResult, type SelectionScores } from "@/lib/news/rss";
-import { repeatOfRecent } from "@/lib/news/repeat";
+import { mergeSameEvent, repeatOfRecent } from "@/lib/news/repeat";
 import type { NewsCandidate, RecentNewsEntry } from "@/types/briefing";
 import { zodTextFormat } from "openai/helpers/zod";
 
@@ -44,6 +44,10 @@ export type NewsSelectionAudit = {
   invalid?: string[];
   /** 최근에 실은 사건과 같아 뺀 후보(같은 기사 URL이거나 제목이 거의 같다) */
   repeats?: { title: string; recent: string }[];
+  /** 최근에 실은 사건과 제목이 비슷하지만 새 전개(development)가 보여 남긴 후보. 후속인지는 작성·검토가 본다 */
+  followUps?: { title: string; recent: string; development: string }[];
+  /** 같은 날 다른 후보와 같은 사건이라 뺀 후보와, 대신 남긴 후보 */
+  merged?: { title: string; kept: string }[];
 };
 
 async function selectFromFeeds(input: string, signal?: AbortSignal) {
@@ -88,7 +92,8 @@ export async function collectMarketNews(
     throw new NewsCollectionError(`뉴스 후보 고르기 실패: ${reason}`, usage);
   }
   const invalid: string[] = [];
-  const repeats: { title: string; recent: string }[] = [];
+  const repeats: NonNullable<NewsSelectionAudit["repeats"]> = [];
+  const followUps: NonNullable<NewsSelectionAudit["followUps"]> = [];
   // 하한 미달 후보는 출처를 붙이기 전에 뺀다. 먼저 고른 약한 후보가 같은 기사를 차지해 뒤의 후보가 출처를 잃지 않게 한다.
   const belowFloor: NonNullable<NewsSelectionAudit["belowFloor"]> = [];
   const passed = parsed.data.candidates.filter((pick) => {
@@ -96,18 +101,22 @@ export async function collectMarketNews(
     if (reason) belowFloor.push({ title: pick.title, score: selectionScore(pick.scores), reason });
     return !reason;
   });
-  const candidates = candidatesFromPicks(passed, items)
+  const checked = candidatesFromPicks(passed, items)
     .flatMap((candidate) => {
-      const checked = newsCandidateSchema.safeParse(candidate);
-      if (!checked.success) invalid.push(`${candidate.title}: ${checked.error.issues[0]?.path.join(".")} ${checked.error.issues[0]?.message}`);
-      return checked.success ? [checked.data] : [];
+      const result = newsCandidateSchema.safeParse(candidate);
+      if (!result.success) invalid.push(`${candidate.title}: ${result.error.issues[0]?.path.join(".")} ${result.error.issues[0]?.message}`);
+      return result.success ? [result.data] : [];
     })
-    // 모델이 놓친 반복을 코드가 한 번 더 거른다. 같은 기사 URL이거나 제목이 거의 같은 후보다(지표 기사는 URL만 본다)
+    // 모델이 놓친 반복을 코드가 한 번 더 거른다. 같은 기사 URL이거나 제목이 거의 같은 후보다(지표 기사는 URL만 본다).
+    // 제목이 비슷해도 새 전개(확정·시행·새 수치 등)가 보이면 후속일 수 있어 남긴다. 후속인지는 작성·검토가 근거로 본다
     .filter((candidate) => {
       const recent = repeatOfRecent(candidate, options.recentNews ?? []);
-      if (recent) repeats.push({ title: candidate.title, recent });
-      return !recent;
+      if (recent?.followUp) followUps.push({ title: candidate.title, recent: recent.title, development: recent.followUp });
+      else if (recent) repeats.push({ title: candidate.title, recent: recent.title });
+      return !recent || !!recent.followUp;
     });
+  // 같은 날 후보끼리 같은 사건이면 점수가 높은 것 하나만 남긴다. 한 사건이 두 슬롯에 실리지 않게 한다
+  const { kept: candidates, merged } = mergeSameEvent(checked);
   const known = new Set(items.map((item) => item.id));
   const selection: NewsSelectionAudit = {
     picked: parsed.data.candidates.map((pick) => {
@@ -121,6 +130,8 @@ export async function collectMarketNews(
     ...(belowFloor.length ? { belowFloor } : {}),
     ...(invalid.length ? { invalid } : {}),
     ...(repeats.length ? { repeats } : {}),
+    ...(followUps.length ? { followUps } : {}),
+    ...(merged.length ? { merged } : {}),
   };
   return { candidates, feeds, pool: items.length, selection, ...usage };
 }

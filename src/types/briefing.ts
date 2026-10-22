@@ -76,6 +76,8 @@ export type RecentNewsEntry = {
   title: string;
   whatHappened: string;
   urls: string[];
+  /** 출처 기사의 원래 제목. 지면 제목은 다시 쓴 제목이라, 코드가 같은 사건인지 볼 때 원 제목끼리도 비교한다(repeat.ts). */
+  sourceTitles?: string[];
 };
 
 /** 상식 모아보기 한 줄. 배운 날짜로 돌아갈 수 있게 날짜를 함께 둔다. */
